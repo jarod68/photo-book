@@ -25,7 +25,7 @@ export class ThumbnailStrip {
       const img = document.createElement('img');
       img.alt = photo.name;
       img.onload = () => img.classList.add('loaded');
-      img.src = photo.url;
+      img.src = photo.previewUrl || photo.url;
       thumb.appendChild(img);
 
       if (photo.is360) {

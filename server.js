@@ -111,24 +111,51 @@ async function photoMeta(albumName, file, albumPath) {
   };
 }
 
+// ─── Startup pre-generation ──────────────────────────────────────────────────
+// Runs in background after server start; skips photos that already have a
+// preview so subsequent restarts are near-instant.
+
+async function preGenerateAll() {
+  if (!fs.existsSync(PHOTOS_DIR)) return;
+  const albums = fs.readdirSync(PHOTOS_DIR, { withFileTypes: true })
+    .filter(e => e.isDirectory() && !e.name.startsWith('.'));
+
+  let count = 0;
+  for (const album of albums) {
+    const albumPath = path.join(PHOTOS_DIR, album.name);
+    const files = fs.readdirSync(albumPath).filter(isImage).sort();
+    for (const file of files) {
+      const previewPath = path.join(PREVIEWS_DIR, album.name, path.parse(file).name + '.jpg');
+      if (!fs.existsSync(previewPath)) {
+        await photoMeta(album.name, file, albumPath).catch(e => console.error('Preview error:', file, e.message));
+        count++;
+      }
+    }
+  }
+  if (count > 0) console.log(`  ✓ ${count} miniature${count > 1 ? 's' : ''} générée${count > 1 ? 's' : ''}.`);
+}
+
 // ─── Routes ──────────────────────────────────────────────────────────────────
 
-app.get('/api/albums', (req, res) => {
+app.get('/api/albums', async (req, res) => {
   try {
     if (!fs.existsSync(PHOTOS_DIR)) fs.mkdirSync(PHOTOS_DIR, { recursive: true });
 
-    const albums = fs.readdirSync(PHOTOS_DIR, { withFileTypes: true })
-      .filter(e => e.isDirectory() && !e.name.startsWith('.'))
-      .map(e => {
-        const files = fs.readdirSync(path.join(PHOTOS_DIR, e.name)).filter(isImage).sort();
-        return {
-          name:  e.name,
-          count: files.length,
-          cover: files[0]
-            ? `/photos/${encodeURIComponent(e.name)}/${encodeURIComponent(files[0])}`
-            : null,
-        };
-      });
+    const entries = fs.readdirSync(PHOTOS_DIR, { withFileTypes: true })
+      .filter(e => e.isDirectory() && !e.name.startsWith('.'));
+
+    const albums = await Promise.all(entries.map(async e => {
+      const files = fs.readdirSync(path.join(PHOTOS_DIR, e.name)).filter(isImage).sort();
+      const firstFile = files[0];
+      let cover = null;
+      let coverPreview = null;
+      if (firstFile) {
+        cover = `/photos/${encodeURIComponent(e.name)}/${encodeURIComponent(firstFile)}`;
+        const coverPath = path.join(PHOTOS_DIR, e.name, firstFile);
+        coverPreview = await ensurePreview(e.name, firstFile, coverPath, false).catch(() => null);
+      }
+      return { name: e.name, count: files.length, cover, coverPreview };
+    }));
 
     res.json(albums);
   } catch (err) {
@@ -160,4 +187,5 @@ app.listen(PORT, () => {
   console.log(`  ➜  http://localhost:${PORT}`);
   console.log(`  Photos:   ${PHOTOS_DIR}`);
   console.log(`  Previews: ${PREVIEWS_DIR}\n`);
+  preGenerateAll().catch(console.error);
 });
