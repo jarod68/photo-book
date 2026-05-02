@@ -1,0 +1,12 @@
+services:
+  book:
+    build:
+        context: .
+        platforms:
+          - linux/amd64   # ← cible le Synology DS420+
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./photos:/app/photos                   # albums (source of truth on the host)
+      - ./public/previews:/app/public/previews # preview cache persisted across restarts
+    restart: unless-stopped

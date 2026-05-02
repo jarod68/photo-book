@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Visionneuse — Book</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pannellum@2.5.6/build/pannellum.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="page-viewer">
+  <div id="app">
+
+    <nav id="album-nav" aria-label="Albums">
+      <div id="album-tabs" role="tablist"></div>
+    </nav>
+
+    <main id="viewer">
+      <div id="pnl-container"></div>
+      <img id="std-img" alt="">
+
+      <div id="photo-info">
+        <span id="badge-360" class="badge-360">360°</span>
+        <h1 id="photo-name"></h1>
+        <p  id="photo-desc"></p>
+      </div>
+
+      <button id="prev-btn" class="nav-arrow" aria-label="Photo précédente">&#8249;</button>
+      <button id="next-btn" class="nav-arrow" aria-label="Photo suivante">&#8250;</button>
+
+      <div id="pano-controls">
+        <button id="pano-zoom-in"  aria-label="Zoom avant">+</button>
+        <button id="pano-zoom-out" aria-label="Zoom arrière">−</button>
+        <button id="pano-recenter" aria-label="Recentrer">⊙</button>
+      </div>
+    </main>
+
+    <div id="strip">
+      <div id="thumbnails" role="listbox" aria-label="Photos"></div>
+    </div>
+
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/pannellum@2.5.6/build/pannellum.js"></script>
+  <script type="module" src="pages/viewer.js"></script>
+</body>
+</html>
