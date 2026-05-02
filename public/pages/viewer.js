@@ -1,6 +1,8 @@
 import { AlbumTabs }      from '../components/album-tabs.js';
 import { ThumbnailStrip } from '../components/thumbnail-strip.js';
 import { PhotoViewer }    from '../components/photo-viewer.js';
+import { PhotoMap }       from '../components/photo-map.js';
+import { AlbumMap }       from '../components/album-map.js';
 
 // ── State ─────────────────────────────────────────────────────────────────────
 const state = {
@@ -11,10 +13,11 @@ const state = {
 };
 
 // ── DOM ───────────────────────────────────────────────────────────────────────
-const tabsEl   = document.getElementById('album-tabs');
-const thumbsEl = document.getElementById('thumbnails');
-const prevBtn  = document.getElementById('prev-btn');
-const nextBtn  = document.getElementById('next-btn');
+const tabsEl        = document.getElementById('album-tabs');
+const thumbsEl      = document.getElementById('thumbnails');
+const prevBtn       = document.getElementById('prev-btn');
+const nextBtn       = document.getElementById('next-btn');
+const albumMapBtn   = document.getElementById('album-map-btn');
 
 const viewer = new PhotoViewer({
   root:         document.getElementById('viewer'),
@@ -35,6 +38,26 @@ const tabs   = new AlbumTabs(tabsEl);
 const thumbs = new ThumbnailStrip(thumbsEl, i => showPhoto(i), {
   prevBtn: document.getElementById('strip-prev'),
   nextBtn: document.getElementById('strip-next'),
+});
+
+const photoMap = new PhotoMap({
+  miniEl:      document.getElementById('photo-map-mini'),
+  miniCanvas:  document.getElementById('photo-map-canvas'),
+  expandBtn:   document.getElementById('photo-map-expand'),
+  modalEl:     document.getElementById('map-modal'),
+  modalCanvas: document.getElementById('map-modal-canvas'),
+  closeBtn:    document.getElementById('map-modal-close'),
+  onSelect:    i => showPhoto(i),
+});
+
+const albumMap = new AlbumMap({
+  overlayEl: document.getElementById('album-map-overlay'),
+  canvasEl:  document.getElementById('album-map-canvas'),
+  closeBtn:  document.getElementById('album-map-close'),
+});
+
+albumMapBtn.addEventListener('click', () => {
+  albumMap.open(state.photos, state.index, i => showPhoto(i));
 });
 
 // ── Init ──────────────────────────────────────────────────────────────────────
@@ -61,6 +84,9 @@ async function selectAlbum(name) {
   state.index  = -1;
   thumbs.render(state.photos);
 
+  // Enable the album map button only if at least one photo has GPS
+  albumMapBtn.disabled = !state.photos.some(p => p.gps);
+
   if (state.photos.length > 0) showPhoto(0);
 }
 
@@ -72,6 +98,8 @@ function showPhoto(index) {
   state.index = index;
   updateNav();
   thumbs.activate(index);
+  photoMap.update(photo, index, state.photos);
+  albumMap.setCurrent(index);
 
   viewer.show(photo, () => {
     state.photos[index].is360 = true;

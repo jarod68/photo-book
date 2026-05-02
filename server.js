@@ -64,7 +64,7 @@ async function photoMeta(albumName, file, albumPath) {
 
   try {
     const exif = await exifr.parse(filePath, {
-      xmp: true, iptc: true, exif: true, gps: false, icc: false, jfif: false,
+      xmp: true, iptc: true, exif: true, gps: true, icc: false, jfif: false,
     }) || {};
 
     const proj = exif.ProjectionType;
@@ -101,6 +101,15 @@ async function photoMeta(albumName, file, albumPath) {
   // Generate preview (cached after first run — ~165 ms for 8K on first call)
   const previewUrl = await ensurePreview(albumName, file, filePath, is360).catch(() => null);
 
+  // GPS extracted separately to avoid polluting the try/catch above
+  let gps = null;
+  try {
+    const g = await exifr.gps(filePath);
+    if (g?.latitude != null && g?.longitude != null) {
+      gps = { lat: +g.latitude.toFixed(6), lng: +g.longitude.toFixed(6) };
+    }
+  } catch (_) {}
+
   return {
     filename: file,
     url:        `/photos/${encodeURIComponent(albumName)}/${encodeURIComponent(file)}`,
@@ -108,6 +117,7 @@ async function photoMeta(albumName, file, albumPath) {
     name:        String(name).trim(),
     description: String(description).trim(),
     is360,
+    gps,
   };
 }
 
