@@ -13,11 +13,43 @@ const state = {
 };
 
 // ── DOM ───────────────────────────────────────────────────────────────────────
-const tabsEl        = document.getElementById('album-tabs');
-const thumbsEl      = document.getElementById('thumbnails');
-const prevBtn       = document.getElementById('prev-btn');
-const nextBtn       = document.getElementById('next-btn');
-const albumMapBtn   = document.getElementById('album-map-btn');
+const tabsEl      = document.getElementById('album-tabs');
+const thumbsEl    = document.getElementById('thumbnails');
+const prevBtn     = document.getElementById('prev-btn');
+const nextBtn     = document.getElementById('next-btn');
+const albumMapBtn = document.getElementById('album-map-btn');
+const locationEl  = document.getElementById('photo-location');
+
+// ── Geocoding (lazy, cached on photo objects) ─────────────────────────────────
+async function showLocation(photo) {
+  // Priority 1: IPTC location already in metadata
+  if (photo.location) {
+    locationEl.textContent = photo.location;
+    locationEl.classList.add('visible');
+    return;
+  }
+
+  // Priority 2: reverse geocode from GPS (result cached on the photo object)
+  if (photo.gps) {
+    locationEl.textContent = '…';
+    locationEl.classList.add('visible');
+    try {
+      const res  = await fetch(`/api/geocode?lat=${photo.gps.lat}&lng=${photo.gps.lng}`);
+      const data = await res.json();
+      photo.location = data.location || null; // cache on object for next visit
+      if (photo.location) {
+        locationEl.textContent = photo.location;
+      } else {
+        locationEl.classList.remove('visible');
+      }
+    } catch {
+      locationEl.classList.remove('visible');
+    }
+    return;
+  }
+
+  locationEl.classList.remove('visible');
+}
 
 const viewer = new PhotoViewer({
   root:         document.getElementById('viewer'),
@@ -68,13 +100,14 @@ async function init() {
   tabs.onSelect(name => selectAlbum(name));
   tabs.render(albums, null);
 
-  const param   = new URLSearchParams(location.search).get('album');
+  const params  = new URLSearchParams(location.search);
+  const param   = params.get('album');
   const initial = albums.find(a => a.name === param) ?? albums[0];
-  if (initial) await selectAlbum(initial.name);
+  if (initial) await selectAlbum(initial.name, params.get('photo'));
 }
 
 // ── Album selection ───────────────────────────────────────────────────────────
-async function selectAlbum(name) {
+async function selectAlbum(name, targetFilename = null) {
   if (name === state.current) return;
   state.current = name;
   tabs.render(state.albums, name);
@@ -84,10 +117,14 @@ async function selectAlbum(name) {
   state.index  = -1;
   thumbs.render(state.photos);
 
-  // Enable the album map button only if at least one photo has GPS
   albumMapBtn.disabled = !state.photos.some(p => p.gps);
 
-  if (state.photos.length > 0) showPhoto(0);
+  if (state.photos.length > 0) {
+    const target = targetFilename
+      ? (state.photos.findIndex(p => p.filename === targetFilename) || 0)
+      : 0;
+    showPhoto(Math.max(0, target));
+  }
 }
 
 // ── Photo display ─────────────────────────────────────────────────────────────
@@ -100,6 +137,7 @@ function showPhoto(index) {
   thumbs.activate(index);
   photoMap.update(photo, index, state.photos);
   albumMap.setCurrent(index);
+  showLocation(photo);
 
   viewer.show(photo, () => {
     state.photos[index].is360 = true;

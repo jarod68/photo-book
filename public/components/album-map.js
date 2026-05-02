@@ -1,3 +1,5 @@
+import { buildMarkerIcon, shortLocation } from './map-marker.js';
+
 /**
  * AlbumMap — full-screen overlay showing all GPS locations of an album.
  *
@@ -72,19 +74,7 @@ export class AlbumMap {
     geoPhotos.forEach(photo => {
       const i       = allPhotos.indexOf(photo);
       const isCurrent = i === currentIndex;
-
-      // Custom div icon with photo number
-      const pinEl = document.createElement('div');
-      pinEl.className = `map-pin${isCurrent ? ' current' : ''}`;
-      pinEl.textContent = String(i + 1);
-
-      const icon = L.divIcon({
-        html:        pinEl,
-        className:   '',
-        iconSize:    isCurrent ? [34, 34] : [28, 28],
-        iconAnchor:  isCurrent ? [17, 17] : [14, 14],
-        popupAnchor: [0, isCurrent ? -20 : -17],
-      });
+      const icon = buildMarkerIcon(i + 1, isCurrent, shortLocation(photo.location));
 
       const marker = L.marker([photo.gps.lat, photo.gps.lng], { icon })
         .addTo(this._map)
