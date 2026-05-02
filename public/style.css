@@ -369,14 +369,17 @@ body {
   display: flex;
   align-items: center;
   flex-shrink: 0;
+  position: relative;
   overflow: hidden;
 }
 
 #thumbnails {
+  flex: 1;
+  min-width: 0;
   display: flex;
   align-items: center;
   gap: 5px;
-  padding: 0 12px;
+  padding: 0 48px;
   height: 100%;
   overflow-x: auto;
   scrollbar-width: thin;
@@ -385,6 +388,42 @@ body {
 #thumbnails::-webkit-scrollbar       { height: 3px; }
 #thumbnails::-webkit-scrollbar-track { background: transparent; }
 #thumbnails::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.14); border-radius: 2px; }
+
+/* ── Strip scroll arrows ─────────────────────────────────────────────────────── */
+.strip-arrow {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 48px;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  color: rgba(255,255,255,0.85);
+  font-size: 26px;
+  line-height: 1;
+  z-index: 3;
+  transition: color 0.15s, opacity 0.2s;
+  user-select: none;
+  padding-bottom: 2px;
+}
+.strip-arrow-left {
+  left: 0;
+  background: linear-gradient(to right, rgba(0,0,0,0.80) 40%, transparent 100%);
+  justify-content: flex-start;
+  padding-left: 10px;
+}
+.strip-arrow-right {
+  right: 0;
+  background: linear-gradient(to left, rgba(0,0,0,0.80) 40%, transparent 100%);
+  justify-content: flex-end;
+  padding-right: 10px;
+}
+.strip-arrow:hover:not(:disabled) { color: #fff; }
+.strip-arrow:disabled {
+  opacity: 0;
+  pointer-events: none;
+}
 
 .thumb {
   width: 64px;
