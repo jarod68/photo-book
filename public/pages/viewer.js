@@ -32,7 +32,10 @@ const viewer = new PhotoViewer({
 });
 
 const tabs   = new AlbumTabs(tabsEl);
-const thumbs = new ThumbnailStrip(thumbsEl, i => showPhoto(i));
+const thumbs = new ThumbnailStrip(thumbsEl, i => showPhoto(i), {
+  prevBtn: document.getElementById('strip-prev'),
+  nextBtn: document.getElementById('strip-next'),
+});
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 async function init() {
