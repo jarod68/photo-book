@@ -12,7 +12,7 @@ export function createAlbumCard(album) {
     const img = document.createElement('img');
     img.alt = album.name;
     img.onload = () => img.classList.add('loaded');
-    img.src = album.cover;
+    img.src = album.coverPreview || album.cover;
     card.appendChild(img);
   } else {
     const empty = document.createElement('div');
