@@ -1,3 +1,5 @@
+import { buildMarkerIcon, shortLocation } from './map-marker.js';
+
 /**
  * PhotoMap — mini-map in the viewer corner + expandable modal.
  *
@@ -113,20 +115,10 @@ export class PhotoMap {
       if (!photo.gps) return;
 
       const isCurrent = i === this._index;
-
-      const pinEl = document.createElement('div');
-      pinEl.className = `map-pin${isCurrent ? ' current' : ''}`;
-      pinEl.textContent = String(i + 1);
-
-      const size = isCurrent ? [34, 34] : [28, 28];
-      const anchor = isCurrent ? [17, 17] : [14, 14];
+      const icon = buildMarkerIcon(i + 1, isCurrent, shortLocation(photo.location));
 
       const marker = L.marker([photo.gps.lat, photo.gps.lng], {
-        icon: L.divIcon({
-          html: pinEl, className: '',
-          iconSize: size, iconAnchor: anchor,
-          popupAnchor: [0, -anchor[1]],
-        }),
+        icon,
         zIndexOffset: isCurrent ? 1000 : 0,
       })
         .addTo(this._modalMap)
@@ -136,9 +128,11 @@ export class PhotoMap {
       bounds.push([photo.gps.lat, photo.gps.lng]);
     });
 
-    if (bounds.length === 1) {
-      this._modalMap.setView(bounds[0], 15);
-    } else if (bounds.length > 1) {
+    // Always open centred on the current photo at street level.
+    // Other markers are visible on the map; user can zoom out to see them all.
+    if (this._current) {
+      this._modalMap.setView([this._current.lat, this._current.lng], 14);
+    } else if (bounds.length > 0) {
       this._modalMap.fitBounds(bounds, { padding: [50, 50] });
     }
 

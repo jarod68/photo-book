@@ -14,6 +14,9 @@ const PREVIEWS_DIR = path.join(__dirname, 'public', 'previews');
 const IMAGE_EXT = new Set(['.jpg', '.jpeg', '.png', '.webp', '.tiff', '.tif']);
 const isImage   = f => IMAGE_EXT.has(path.extname(f).toLowerCase());
 
+// ─── Reverse geocoding cache (in-memory) ─────────────────────────────────────
+const geoCache = new Map(); // key: "lat,lng" → location string | null
+
 // ─── Static files ────────────────────────────────────────────────────────────
 
 app.use(express.static(path.join(__dirname, 'public')));
@@ -58,9 +61,10 @@ function safeAlbumPath(name) {
 
 async function photoMeta(albumName, file, albumPath) {
   const filePath = path.join(albumPath, file);
-  let name        = path.basename(file, path.extname(file));
-  let description = '';
-  let is360       = false;
+  let name         = path.basename(file, path.extname(file));
+  let description  = '';
+  let is360        = false;
+  let iptcLocation = null;
 
   try {
     const exif = await exifr.parse(filePath, {
@@ -96,6 +100,14 @@ async function photoMeta(albumName, file, albumPath) {
       const imgDesc = clean(exif.ImageDescription);
       if (imgDesc && imgDesc !== name) description = imgDesc;
     }
+
+    // IPTC location fields (populated by some cameras and editing software)
+    const iptcCity    = clean(exif.City);
+    const iptcState   = clean(exif['Province-State']);
+    const iptcCountry = clean(exif['Country-PrimaryLocationName']) || clean(exif.country);
+    if (iptcCity || iptcState || iptcCountry) {
+      iptcLocation = [iptcCity, iptcState, iptcCountry].filter(Boolean).join(', ');
+    }
   } catch (_) { /* use filename defaults */ }
 
   // Generate preview (cached after first run — ~165 ms for 8K on first call)
@@ -111,13 +123,14 @@ async function photoMeta(albumName, file, albumPath) {
   } catch (_) {}
 
   return {
-    filename: file,
-    url:        `/photos/${encodeURIComponent(albumName)}/${encodeURIComponent(file)}`,
+    filename:    file,
+    url:         `/photos/${encodeURIComponent(albumName)}/${encodeURIComponent(file)}`,
     previewUrl,
     name:        String(name).trim(),
     description: String(description).trim(),
     is360,
     gps,
+    location:    iptcLocation,
   };
 }
 
@@ -187,6 +200,82 @@ app.get('/api/albums/:album', async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── Global map — all GPS photos across all albums ────────────────────────────
+
+app.get('/api/map', async (req, res) => {
+  if (!fs.existsSync(PHOTOS_DIR)) return res.json([]);
+  try {
+    const albumDirs = fs.readdirSync(PHOTOS_DIR, { withFileTypes: true })
+      .filter(e => e.isDirectory() && !e.name.startsWith('.'));
+
+    const buckets = await Promise.all(albumDirs.map(async dir => {
+      const albumPath = path.join(PHOTOS_DIR, dir.name);
+      const files     = fs.readdirSync(albumPath).filter(isImage).sort();
+      const photos    = [];
+
+      await Promise.all(files.map(async (file, albumIndex) => {
+        try {
+          const filePath = path.join(albumPath, file);
+          const g = await exifr.gps(filePath);
+          if (!g?.latitude) return;
+
+          const previewName = path.parse(file).name + '.jpg';
+          const previewPath = path.join(PREVIEWS_DIR, dir.name, previewName);
+          const previewUrl  = fs.existsSync(previewPath)
+            ? `/previews/${encodeURIComponent(dir.name)}/${encodeURIComponent(previewName)}`
+            : null;
+
+          photos.push({
+            gps:        { lat: +g.latitude.toFixed(6), lng: +g.longitude.toFixed(6) },
+            name:       path.basename(file, path.extname(file)),
+            filename:   file,
+            previewUrl,
+            url:        `/photos/${encodeURIComponent(dir.name)}/${encodeURIComponent(file)}`,
+            album:      dir.name,
+            albumIndex,
+          });
+        } catch (_) {}
+      }));
+
+      return photos;
+    }));
+
+    res.json(buckets.flat());
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── Reverse geocoding (Nominatim proxy) ─────────────────────────────────────
+// Proxied server-side so we can set a proper User-Agent and cache results.
+
+app.get('/api/geocode', async (req, res) => {
+  const lat = parseFloat(req.query.lat);
+  const lng = parseFloat(req.query.lng);
+  if (isNaN(lat) || isNaN(lng)) return res.status(400).json({ error: 'Invalid coordinates' });
+
+  const key = `${lat.toFixed(3)},${lng.toFixed(3)}`; // ~110 m precision
+  if (geoCache.has(key)) return res.json({ location: geoCache.get(key) });
+
+  try {
+    const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=10&accept-language=fr`;
+    const raw = await fetch(url, {
+      headers: { 'User-Agent': 'photo-book/1.0 (self-hosted personal use)' },
+    });
+    const data = await raw.json();
+    const a    = data.address || {};
+    const place   = a.village || a.suburb || a.town || a.city_district || a.city || a.municipality || a.county || '';
+    const country = a.country || '';
+    const location = [place, country].filter(Boolean).join(', ') || null;
+    geoCache.set(key, location);
+    res.json({ location });
+  } catch (err) {
+    console.error('Geocode error:', err.message);
+    res.json({ location: null });
   }
 });
 
