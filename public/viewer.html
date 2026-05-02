@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Visionneuse — Photo Book</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pannellum@2.5.6/build/pannellum.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css">
   <link rel="stylesheet" href="style.css">
 </head>
 <body class="page-viewer">
@@ -12,6 +13,12 @@
 
     <nav id="album-nav" aria-label="Albums">
       <div id="album-tabs" role="tablist"></div>
+      <button id="album-map-btn" class="album-map-btn" title="Carte de l'album" disabled>
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor" aria-hidden="true">
+          <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
+        </svg>
+        Carte
+      </button>
     </nav>
 
     <main id="viewer">
@@ -26,6 +33,14 @@
 
       <button id="prev-btn" class="nav-arrow" aria-label="Photo précédente">&#8249;</button>
       <button id="next-btn" class="nav-arrow" aria-label="Photo suivante">&#8250;</button>
+
+      <!-- Mini-map: shown when the current photo has GPS data -->
+      <div id="photo-map-mini" class="photo-map-mini hidden">
+        <div id="photo-map-canvas"></div>
+        <button id="photo-map-expand" class="photo-map-expand-btn" title="Agrandir la carte">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>
+        </button>
+      </div>
 
       <div id="pano-controls">
         <button id="pano-zoom-in"  aria-label="Zoom avant">+</button>
@@ -42,7 +57,20 @@
 
   </div>
 
+  <!-- Map modal: enlarged view of a single photo location -->
+  <div id="map-modal" class="map-modal hidden" role="dialog" aria-modal="true">
+    <div id="map-modal-canvas"></div>
+    <button id="map-modal-close" class="map-modal-close" aria-label="Fermer">✕</button>
+  </div>
+
+  <!-- Album map overlay: all photos on one map -->
+  <div id="album-map-overlay" class="album-map-overlay hidden" role="dialog" aria-modal="true">
+    <div id="album-map-canvas"></div>
+    <button id="album-map-close" class="album-map-close" aria-label="Fermer">✕</button>
+  </div>
+
   <script src="https://cdn.jsdelivr.net/npm/pannellum@2.5.6/build/pannellum.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
   <script type="module" src="pages/viewer.js"></script>
 </body>
 </html>
