@@ -1,0 +1,7 @@
+node_modules
+.git
+.DS_Store
+
+# mounted at runtime — not baked into the image
+photos
+public/previews
