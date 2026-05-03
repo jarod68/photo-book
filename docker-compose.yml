@@ -1,9 +1,11 @@
 services:
-  book:
+  photo-book:
+    image: jarod68/photo-book:latest
     build:
         context: .
         platforms:
-          - linux/amd64   # ← cible le Synology DS420+
+          - linux/amd64
+          - linux/arm64
     ports:
       - "3000:3000"
     volumes:
