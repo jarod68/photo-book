@@ -63,6 +63,7 @@ const viewer = new PhotoViewer({
     zoomIn:   document.getElementById('pano-zoom-in'),
     zoomOut:  document.getElementById('pano-zoom-out'),
     recenter: document.getElementById('pano-recenter'),
+    gyroBtn:  document.getElementById('pano-gyro'),
   },
 });
 
