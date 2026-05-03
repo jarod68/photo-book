@@ -11,8 +11,9 @@ const PHOTOS_DIR = process.env.PHOTOS_DIR
   : path.join(__dirname, 'photos');
 const PREVIEWS_DIR = path.join(__dirname, 'public', 'previews');
 
-const IMAGE_EXT = new Set(['.jpg', '.jpeg', '.png', '.webp', '.tiff', '.tif']);
-const isImage   = f => IMAGE_EXT.has(path.extname(f).toLowerCase());
+const IMAGE_EXT  = new Set(['.jpg', '.jpeg', '.png', '.webp', '.tiff', '.tif']);
+const isImage    = f => IMAGE_EXT.has(path.extname(f).toLowerCase());
+const isAlbumDir = e => e.isDirectory() && /^[A-Za-z0-9]/.test(e.name);
 
 // ─── Reverse geocoding cache (in-memory) ─────────────────────────────────────
 const geoCache = new Map(); // key: "lat,lng" → location string | null
@@ -141,7 +142,7 @@ async function photoMeta(albumName, file, albumPath) {
 async function preGenerateAll() {
   if (!fs.existsSync(PHOTOS_DIR)) return;
   const albums = fs.readdirSync(PHOTOS_DIR, { withFileTypes: true })
-    .filter(e => e.isDirectory() && !e.name.startsWith('.'));
+    .filter(e => isAlbumDir(e));
 
   let count = 0;
   for (const album of albums) {
@@ -165,7 +166,7 @@ app.get('/api/albums', async (req, res) => {
     if (!fs.existsSync(PHOTOS_DIR)) fs.mkdirSync(PHOTOS_DIR, { recursive: true });
 
     const entries = fs.readdirSync(PHOTOS_DIR, { withFileTypes: true })
-      .filter(e => e.isDirectory() && !e.name.startsWith('.'));
+      .filter(e => isAlbumDir(e));
 
     const albums = await Promise.all(entries.map(async e => {
       const files = fs.readdirSync(path.join(PHOTOS_DIR, e.name)).filter(isImage).sort();
@@ -209,7 +210,7 @@ app.get('/api/map', async (req, res) => {
   if (!fs.existsSync(PHOTOS_DIR)) return res.json([]);
   try {
     const albumDirs = fs.readdirSync(PHOTOS_DIR, { withFileTypes: true })
-      .filter(e => e.isDirectory() && !e.name.startsWith('.'));
+      .filter(e => isAlbumDir(e));
 
     const buckets = await Promise.all(albumDirs.map(async dir => {
       const albumPath = path.join(PHOTOS_DIR, dir.name);

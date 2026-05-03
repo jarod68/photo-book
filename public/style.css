@@ -774,3 +774,103 @@ body {
 .map-popup-view:hover { background: #2563eb; }
 
 @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+   MOBILE — touch targets, safe-area insets, responsive layout
+   viewport-fit=cover + env(safe-area-inset-*) handle Android nav bar / iOS notch
+═══════════════════════════════════════════════════════════════════════════════ */
+
+/* Dynamic viewport height: prevents content hiding behind mobile URL bar */
+@supports (height: 100dvh) {
+  .page-viewer { height: 100dvh; }
+  #app         { height: 100dvh; }
+}
+
+/* ── Touch devices: larger tap targets & ergonomic layout ──────────────────── */
+@media (pointer: coarse) {
+
+  /* Strip: taller + safe-area padding so thumbs clear the Android/iOS home bar */
+  #strip {
+    height: calc(96px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  .thumb        { height: 70px; }
+  .strip-arrow  { font-size: 30px; }
+
+  /* Album nav tabs */
+  #album-nav    { height: 54px; }
+  .album-tab    { font-size: 14px; padding: 0 14px; }
+  .album-tab-back { padding: 0 12px; font-size: 22px; }
+  .album-map-btn  { font-size: 13px; padding: 0 14px; gap: 6px; }
+
+  /* Nav arrows: always visible + bigger on touch */
+  .nav-arrow {
+    width: 50px;
+    height: 50px;
+    font-size: 28px;
+    opacity: 0.82;
+  }
+  #viewer:hover .nav-arrow { opacity: 0.82; }
+  .nav-arrow:active { background: rgba(0,0,0,0.65); color: #fff; opacity: 1; }
+
+  /* Photo info: raise above the taller strip + safe area */
+  #photo-info {
+    bottom: calc(104px + env(safe-area-inset-bottom, 0px));
+    max-width: calc(100% - 120px);
+  }
+  #photo-name { font-size: 14px; }
+
+  /* Pano controls: 44px min touch target, lifted above safe area */
+  #pano-controls {
+    bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+    gap: 8px;
+  }
+  #pano-controls button {
+    width: 44px;
+    height: 44px;
+    font-size: 18px;
+    border-radius: 8px;
+  }
+  #pano-recenter { font-size: 22px; }
+
+  /* Mini-map: slightly smaller on narrow screens, still usable */
+  .photo-map-mini { width: 150px; height: 108px; }
+
+  /* Modal close buttons */
+  .map-modal-close,
+  .album-map-close {
+    width: 44px;
+    height: 44px;
+    font-size: 17px;
+  }
+}
+
+/* ── Small screens: compact home grid + tighten horizontal spacing ─────────── */
+@media (max-width: 600px) {
+
+  /* Home page */
+  .home-header { padding: 24px 16px 0; }
+  .album-grid  {
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    padding: 18px 16px calc(32px + env(safe-area-inset-bottom, 0px));
+  }
+
+  /* Viewer: arrows closer to edge */
+  #prev-btn { left: 6px; }
+  #next-btn { right: 6px; }
+
+  /* Strip: hide scrollbar on small screens, touch-scroll is enough */
+  #thumbnails { scrollbar-width: none; }
+  #thumbnails::-webkit-scrollbar { display: none; }
+
+  /* Map page header safe area */
+  .map-page-header {
+    padding-top: max(12px, env(safe-area-inset-top, 0px));
+    height: auto;
+    min-height: 50px;
+  }
+  #world-map {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+}
