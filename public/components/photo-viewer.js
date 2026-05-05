@@ -316,6 +316,10 @@ export class PhotoViewer {
 
     root.addEventListener('pointerdown', e => {
       if (this._img.style.display === 'none') return;
+      // Ne pas capturer les clics sur les éléments interactifs superposés
+      // (mini-carte, boutons de navigation, etc.) — setPointerCapture bloquerait
+      // leur événement click en redirigeant pointerup vers #viewer.
+      if (e.target.closest('button, a, .photo-map-mini')) return;
       ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
       root.setPointerCapture(e.pointerId);
 

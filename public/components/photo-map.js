@@ -86,7 +86,12 @@ export class PhotoMap {
     }
 
     this._miniMarker.setLatLng([gps.lat, gps.lng]);
-    this._miniMap.setView([gps.lat, gps.lng], 13);
+    // Le conteneur était peut-être display:none (photo sans GPS précédente) :
+    // invalidateSize() recalibre la taille avant setView.
+    requestAnimationFrame(() => {
+      this._miniMap.invalidateSize();
+      this._miniMap.setView([gps.lat, gps.lng], 13);
+    });
   }
 
   // ── Modal map (all GPS photos of the album) ─────────────────────────────────
@@ -128,15 +133,19 @@ export class PhotoMap {
       bounds.push([photo.gps.lat, photo.gps.lng]);
     });
 
-    // Always open centred on the current photo at street level.
-    // Other markers are visible on the map; user can zoom out to see them all.
-    if (this._current) {
-      this._modalMap.setView([this._current.lat, this._current.lng], 14);
-    } else if (bounds.length > 0) {
-      this._modalMap.fitBounds(bounds, { padding: [50, 50] });
-    }
-
-    requestAnimationFrame(() => this._modalMap.invalidateSize());
+    // setView APRÈS invalidateSize : le conteneur vient d'être affiché (display:none → flex),
+    // Leaflet a mis en cache une taille zéro. On attend deux frames pour que le navigateur
+    // ait terminé le layout, puis on recalibre avant de positionner la vue.
+    const current = this._current;
+    const fitBounds = bounds.length > 0 ? bounds : null;
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      this._modalMap.invalidateSize();
+      if (current) {
+        this._modalMap.setView([current.lat, current.lng], 14);
+      } else if (fitBounds) {
+        this._modalMap.fitBounds(fitBounds, { padding: [50, 50] });
+      }
+    }));
   }
 
   _buildPopup(photo, index, isCurrent) {

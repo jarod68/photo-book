@@ -5,8 +5,8 @@
  * optional location label pill to the right of the pin.
  */
 
-const COLOR_DEFAULT = '#3b82f6'; // blue
-const COLOR_CURRENT = '#ef4444'; // red
+const COLOR_DEFAULT = '#c8914a'; // ambre doré
+const COLOR_CURRENT = '#c0432a'; // rouge voyage
 
 /**
  * @param {number}       num           - number shown inside the pin

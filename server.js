@@ -220,7 +220,10 @@ app.get('/api/map', async (req, res) => {
       await Promise.all(files.map(async (file, albumIndex) => {
         try {
           const filePath = path.join(albumPath, file);
-          const g = await exifr.gps(filePath);
+          const [g, tags] = await Promise.all([
+            exifr.gps(filePath),
+            exifr.parse(filePath, ['DateTimeOriginal', 'CreateDate']).catch(() => null),
+          ]);
           if (!g?.latitude) return;
 
           const previewName = path.parse(file).name + '.jpg';
@@ -229,8 +232,11 @@ app.get('/api/map', async (req, res) => {
             ? `/previews/${encodeURIComponent(dir.name)}/${encodeURIComponent(previewName)}`
             : null;
 
+          const rawDate = tags?.DateTimeOriginal ?? tags?.CreateDate ?? null;
+
           photos.push({
             gps:        { lat: +g.latitude.toFixed(6), lng: +g.longitude.toFixed(6) },
+            date:       rawDate instanceof Date ? rawDate.toISOString() : null,
             name:       path.basename(file, path.extname(file)),
             filename:   file,
             previewUrl,
