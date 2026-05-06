@@ -1,9 +1,9 @@
-import { buildMarkerIcon, shortLocation } from '../components/map-marker.js';
+import { buildMarkerIcon } from '../components/map-marker.js';
 
 const MAX_DAYS    = 21;    // fenêtre consécutive max : 3 semaines
 const MAX_KM      = 400;   // rayon max entre deux points consécutifs
 const CLUSTER_KM  = 5;     // rayon de regroupement de photos proches
-const ROUTE_COLOR = '#f59e0b'; // ambre vif — accord avec le thème, lisible sur carte
+const ROUTE_COLOR = '#3b82f6'; // bleu cobalt — cohérent avec les pins
 const ARROW_TS    = [0.2, 0.5, 0.8]; // positions des flèches sur la courbe (t ∈ ]0,1[)
 
 // ── Haversine distance (km) ───────────────────────────────────────────────────
@@ -216,9 +216,29 @@ async function init() {
     }
   });
 
+  // Numérotation par album, ordonnée par date de prise de vue
+  // Label : "NomAlbum-N"  ex. "Costa Rica-1"
+  const albumGroups = {};
+  photos.forEach(p => { (albumGroups[p.album] ??= []).push(p); });
+
+  const seqNum = new Map();
+  Object.values(albumGroups).forEach(group => {
+    group
+      .slice()
+      .sort((a, b) => {
+        if (!a.date && !b.date) return 0;
+        if (!a.date) return 1;
+        if (!b.date) return -1;
+        return new Date(a.date) - new Date(b.date);
+      })
+      .forEach((p, i) => seqNum.set(`${p.album}/${p.filename}`, i + 1));
+  });
+
   // Markers photos par-dessus le tracé
   photos.forEach(photo => {
-    const icon = buildMarkerIcon(photo.albumIndex + 1, false, shortLocation(photo.location));
+    const n     = seqNum.get(`${photo.album}/${photo.filename}`) ?? (photo.albumIndex + 1);
+    const label = photo.album + '-' + n;
+    const icon  = buildMarkerIcon(n, false, label);
     L.marker([photo.gps.lat, photo.gps.lng], { icon })
       .addTo(map)
       .bindPopup(() => buildPopup(photo), { maxWidth: 200, minWidth: 160 });
