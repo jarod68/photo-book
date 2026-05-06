@@ -209,8 +209,8 @@ export class PhotoViewer {
   _showStandard(url, onDetect360) {
     this._destroyPannellum();
     this._pnl.style.display = 'none';
-    this._controls.wrapper.style.display = 'none';
-    if (this._gyroBtn) this._gyroBtn.style.display = 'none';
+    this._controls.wrapper.style.display = 'flex';  // zoom + recenter visibles
+    if (this._gyroBtn) this._gyroBtn.style.display = 'none'; // gyro uniquement 360°
     this._img.classList.remove('loaded');
     this._img.style.display = 'block';
 
@@ -246,20 +246,31 @@ export class PhotoViewer {
     const { zoomIn, zoomOut, recenter } = this._controls;
 
     zoomIn.addEventListener('click', () => {
-      if (!this._viewer) return;
-      this._viewer.setHfov(Math.max(30, this._viewer.getHfov() - 15), 300);
+      if (this._viewer) {
+        this._viewer.setHfov(Math.max(30, this._viewer.getHfov() - 15), 300);
+      } else {
+        const r = this._root.getBoundingClientRect();
+        this._zoomAt(1.5, r.width / 2, r.height / 2);
+      }
     });
 
     zoomOut.addEventListener('click', () => {
-      if (!this._viewer) return;
-      this._viewer.setHfov(Math.min(120, this._viewer.getHfov() + 15), 300);
+      if (this._viewer) {
+        this._viewer.setHfov(Math.min(120, this._viewer.getHfov() + 15), 300);
+      } else {
+        const r = this._root.getBoundingClientRect();
+        this._zoomAt(1 / 1.5, r.width / 2, r.height / 2);
+      }
     });
 
     recenter.addEventListener('click', () => {
-      if (!this._viewer) return;
-      this._viewer.setYaw(0, 600);
-      this._viewer.setPitch(0, 600);
-      this._viewer.setHfov(90, 600);
+      if (this._viewer) {
+        this._viewer.setYaw(0, 600);
+        this._viewer.setPitch(0, 600);
+        this._viewer.setHfov(90, 600);
+      } else {
+        this._resetZoom();
+      }
     });
 
     this._gyroBtn?.addEventListener('click', () => this._toggleGyro());

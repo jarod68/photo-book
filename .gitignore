@@ -143,6 +143,10 @@ vite.config.ts.timestamp-*
 .vite/
 
 
-photos
+photos/
 public/previews/
-photos/.DS_Store
+.faces-blurred.json
+
+# macOS metadata — toutes profondeurs
+.DS_Store
+**/.DS_Store
