@@ -139,6 +139,19 @@ async function selectAlbum(name, targetFilename = null) {
   }
 }
 
+// ── Préchargement ─────────────────────────────────────────────────────────────
+// On garde les refs Image en vie : certains navigateurs vident le cache HTTP
+// si l'objet Image est collecté par le GC avant que le chargement soit utilisé.
+const _preloaded = new Set();
+
+function preloadPhoto(index) {
+  const photo = state.photos[index];
+  if (!photo?.url || _preloaded.has(photo.url)) return;
+  _preloaded.add(photo.url);
+  const img = new Image();
+  img.src = photo.url;
+}
+
 // ── Photo display ─────────────────────────────────────────────────────────────
 function showPhoto(index) {
   const photo = state.photos[index];
@@ -158,6 +171,10 @@ function showPhoto(index) {
     state.photos[index].is360 = true;
     thumbs.addBadge(index);
   });
+
+  // Précharger la photo suivante et précédente en arrière-plan
+  preloadPhoto(index + 1);
+  preloadPhoto(index - 1);
 }
 
 function updateNav() {
