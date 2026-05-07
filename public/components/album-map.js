@@ -51,7 +51,9 @@ export class AlbumMap {
 
   /** Re-highlight the active marker after navigation without re-opening the map. */
   setCurrent(index) {
-    this._markers.forEach(({ el, i }) => el.classList.toggle('current', i === index));
+    this._markers.forEach(({ marker, photo, i }) => {
+      marker.setIcon(buildMarkerIcon(i + 1, i === index, shortLocation(photo.location)));
+    });
   }
 
   // ── Private ─────────────────────────────────────────────────────────────────
@@ -65,32 +67,35 @@ export class AlbumMap {
       }).addTo(this._map);
     }
 
-    // Remove previous markers
     this._markers.forEach(({ marker }) => marker.remove());
     this._markers = [];
 
     const bounds = [];
 
     geoPhotos.forEach(photo => {
-      const i       = allPhotos.indexOf(photo);
+      const i         = allPhotos.indexOf(photo);
       const isCurrent = i === currentIndex;
-      const icon = buildMarkerIcon(i + 1, isCurrent, shortLocation(photo.location));
+      const icon      = buildMarkerIcon(i + 1, isCurrent, shortLocation(photo.location));
 
       const marker = L.marker([photo.gps.lat, photo.gps.lng], { icon })
         .addTo(this._map)
         .bindPopup(() => this._buildPopup(photo, i), { maxWidth: 180, minWidth: 160 });
 
-      this._markers.push({ marker, el: pinEl, i });
+      this._markers.push({ marker, photo, i });
       bounds.push([photo.gps.lat, photo.gps.lng]);
     });
 
-    if (bounds.length === 1) {
-      this._map.setView(bounds[0], 14);
-    } else {
-      this._map.fitBounds(bounds, { padding: [40, 40] });
-    }
-
-    requestAnimationFrame(() => this._map.invalidateSize());
+    // Double rAF : le conteneur vient de passer display:none → visible,
+    // Leaflet a mis en cache une taille zéro. On attend que le navigateur
+    // ait terminé le layout avant d'appeler invalidateSize puis fitBounds.
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      this._map.invalidateSize();
+      if (bounds.length === 1) {
+        this._map.setView(bounds[0], 14);
+      } else if (bounds.length > 1) {
+        this._map.fitBounds(bounds, { padding: [40, 40] });
+      }
+    }));
   }
 
   _buildPopup(photo, index) {

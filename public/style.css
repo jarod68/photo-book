@@ -934,3 +934,25 @@ body {
     padding-bottom: env(safe-area-inset-bottom, 0px);
   }
 }
+
+/* ── UI toggle (single tap/click on photo) ────────────────────────────────── */
+#album-nav,
+#photo-info,
+#prev-btn,
+#next-btn,
+.photo-map-mini:not(.hidden),
+#pano-controls,
+#strip {
+  transition: opacity 0.22s ease;
+}
+
+#app.ui-hidden #album-nav,
+#app.ui-hidden #photo-info,
+#app.ui-hidden #prev-btn,
+#app.ui-hidden #next-btn,
+#app.ui-hidden .photo-map-mini,
+#app.ui-hidden #pano-controls,
+#app.ui-hidden #strip {
+  opacity: 0;
+  pointer-events: none;
+}
