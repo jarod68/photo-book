@@ -51,6 +51,12 @@ async function showLocation(photo) {
   locationEl.classList.remove('visible');
 }
 
+// ── UI toggle (single tap/click on photo) ─────────────────────────────────────
+const appEl = document.getElementById('app');
+function toggleUI() {
+  appEl.classList.toggle('ui-hidden');
+}
+
 const viewer = new PhotoViewer({
   root:         document.getElementById('viewer'),
   pnlContainer: document.getElementById('pnl-container'),
@@ -58,6 +64,11 @@ const viewer = new PhotoViewer({
   badge:        document.getElementById('badge-360'),
   nameEl:       document.getElementById('photo-name'),
   descEl:       document.getElementById('photo-desc'),
+  onToggleUI:   toggleUI,
+  onSwipe: dir => {
+    if (dir === 'left'  && state.index < state.photos.length - 1) showPhoto(state.index + 1);
+    if (dir === 'right' && state.index > 0)                       showPhoto(state.index - 1);
+  },
   panoControls: {
     wrapper:  document.getElementById('pano-controls'),
     zoomIn:   document.getElementById('pano-zoom-in'),
@@ -132,6 +143,9 @@ async function selectAlbum(name, targetFilename = null) {
 function showPhoto(index) {
   const photo = state.photos[index];
   if (!photo) return;
+
+  // Rétablir l'UI si elle était cachée (changement de photo depuis la bande ou le clavier)
+  appEl.classList.remove('ui-hidden');
 
   state.index = index;
   updateNav();

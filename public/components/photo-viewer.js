@@ -4,15 +4,17 @@
  * Pannellum's `preview` option shows a low-res aperçu from cache immediately.
  */
 export class PhotoViewer {
-  constructor({ root, pnlContainer, stdImg, badge, nameEl, descEl, panoControls }) {
-    this._root    = root;
-    this._pnl     = pnlContainer;
-    this._img     = stdImg;
-    this._badge   = badge;
-    this._nameEl  = nameEl;
-    this._descEl  = descEl;
-    this._viewer  = null;
-    this._controls = panoControls;   // { wrapper, zoomIn, zoomOut, recenter, gyroBtn }
+  constructor({ root, pnlContainer, stdImg, badge, nameEl, descEl, panoControls, onToggleUI, onSwipe }) {
+    this._root       = root;
+    this._pnl        = pnlContainer;
+    this._img        = stdImg;
+    this._badge      = badge;
+    this._nameEl     = nameEl;
+    this._descEl     = descEl;
+    this._viewer     = null;
+    this._controls   = panoControls;   // { wrapper, zoomIn, zoomOut, recenter, gyroBtn }
+    this._onToggleUI = onToggleUI ?? null;
+    this._onSwipe    = onSwipe    ?? null;
 
     // Gyroscope state
     this._gyroOn            = false;
@@ -325,7 +327,15 @@ export class PhotoViewer {
     let dragSx = 0, dragSy = 0, dragBx = 0, dragBy = 0;
     let pinch      = null;           // { dist0, scale0, tx0, ty0, cx, cy }
 
+    // Tap detection — track origin + whether pointer moved significantly.
+    // Used by the click handler below to distinguish tap from drag.
+    let _tapX = 0, _tapY = 0, _tapped = false;
+
     root.addEventListener('pointerdown', e => {
+      _tapX    = e.clientX;
+      _tapY    = e.clientY;
+      _tapped  = true;
+
       if (this._img.style.display === 'none') return;
       // Ne pas capturer les clics sur les éléments interactifs superposés
       // (mini-carte, boutons de navigation, etc.) — setPointerCapture bloquerait
@@ -358,6 +368,9 @@ export class PhotoViewer {
     });
 
     root.addEventListener('pointermove', e => {
+      // Invalide le tap dès que le doigt/curseur bouge de plus de 8 px
+      if (_tapped && Math.hypot(e.clientX - _tapX, e.clientY - _tapY) > 8) _tapped = false;
+
       if (!ptrs.has(e.pointerId) || this._img.style.display === 'none') return;
       ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
 
@@ -388,6 +401,15 @@ export class PhotoViewer {
     const onEnd = e => {
       ptrs.delete(e.pointerId);
       if (dragId === e.pointerId) {
+        // Swipe de navigation : seulement si la photo n'est pas zoomée
+        if (this._scale === 1 && pinch === null) {
+          const dx = e.clientX - dragSx;
+          const dy = e.clientY - dragSy;
+          // Au moins 50 px horizontal, ratio horiz/vert > 1.5 pour éviter les faux positifs
+          if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) {
+            this._onSwipe?.(dx < 0 ? 'left' : 'right');
+          }
+        }
         dragId = null;
         this._img.style.cursor = this._scale > 1 ? 'grab' : '';
       }
@@ -402,10 +424,31 @@ export class PhotoViewer {
     root.addEventListener('pointerup',     onEnd);
     root.addEventListener('pointercancel', onEnd);
 
-    // Double-tap / double-click to reset zoom
-    root.addEventListener('dblclick', () => {
-      if (this._img.style.display === 'none') return;
-      this._resetZoom();
+    // ── Clic simple → toggle UI  /  double-clic → reset zoom ou recenter 360° ──
+    let _clickTimer = null;
+
+    root.addEventListener('click', e => {
+      if (!_tapped) return;                                          // c'était un drag
+      if (e.target.closest('button, a, .photo-map-mini')) return;   // élément interactif
+
+      if (_clickTimer) {
+        // Deuxième clic dans la fenêtre → double-clic
+        clearTimeout(_clickTimer);
+        _clickTimer = null;
+        if (this._viewer) {
+          this._viewer.setYaw(0, 600);
+          this._viewer.setPitch(0, 600);
+          this._viewer.setHfov(90, 600);
+        } else {
+          this._resetZoom();
+        }
+      } else {
+        // Premier clic — on attend pour voir si un deuxième suit
+        _clickTimer = setTimeout(() => {
+          _clickTimer = null;
+          this._onToggleUI?.();
+        }, 280);
+      }
     });
   }
 
