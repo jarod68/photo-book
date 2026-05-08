@@ -35,6 +35,12 @@ export class AlbumMap {
    * @param {number}   currentIndex - index of the photo currently displayed
    * @param {Function} onSelect     - called with a photo index when user clicks "Voir"
    */
+  /**
+   * Open the map and display all GPS-tagged photos of the album.
+   * @param {import('../api/client.js').Photo[]} photos - full album photo list
+   * @param {number} currentIndex - index of the currently displayed photo
+   * @param {(index: number) => void} onSelect - called when user clicks "Voir" on a pin
+   */
   open(photos, currentIndex, onSelect) {
     this._onSelect = onSelect;
     const geoPhotos = photos.filter(p => p.gps);
@@ -49,7 +55,10 @@ export class AlbumMap {
     this._overlay.classList.add('hidden');
   }
 
-  /** Re-highlight the active marker after navigation without re-opening the map. */
+  /**
+   * Re-highlight the active marker after navigation without re-opening the map.
+   * @param {number} index - index of the currently displayed photo in the full album list
+   */
   setCurrent(index) {
     this._markers.forEach(({ marker, photo, i }) => {
       marker.setIcon(buildMarkerIcon(i + 1, i === index, shortLocation(photo.location)));

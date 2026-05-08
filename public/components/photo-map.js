@@ -53,6 +53,13 @@ export class PhotoMap {
    * @param {number}  index  - index in the photos array
    * @param {Array}   photos - full album photo list
    */
+  /**
+   * Refresh the map for the newly displayed photo.
+   * Shows the mini-map if the photo has GPS; hides it otherwise.
+   * @param {import('../api/client.js').Photo} photo
+   * @param {number} index - position of photo in the album
+   * @param {import('../api/client.js').Photo[]} photos - full album photo list
+   */
   update(photo, index, photos) {
     this._index   = index;
     this._photos  = photos ?? [];
