@@ -10,8 +10,9 @@ COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
 
 # Application source
-COPY server.js ./
-COPY public/   ./public/
+COPY server.js   ./
+COPY services/   ./services/
+COPY public/     ./public/
 
 # Directories that should be mounted as volumes at runtime:
 #   /app/photos          — albums (read-only is fine)
