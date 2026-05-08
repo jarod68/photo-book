@@ -26,7 +26,7 @@ async function connectDb() {
     port:     5432,
     database: 'photobook',
     user:     'photobook',
-    password: 'photobook_secret',
+    password: process.env.POSTGRES_PASSWORD || 'photobook_secret',
   });
 
   for (let attempt = 1; attempt <= 12; attempt++) {
