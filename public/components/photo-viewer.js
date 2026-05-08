@@ -36,10 +36,6 @@ export class PhotoViewer {
     this._initPanoControls();
     this._initPanoTouch();
 
-    // Debug: always log raw sensor values to the console
-    window.addEventListener('deviceorientation', e => {
-      console.log(`α=${e.alpha?.toFixed(1)} β=${e.beta?.toFixed(1)} γ=${e.gamma?.toFixed(1)}`);
-    });
   }
 
   // ── Public ─────────────────────────────────────────────────────────────────
@@ -164,7 +160,7 @@ export class PhotoViewer {
         targetPitch = Math.max(-85, Math.min(85, e.beta - 90));
       }
 
-      console.log(`α=${e.alpha.toFixed(1)} β=${e.beta.toFixed(1)} γ=${(e.gamma??0).toFixed(1)} → yaw=${targetYaw.toFixed(1)} pitch=${targetPitch.toFixed(1)}`);
+
     };
 
     // rAF loop: exponential smoothing then feed Pannellum at display refresh rate
