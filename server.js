@@ -117,6 +117,7 @@ async function ensurePreview(albumName, filename, filePath, is360) {
     fs.mkdirSync(albumDir, { recursive: true });
     const width = is360 ? 1536 : 1024;
     await sharp(filePath)
+      .rotate()                                        // auto-rotate from EXIF orientation
       .resize(width, null, { withoutEnlargement: true })
       .jpeg({ quality: 76, progressive: true })
       .toFile(previewPath);
