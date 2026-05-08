@@ -17,38 +17,54 @@ function haversineKm(lat1, lng1, lat2, lng2) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-// ── Bézier quadratique — retourne pts + point de contrôle ────────────────────
-function bezier(lat1, lng1, lat2, lng2, steps = 40) {
-  const mlat = (lat1 + lat2) / 2;
-  const mlng = (lng1 + lng2) / 2;
-  const dlat = lat2 - lat1;
-  const dlng = lng2 - lng1;
-  const len  = Math.sqrt(dlat * dlat + dlng * dlng) || 1e-9;
-  const k    = len * 0.18;
-  const clat = mlat - (dlng / len) * k;  // point de contrôle perpendiculaire gauche
-  const clng = mlng + (dlat / len) * k;
+// ── Bézier cubique avec tangentes Catmull-Rom ─────────────────────────────────
+// Chaque nœud partage la même direction tangente entre la courbe entrante et
+// sortante → les segments consécutifs ne se croisent jamais.
+function catmullRom(centroids, i, steps = 40) {
+  const n  = centroids.length;
+  const P0 = centroids[i];
+  const P1 = centroids[i + 1];
+  // Points fantômes aux extrémités pour avoir une tangente cohérente
+  const prev = i > 0     ? centroids[i - 1] : { lat: 2 * P0.lat - P1.lat, lng: 2 * P0.lng - P1.lng };
+  const next = i + 2 < n ? centroids[i + 2] : { lat: 2 * P1.lat - P0.lat, lng: 2 * P1.lng - P0.lng };
+
+  // Tangentes Catmull-Rom : direction = voisin suivant − voisin précédent
+  const tx0 = (P1.lat - prev.lat) / 2;
+  const ty0 = (P1.lng - prev.lng) / 2;
+  const tx1 = (next.lat - P0.lat) / 2;
+  const ty1 = (next.lng - P0.lng) / 2;
+
+  // Longueur du segment courant → points de contrôle plafonnés à 30 % du seg.
+  const segLen = Math.sqrt((P1.lat - P0.lat) ** 2 + (P1.lng - P0.lng) ** 2) || 1e-9;
+  const len0   = Math.sqrt(tx0 * tx0 + ty0 * ty0) || 1e-9;
+  const len1   = Math.sqrt(tx1 * tx1 + ty1 * ty1) || 1e-9;
+  const cap    = segLen * 0.30;
+  const s0     = Math.min(cap, len0) / (3 * len0);
+  const s1     = Math.min(cap, len1) / (3 * len1);
+
+  const cp1 = { lat: P0.lat + tx0 * s0, lng: P0.lng + ty0 * s0 };
+  const cp2 = { lat: P1.lat - tx1 * s1, lng: P1.lng - ty1 * s1 };
 
   const pts = [];
-  for (let i = 0; i <= steps; i++) {
-    const t = i / steps;
+  for (let j = 0; j <= steps; j++) {
+    const t = j / steps;
     const u = 1 - t;
     pts.push([
-      u * u * lat1 + 2 * u * t * clat + t * t * lat2,
-      u * u * lng1 + 2 * u * t * clng + t * t * lng2,
+      u*u*u * P0.lat + 3*u*u*t * cp1.lat + 3*u*t*t * cp2.lat + t*t*t * P1.lat,
+      u*u*u * P0.lng + 3*u*u*t * cp1.lng + 3*u*t*t * cp2.lng + t*t*t * P1.lng,
     ]);
   }
 
-  return { pts, clat, clng };
+  return { pts, cp1, cp2, P0, P1 };
 }
 
-// ── Tangente de la Bézier en t → position + cap (degrés, 0 = Nord) ───────────
-// B'(t) = 2(1−t)(C−P0) + 2t(P2−C)
-function bezierSample(t, lat1, lng1, clat, clng, lat2, lng2) {
+// ── Position + cap (degrés) sur une Bézier cubique en t ──────────────────────
+function cubicSample(t, P0, cp1, cp2, P1) {
   const u    = 1 - t;
-  const lat  = u * u * lat1 + 2 * u * t * clat + t * t * lat2;
-  const lng  = u * u * lng1 + 2 * u * t * clng + t * t * lng2;
-  const dlat = 2 * (1 - t) * (clat - lat1) + 2 * t * (lat2 - clat);
-  const dlng = 2 * (1 - t) * (clng - lng1) + 2 * t * (lng2 - clng);
+  const lat  = u*u*u * P0.lat + 3*u*u*t * cp1.lat + 3*u*t*t * cp2.lat + t*t*t * P1.lat;
+  const lng  = u*u*u * P0.lng + 3*u*u*t * cp1.lng + 3*u*t*t * cp2.lng + t*t*t * P1.lng;
+  const dlat = 3*u*u * (cp1.lat - P0.lat) + 6*u*t * (cp2.lat - cp1.lat) + 3*t*t * (P1.lat - cp2.lat);
+  const dlng = 3*u*u * (cp1.lng - P0.lng) + 6*u*t * (cp2.lng - cp1.lng) + 3*t*t * (P1.lng - cp2.lng);
   const deg  = (Math.atan2(dlng, dlat) * 180 / Math.PI + 360) % 360;
   return { lat, lng, deg };
 }
@@ -127,12 +143,13 @@ function centroid(photos) {
 // ── Dessin du tracé ───────────────────────────────────────────────────────────
 function drawRoute(layer, photos) {
   buildSegments(photos).forEach(segment => {
-    const nodes = clusterSegment(segment);
+    const nodes     = clusterSegment(segment);
+    const centroids = nodes.map(centroid);
 
     // Pin discret pour les nœuds multi-photos (même zone géographique)
-    nodes.forEach(group => {
+    nodes.forEach((group, gi) => {
       if (group.length < 2) return;
-      const c = centroid(group);
+      const c = centroids[gi];
       L.circleMarker([c.lat, c.lng], {
         radius:      6,
         fillColor:   '#94a3b8',
@@ -144,29 +161,29 @@ function drawRoute(layer, photos) {
       }).addTo(layer);
     });
 
-    // Tracé entre les barycentres consécutifs
-    for (let i = 0; i < nodes.length - 1; i++) {
-      const a = centroid(nodes[i]);
-      const b = centroid(nodes[i + 1]);
+    // Tracé Catmull-Rom entre les barycentres consécutifs
+    for (let i = 0; i < centroids.length - 1; i++) {
+      const a = centroids[i];
+      const b = centroids[i + 1];
 
       if (a.lat === b.lat && a.lng === b.lng) continue;
 
-      const { pts, clat, clng } = bezier(a.lat, a.lng, b.lat, b.lng);
+      const { pts, cp1, cp2, P0, P1 } = catmullRom(centroids, i);
 
       // Halo blanc pour lisibilité
       L.polyline(pts, {
         color: '#ffffff', weight: 7, opacity: 0.28, lineCap: 'round',
       }).addTo(layer);
 
-      // Ligne orange en tirets
+      // Ligne en tirets
       L.polyline(pts, {
         color: ROUTE_COLOR, weight: 3, opacity: 0.9,
         dashArray: '12 8', lineCap: 'round', lineJoin: 'round',
       }).addTo(layer);
 
-      // Flèches à plusieurs positions le long de la courbe
+      // Flèches directionnelles le long de la courbe
       ARROW_TS.forEach(t => {
-        const { lat, lng, deg } = bezierSample(t, a.lat, a.lng, clat, clng, b.lat, b.lng);
+        const { lat, lng, deg } = cubicSample(t, P0, cp1, cp2, P1);
         L.marker([lat, lng], {
           icon:         arrowIcon(deg),
           interactive:  false,
