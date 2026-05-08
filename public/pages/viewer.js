@@ -5,6 +5,7 @@ import { PhotoMap }       from '../components/photo-map.js';
 import { AlbumMap }       from '../components/album-map.js';
 import { getUserToken }   from '../utils/user-token.js';
 import { getAlbums, getAlbum, getLiked, toggleLike, recordView, geocode } from '../api/client.js';
+import { formatViews, formatLikes } from '../utils/format.js';
 
 const userToken = getUserToken();
 
@@ -151,18 +152,6 @@ async function selectAlbum(name, targetFilename = null) {
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-function formatViews(n) {
-  if (n >= 1_000_000) return (n / 1_000_000).toFixed(1).replace(/\.0$/, '') + ' M vues';
-  if (n >= 1_000)     return (n / 1_000).toFixed(1).replace(/\.0$/, '') + ' k vues';
-  return `${n} vue${n !== 1 ? 's' : ''}`;
-}
-
-function formatLikes(n) {
-  if (n >= 1_000_000) return (n / 1_000_000).toFixed(1).replace(/\.0$/, '') + ' M';
-  if (n >= 1_000)     return (n / 1_000).toFixed(1).replace(/\.0$/, '') + ' k';
-  return n > 0 ? String(n) : '';
-}
-
 function updateLikeBtn(photo) {
   const liked = state.liked.has(photo.filename);
   likeBtn.classList.toggle('liked', liked);

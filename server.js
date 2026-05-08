@@ -277,11 +277,15 @@ app.get('/api/geocode', async (req, res) => {
 
 // ─── Start ────────────────────────────────────────────────────────────────────
 
-app.listen(PORT, () => {
-  console.log(`\n  360° Photo Viewer`);
-  console.log(`  ➜  http://localhost:${PORT}`);
-  console.log(`  Photos:   ${PHOTOS_DIR}`);
-  console.log(`  Previews: ${PREVIEWS_DIR}\n`);
-  database.connectDb().then(() => database.syncPhotosToDb()).catch(console.error);
-  preGenerateAll().catch(console.error);
-});
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`\n  360° Photo Viewer`);
+    console.log(`  ➜  http://localhost:${PORT}`);
+    console.log(`  Photos:   ${PHOTOS_DIR}`);
+    console.log(`  Previews: ${PREVIEWS_DIR}\n`);
+    database.connectDb().then(() => database.syncPhotosToDb()).catch(console.error);
+    preGenerateAll().catch(console.error);
+  });
+}
+
+module.exports = { app };
