@@ -6,8 +6,8 @@ const { PHOTOS_DIR, isImage, isAlbumDir } = require('./image');
 let db      = null;
 let dbReady = false;
 
-async function connectDb() {
-  db = new Pool({
+async function connectDb(dbInstance = null) {
+  db = dbInstance ?? new Pool({
     host:     process.env.POSTGRES_HOST || 'postgres',
     port:     5432,
     database: 'photobook',
@@ -75,10 +75,24 @@ async function syncPhotosToDb() {
   console.log(`  ✓ ${total} photo(s) enregistrée(s) dans photo_views.`);
 }
 
+// Fonctions de test uniquement — permettent de contrôler l'état interne
+// sans passer par connectDb() (qui nécessite une vraie connexion PostgreSQL).
+function _reset() {
+  db      = null;
+  dbReady = false;
+}
+
+function _setState(newDb, ready) {
+  db      = newDb;
+  dbReady = ready;
+}
+
 // Getters pour exposer les valeurs courantes après initialisation asynchrone
 module.exports = {
   get db()      { return db; },
   get dbReady() { return dbReady; },
   connectDb,
   syncPhotosToDb,
+  _reset,
+  _setState,
 };
