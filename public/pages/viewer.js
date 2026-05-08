@@ -4,6 +4,7 @@ import { PhotoViewer }    from '../components/photo-viewer.js';
 import { PhotoMap }       from '../components/photo-map.js';
 import { AlbumMap }       from '../components/album-map.js';
 import { getUserToken }   from '../utils/user-token.js';
+import { getAlbums, getAlbum, getLiked, toggleLike, recordView, geocode } from '../api/client.js';
 
 const userToken = getUserToken();
 
@@ -41,9 +42,7 @@ async function showLocation(photo) {
     locationEl.textContent = '…';
     locationEl.classList.add('visible');
     try {
-      const res  = await fetch(`/api/geocode?lat=${photo.gps.lat}&lng=${photo.gps.lng}`);
-      const data = await res.json();
-      photo.location = data.location || null; // cache on object for next visit
+      photo.location = await geocode(photo.gps.lat, photo.gps.lng);
       if (photo.location) {
         locationEl.textContent = photo.location;
       } else {
@@ -113,7 +112,7 @@ albumMapBtn.addEventListener('click', () => {
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 async function init() {
-  const albums = await fetch('/api/albums').then(r => r.json());
+  const albums = await getAlbums();
   state.albums = albums;
 
   tabs.onSelect(name => selectAlbum(name));
@@ -132,8 +131,8 @@ async function selectAlbum(name, targetFilename = null) {
   tabs.render(state.albums, name);
 
   const [data, likedData] = await Promise.all([
-    fetch(`/api/albums/${encodeURIComponent(name)}`).then(r => r.json()),
-    fetch(`/api/liked?album=${encodeURIComponent(name)}&token=${userToken}`).then(r => r.json()).catch(() => ({ filenames: [] })),
+    getAlbum(name),
+    getLiked(name, userToken),
   ]);
   state.photos = data.photos;
   state.liked  = new Set(likedData.filenames);
@@ -182,12 +181,7 @@ likeBtn.addEventListener('click', e => {
   else          { state.liked.delete(photo.filename); photo.likes = Math.max(0, (photo.likes ?? 1) - 1); }
   updateLikeBtn(photo);
 
-  fetch('/api/like', {
-    method:  'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body:    JSON.stringify({ album: state.current, filename: photo.filename, token: userToken }),
-  })
-    .then(r => r.ok ? r.json() : null)
+  toggleLike(state.current, photo.filename, userToken)
     .then(data => {
       if (!data) return;
       photo.likes = data.count;
@@ -234,12 +228,7 @@ function showPhoto(index) {
 
   // Affiche la valeur connue immédiatement, puis met à jour avec la valeur confirmée
   viewsEl.textContent = photo.views != null ? formatViews(photo.views) : '';
-  fetch('/api/view', {
-    method:  'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body:    JSON.stringify({ album: state.current, filename: photo.filename, token: userToken }),
-  })
-    .then(r => r.ok ? r.json() : null)
+  recordView(state.current, photo.filename, userToken)
     .then(data => {
       if (!data) return;
       if (data.views != null) {

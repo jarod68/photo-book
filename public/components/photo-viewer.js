@@ -4,6 +4,19 @@
  * Pannellum's `preview` option shows a low-res aperçu from cache immediately.
  */
 export class PhotoViewer {
+  /**
+   * @param {{
+   *   root:         HTMLElement,
+   *   pnlContainer: HTMLElement,
+   *   stdImg:       HTMLImageElement,
+   *   badge:        HTMLElement,
+   *   nameEl:       HTMLElement,
+   *   descEl:       HTMLElement,
+   *   panoControls: { wrapper: HTMLElement, zoomIn: HTMLElement, zoomOut: HTMLElement, recenter: HTMLElement, gyroBtn: HTMLElement },
+   *   onToggleUI:   () => void,
+   *   onSwipe:      (dir: 'left'|'right') => void,
+   * }} opts
+   */
   constructor({ root, pnlContainer, stdImg, badge, nameEl, descEl, panoControls, onToggleUI, onSwipe }) {
     this._root       = root;
     this._pnl        = pnlContainer;
@@ -40,6 +53,11 @@ export class PhotoViewer {
 
   // ── Public ─────────────────────────────────────────────────────────────────
 
+  /**
+   * Display a photo. Switches between panoramic (Pannellum) and standard view.
+   * @param {import('../api/client.js').Photo} photo
+   * @param {() => void} onDetect360 - called if the image is detected as 360°
+   */
   show(photo, onDetect360) {
     this._resetZoom();
     this._nameEl.textContent = photo.name;

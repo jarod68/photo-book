@@ -1,4 +1,5 @@
 import { buildMarkerIcon } from '../components/map-marker.js';
+import { getMapPhotos }   from '../api/client.js';
 
 const MAX_DAYS    = 21;    // fenêtre consécutive max : 3 semaines
 const MAX_KM      = 400;   // rayon max entre deux points consécutifs
@@ -196,7 +197,7 @@ function drawRoute(layer, photos) {
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 async function init() {
-  const photos = await fetch('/api/map').then(r => r.json());
+  const photos = await getMapPhotos();
 
   const countEl = document.getElementById('map-page-count');
   countEl.textContent = photos.length

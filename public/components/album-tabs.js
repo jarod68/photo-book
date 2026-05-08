@@ -8,12 +8,16 @@ export class AlbumTabs {
     this._onSelect = null;
   }
 
-  /** @param {(name: string) => void} fn */
+  /**
+   * Register the callback invoked when the user clicks an album tab.
+   * @param {(name: string) => void} fn
+   */
   onSelect(fn) { this._onSelect = fn; }
 
   /**
-   * @param {Array<{name: string, count: number}>} albums
-   * @param {string} activeName
+   * Re-render all tabs, marking `activeName` as selected.
+   * @param {import('../api/client.js').Album[]} albums
+   * @param {string|null} activeName
    */
   render(albums, activeName) {
     this._el.innerHTML = '';

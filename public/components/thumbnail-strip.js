@@ -57,6 +57,7 @@ export class ThumbnailStrip {
 
   // ── Public API ──────────────────────────────────────────────────────────────
 
+  /** @param {import('../api/client.js').Photo[]} photos */
   render(photos) {
     if (this._rafId !== null) { cancelAnimationFrame(this._rafId); this._rafId = null; }
 
@@ -77,6 +78,10 @@ export class ThumbnailStrip {
     requestAnimationFrame(() => { this._updateWindow(); this._updateArrows(); });
   }
 
+  /**
+   * Scroll to and highlight the thumbnail at `index`.
+   * @param {number} index
+   */
   activate(index) {
     const n = this._photos.length;
     if (index < 0 || index >= n) return;
@@ -96,6 +101,10 @@ export class ThumbnailStrip {
       ?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
   }
 
+  /**
+   * Add a "360°" badge overlay to the thumbnail at `index`.
+   * @param {number} index
+   */
   addBadge(index) {
     const thumb = this._el.querySelector(`.thumb[data-i="${index}"]`);
     if (!thumb || thumb.querySelector('.thumb-badge')) return;
