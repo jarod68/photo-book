@@ -424,6 +424,34 @@ body {
 }
 .photo-location.visible { display: block; }
 
+/* ── Meta (localisation + vues) ─────────────────────────────────────────────── */
+#photo-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.photo-views {
+  display: none;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: rgba(255,255,255,0.38);
+  letter-spacing: 0.03em;
+}
+.photo-views:not(:empty) { display: inline-flex; }
+.photo-views::before {
+  content: '';
+  display: inline-block;
+  width: 13px;
+  height: 13px;
+  background: currentColor;
+  opacity: 0.7;
+  mask: url("data:image/svg+xml,%3Csvg viewBox='0 0 24 24' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5C21.27 7.61 17 4.5 12 4.5zm0 12.5a5 5 0 1 1 0-10 5 5 0 0 1 0 10zm0-8a3 3 0 1 0 0 6 3 3 0 0 0 0-6z'/%3E%3C/svg%3E") no-repeat center / contain;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg viewBox='0 0 24 24' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5C21.27 7.61 17 4.5 12 4.5zm0 12.5a5 5 0 1 1 0-10 5 5 0 0 1 0 10zm0-8a3 3 0 1 0 0 6 3 3 0 0 0 0-6z'/%3E%3C/svg%3E") no-repeat center / contain;
+}
+
 /* ── Navigation arrows ──────────────────────────────────────────────────────── */
 .nav-arrow {
   position: absolute;
@@ -934,6 +962,34 @@ body {
     padding-bottom: env(safe-area-inset-bottom, 0px);
   }
 }
+
+/* ── Bouton like ─────────────────────────────────────────────────────────── */
+.like-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: rgba(0,0,0,0.28);
+  border: 1px solid rgba(255,255,255,0.16);
+  border-radius: 20px;
+  color: rgba(255,255,255,0.55);
+  cursor: pointer;
+  font-size: 11px;
+  letter-spacing: 0.03em;
+  padding: 3px 9px 3px 7px;
+  transition: color 0.16s, background 0.16s, border-color 0.16s;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  pointer-events: auto;
+}
+.like-btn:hover         { color: #fff; border-color: rgba(255,255,255,0.32); }
+.like-btn.liked         { color: #ff4d6d; background: rgba(255,77,109,0.12); border-color: rgba(255,77,109,0.38); }
+.like-heart-outline     { display: block; }
+.like-heart-filled      { display: none; }
+.like-btn.liked .like-heart-outline { display: none; }
+.like-btn.liked .like-heart-filled  { display: block; }
+.like-heart             { transition: transform 0.14s; flex-shrink: 0; }
+.like-btn.liked .like-heart         { transform: scale(1.18); }
+.like-btn:active .like-heart        { transform: scale(0.88); }
 
 /* ── UI toggle (single tap/click on photo) ────────────────────────────────── */
 #album-nav,

@@ -3,6 +3,9 @@ import { ThumbnailStrip } from '../components/thumbnail-strip.js';
 import { PhotoViewer }    from '../components/photo-viewer.js';
 import { PhotoMap }       from '../components/photo-map.js';
 import { AlbumMap }       from '../components/album-map.js';
+import { getUserToken }   from '../utils/user-token.js';
+
+const userToken = getUserToken();
 
 // ── State ─────────────────────────────────────────────────────────────────────
 const state = {
@@ -10,6 +13,7 @@ const state = {
   current: null,
   photos:  [],
   index:   -1,
+  liked:   new Set(), // filenames likés par cet utilisateur dans l'album courant
 };
 
 // ── DOM ───────────────────────────────────────────────────────────────────────
@@ -19,6 +23,9 @@ const prevBtn     = document.getElementById('prev-btn');
 const nextBtn     = document.getElementById('next-btn');
 const albumMapBtn = document.getElementById('album-map-btn');
 const locationEl  = document.getElementById('photo-location');
+const viewsEl     = document.getElementById('photo-views');
+const likeBtn     = document.getElementById('like-btn');
+const likeCountEl = document.getElementById('like-count');
 
 // ── Geocoding (lazy, cached on photo objects) ─────────────────────────────────
 async function showLocation(photo) {
@@ -124,9 +131,14 @@ async function selectAlbum(name, targetFilename = null) {
   state.current = name;
   tabs.render(state.albums, name);
 
-  const data   = await fetch(`/api/albums/${encodeURIComponent(name)}`).then(r => r.json());
+  const [data, likedData] = await Promise.all([
+    fetch(`/api/albums/${encodeURIComponent(name)}`).then(r => r.json()),
+    fetch(`/api/liked?album=${encodeURIComponent(name)}&token=${userToken}`).then(r => r.json()).catch(() => ({ filenames: [] })),
+  ]);
   state.photos = data.photos;
+  state.liked  = new Set(likedData.filenames);
   state.index  = -1;
+  viewsEl.textContent = '';
   thumbs.render(state.photos);
 
   albumMapBtn.disabled = !state.photos.some(p => p.gps);
@@ -138,6 +150,53 @@ async function selectAlbum(name, targetFilename = null) {
     showPhoto(Math.max(0, target));
   }
 }
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function formatViews(n) {
+  if (n >= 1_000_000) return (n / 1_000_000).toFixed(1).replace(/\.0$/, '') + ' M vues';
+  if (n >= 1_000)     return (n / 1_000).toFixed(1).replace(/\.0$/, '') + ' k vues';
+  return `${n} vue${n !== 1 ? 's' : ''}`;
+}
+
+function formatLikes(n) {
+  if (n >= 1_000_000) return (n / 1_000_000).toFixed(1).replace(/\.0$/, '') + ' M';
+  if (n >= 1_000)     return (n / 1_000).toFixed(1).replace(/\.0$/, '') + ' k';
+  return n > 0 ? String(n) : '';
+}
+
+function updateLikeBtn(photo) {
+  const liked = state.liked.has(photo.filename);
+  likeBtn.classList.toggle('liked', liked);
+  likeBtn.setAttribute('aria-pressed', String(liked));
+  likeCountEl.textContent = formatLikes(photo.likes ?? 0);
+}
+
+likeBtn.addEventListener('click', e => {
+  e.stopPropagation();
+  const photo = state.photos[state.index];
+  if (!photo) return;
+
+  // Mise à jour optimiste
+  const nowLiked = !state.liked.has(photo.filename);
+  if (nowLiked) { state.liked.add(photo.filename);    photo.likes = (photo.likes ?? 0) + 1; }
+  else          { state.liked.delete(photo.filename); photo.likes = Math.max(0, (photo.likes ?? 1) - 1); }
+  updateLikeBtn(photo);
+
+  fetch('/api/like', {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify({ album: state.current, filename: photo.filename, token: userToken }),
+  })
+    .then(r => r.ok ? r.json() : null)
+    .then(data => {
+      if (!data) return;
+      photo.likes = data.count;
+      if (data.liked) state.liked.add(photo.filename);
+      else            state.liked.delete(photo.filename);
+      updateLikeBtn(photo);
+    })
+    .catch(() => {});
+});
 
 // ── Préchargement ─────────────────────────────────────────────────────────────
 // On garde les refs Image en vie : certains navigateurs vident le cache HTTP
@@ -166,11 +225,35 @@ function showPhoto(index) {
   photoMap.update(photo, index, state.photos);
   albumMap.setCurrent(index);
   showLocation(photo);
+  updateLikeBtn(photo);
 
   viewer.show(photo, () => {
     state.photos[index].is360 = true;
     thumbs.addBadge(index);
   });
+
+  // Affiche la valeur connue immédiatement, puis met à jour avec la valeur confirmée
+  viewsEl.textContent = photo.views != null ? formatViews(photo.views) : '';
+  fetch('/api/view', {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify({ album: state.current, filename: photo.filename, token: userToken }),
+  })
+    .then(r => r.ok ? r.json() : null)
+    .then(data => {
+      if (!data) return;
+      if (data.views != null) {
+        photo.views = data.views;
+        if (state.index === index) viewsEl.textContent = formatViews(data.views);
+      }
+      if (data.likes != null) {
+        photo.likes = data.likes;
+        if (data.liked) state.liked.add(photo.filename);
+        else            state.liked.delete(photo.filename);
+        if (state.index === index) updateLikeBtn(photo);
+      }
+    })
+    .catch(() => {});
 
   // Précharger la photo suivante et précédente en arrière-plan
   preloadPhoto(index + 1);
