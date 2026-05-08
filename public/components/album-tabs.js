@@ -34,7 +34,11 @@ export class AlbumTabs {
       btn.className = 'album-tab' + (album.name === activeName ? ' active' : '');
       btn.setAttribute('role', 'tab');
       btn.setAttribute('aria-selected', String(album.name === activeName));
-      btn.innerHTML = `${album.name}<span class="count">${album.count}</span>`;
+      btn.textContent = album.name;
+      const countEl = document.createElement('span');
+      countEl.className = 'count';
+      countEl.textContent = album.count;
+      btn.appendChild(countEl);
       btn.onclick = () => this._onSelect?.(album.name);
       this._el.appendChild(btn);
     });

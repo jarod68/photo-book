@@ -26,7 +26,7 @@ async function connectDb() {
     port:     5432,
     database: 'photobook',
     user:     'photobook',
-    password: process.env.POSTGRES_PASSWORD || 'photobook_secret',
+    password: process.env.POSTGRES_PASSWORD,
   });
 
   for (let attempt = 1; attempt <= 12; attempt++) {
@@ -90,7 +90,8 @@ async function syncPhotosToDb() {
 }
 
 // ─── Reverse geocoding cache (in-memory) ─────────────────────────────────────
-const geoCache = new Map(); // key: "lat,lng" → location string | null
+const geoCache    = new Map(); // key: "lat,lng" → location string | null
+const GEO_MAX     = 2000;     // évite la croissance illimitée en mémoire
 
 // ─── Static files ────────────────────────────────────────────────────────────
 
@@ -259,7 +260,8 @@ app.get('/api/albums', async (req, res) => {
     res.json(albums);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: err.message });
+    console.error(err);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -289,7 +291,8 @@ app.get('/api/albums/:album', async (req, res) => {
     res.json({ name: req.params.album, photos });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: err.message });
+    console.error(err);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -342,7 +345,8 @@ app.get('/api/map', async (req, res) => {
     res.json(buckets.flat());
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: err.message });
+    console.error(err);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -396,7 +400,8 @@ app.post('/api/view', express.json(), async (req, res) => {
       liked: likedResult.rowCount > 0,
     });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error(err);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -430,7 +435,8 @@ app.post('/api/like', express.json(), async (req, res) => {
     );
     res.json({ liked: existing.rowCount === 0, count: Number(rows[0].count) });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error(err);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -455,7 +461,9 @@ app.get('/api/liked', async (req, res) => {
 app.get('/api/geocode', async (req, res) => {
   const lat = parseFloat(req.query.lat);
   const lng = parseFloat(req.query.lng);
-  if (isNaN(lat) || isNaN(lng)) return res.status(400).json({ error: 'Invalid coordinates' });
+  if (isNaN(lat) || isNaN(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+    return res.status(400).json({ error: 'Invalid coordinates' });
+  }
 
   const key = `${lat.toFixed(3)},${lng.toFixed(3)}`; // ~110 m precision
   if (geoCache.has(key)) return res.json({ location: geoCache.get(key) });
@@ -470,6 +478,7 @@ app.get('/api/geocode', async (req, res) => {
     const place   = a.village || a.suburb || a.town || a.city_district || a.city || a.municipality || a.county || '';
     const country = a.country || '';
     const location = [place, country].filter(Boolean).join(', ') || null;
+    if (geoCache.size >= GEO_MAX) geoCache.delete(geoCache.keys().next().value);
     geoCache.set(key, location);
     res.json({ location });
   } catch (err) {
