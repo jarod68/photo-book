@@ -1,0 +1,9 @@
+# Local override — bypasses Traefik, exposes app directly on port 3000.
+# Usage: docker compose -f docker-compose.yml -f docker-compose.local.yml up
+services:
+  traefik:
+    profiles: [disabled]
+
+  photo-book:
+    ports:
+      - "3000:3000"
