@@ -24,11 +24,12 @@ export class ThumbnailStrip {
    * @param {(i: number) => void} onSelect
    * @param {{ prevBtn?: HTMLElement, nextBtn?: HTMLElement }} [arrows]
    */
-  constructor(el, onSelect, { prevBtn, nextBtn } = {}) {
-    this._el      = el;
-    this._onSelect = onSelect;
-    this._prevBtn  = prevBtn || null;
-    this._nextBtn  = nextBtn || null;
+  constructor(el, onSelect, { prevBtn, nextBtn, onScrolling } = {}) {
+    this._el         = el;
+    this._onSelect   = onSelect;
+    this._prevBtn    = prevBtn    || null;
+    this._nextBtn    = nextBtn    || null;
+    this._onScrolling = onScrolling || null;
 
     this._photos   = [];
     this._winStart = 0;
@@ -37,14 +38,34 @@ export class ThumbnailStrip {
     this._right    = null; // right spacer element
     this._rafId    = null;
 
+    this._activeIndex        = -1;
+    this._suppressAutoSelect = false; // true while activate() drives the scroll
+    this._scrollEndTimer     = null;
+    this._suppressTimer      = null;  // safety timeout to always clear the suppress flag
+
     this._el.addEventListener('scroll', () => {
       this._updateArrows();
       if (this._rafId === null) {
         this._rafId = requestAnimationFrame(() => {
           this._rafId = null;
           this._updateWindow();
+          // Notify caller of the thumbnail currently centered so it can preload
+          if (!this._suppressAutoSelect && this._onScrolling) {
+            this._onScrolling(this._centerIndex());
+          }
         });
       }
+      // Detect user scroll-end via debounce (fallback) —
+      // cleared if scrollend fires first.
+      clearTimeout(this._scrollEndTimer);
+      this._scrollEndTimer = setTimeout(() => this._onScrollEnd(), 180);
+    }, { passive: true });
+
+    // scrollend is supported in all modern browsers; fires once per scroll gesture.
+    this._el.addEventListener('scrollend', () => {
+      clearTimeout(this._scrollEndTimer);
+      this._scrollEndTimer = null;
+      this._onScrollEnd();
     }, { passive: true });
 
     this._prevBtn?.addEventListener('click', () =>
@@ -86,6 +107,8 @@ export class ThumbnailStrip {
     const n = this._photos.length;
     if (index < 0 || index >= n) return;
 
+    this._activeIndex = index;
+
     // Re-centre the window around target if needed
     if (index < this._winStart || index > this._winEnd) {
       const half  = Math.floor(WINDOW / 2);
@@ -97,6 +120,15 @@ export class ThumbnailStrip {
     this._el.querySelectorAll('.thumb').forEach(el =>
       el.classList.toggle('active', +el.dataset.i === index)
     );
+
+    // Suppress auto-select while the programmatic scroll settles.
+    // Cleared by scrollend if a scroll actually happens, or by the safety
+    // timeout below when scrollIntoView is a no-op (thumbnail already centered).
+    this._suppressAutoSelect = true;
+    clearTimeout(this._suppressTimer);
+    this._suppressTimer = setTimeout(() => {
+      this._suppressAutoSelect = false;
+    }, 400);
     this._el.querySelector(`.thumb[data-i="${index}"]`)
       ?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
   }
@@ -112,6 +144,29 @@ export class ThumbnailStrip {
     badge.className   = 'thumb-badge';
     badge.textContent = '360°';
     thumb.appendChild(badge);
+  }
+
+  // ── Auto-select centered thumbnail on scroll-end ────────────────────────────
+
+  _onScrollEnd() {
+    if (this._suppressAutoSelect) {
+      // This scroll was driven by activate() — clear flag, don't select.
+      this._suppressAutoSelect = false;
+      clearTimeout(this._suppressTimer);
+      return;
+    }
+    const i = this._centerIndex();
+    if (i !== -1 && i !== this._activeIndex) {
+      this._onSelect?.(i);
+    }
+  }
+
+  /** Index of the thumbnail closest to the horizontal center of the strip. */
+  _centerIndex() {
+    const n = this._photos.length;
+    if (!n) return -1;
+    const center = this._el.scrollLeft + this._el.clientWidth / 2;
+    return Math.max(0, Math.min(n - 1, Math.round((center - PAD) / STRIDE)));
   }
 
   // ── Window management ───────────────────────────────────────────────────────

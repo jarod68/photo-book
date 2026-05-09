@@ -15,13 +15,39 @@ const GEO_MAX  = 2000;
 
 // ─── Static files ─────────────────────────────────────────────────────────────
 
-app.use(express.static(path.join(__dirname, 'public')));
+// Previews: generated once, never mutated → immutable 1 year
+app.use('/previews', express.static(path.join(__dirname, 'public', 'previews'), {
+  maxAge: '1y',
+  immutable: true,
+  etag: false,
+  lastModified: false,
+}));
 
+// App assets: HTML no-cache (picks up new deploys immediately),
+// JS/CSS/fonts cached 1 day with ETag revalidation.
+app.use(express.static(path.join(__dirname, 'public'), {
+  etag: true,
+  lastModified: true,
+  setHeaders(res, filePath) {
+    if (filePath.endsWith('.html')) {
+      res.setHeader('Cache-Control', 'no-cache');
+    } else {
+      res.setHeader('Cache-Control', 'public, max-age=86400');
+    }
+  },
+}));
+
+// Original photos: immutable 1 year (files are never overwritten on disk)
 app.use('/photos', (req, res, next) => {
   const target = path.resolve(path.join(PHOTOS_DIR, decodeURIComponent(req.path)));
   if (!target.startsWith(PHOTOS_DIR)) return res.status(403).end();
   next();
-}, express.static(PHOTOS_DIR));
+}, express.static(PHOTOS_DIR, {
+  maxAge: '1y',
+  immutable: true,
+  etag: false,
+  lastModified: false,
+}));
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
