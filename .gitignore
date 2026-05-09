@@ -146,6 +146,8 @@ coverage/*
 
 photos/
 public/previews/
+letsencrypt/
+.postgres_password
 .faces-blurred.json
 
 # macOS metadata — toutes profondeurs

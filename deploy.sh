@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 # deploy.sh — Install / update photo-book on a Linux server
-# Traefik (HTTPS + Let's Encrypt) → photo-book:3000 + MySQL
-# Usage: sudo ./deploy.sh [--photos-dir /path] [--update]
+# Usage: sudo ./deploy.sh [--domain example.com] [--email you@example.com] [--photos-dir /path] [--update]
 
 set -euo pipefail
 
@@ -16,32 +15,33 @@ error()   { echo -e "${RED}[ERR]${RESET}   $*" >&2; exit 1; }
 
 # ── Defaults ──────────────────────────────────────────────────────────────────
 INSTALL_DIR="/opt/photo-book"
-PHOTOS_DIR=""
-ACME_EMAIL="noname@book.holtz.fr"
 DOMAIN="book.holtz.fr"
+ACME_EMAIL="noname@book.holtz.fr"
+PHOTOS_DIR=""
 IMAGE="jarod68/photo-book:latest"
 TRAEFIK_IMAGE="traefik:v3.3"
 POSTGRES_IMAGE="postgres:16-alpine"
 SERVICE="photo-book"
 UPDATE_ONLY=false
 
-# ── PostgreSQL password (generated once, persisted across updates) ────────────
-POSTGRES_PASS_FILE="/opt/photo-book/.postgres_password"
-if [[ -f "$POSTGRES_PASS_FILE" ]]; then
-  POSTGRES_PASSWORD="$(cat "$POSTGRES_PASS_FILE")"
-else
-  POSTGRES_PASSWORD="$(openssl rand -base64 32 | tr -dc 'a-zA-Z0-9' | head -c 32)"
-fi
+# Directory of this script (= project root when the repo is present)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # ── Argument parsing ──────────────────────────────────────────────────────────
 while [[ $# -gt 0 ]]; do
   case "$1" in
+    --domain)     DOMAIN="$2";    shift 2 ;;
+    --email)      ACME_EMAIL="$2"; shift 2 ;;
     --photos-dir) PHOTOS_DIR="$2"; shift 2 ;;
     --update)     UPDATE_ONLY=true; shift ;;
     --help|-h)
-      echo "Usage: sudo $0 [--photos-dir /path] [--update]"
+      echo "Usage: sudo $0 [OPTIONS]"
+      echo ""
+      echo "Options:"
+      echo "  --domain      Hostname (default: $DOMAIN)"
+      echo "  --email       ACME e-mail for Let's Encrypt (default: $ACME_EMAIL)"
       echo "  --photos-dir  Host path for photo storage (default: $INSTALL_DIR/photos)"
-      echo "  --update      Rewrite config files, pull latest images and restart"
+      echo "  --update      Re-sync files, rewrite .env, pull latest images and restart"
       exit 0 ;;
     *) error "Unknown option: $1. Use --help for usage." ;;
   esac
@@ -50,9 +50,17 @@ done
 [[ -z "$PHOTOS_DIR" ]] && PHOTOS_DIR="$INSTALL_DIR/photos"
 PREVIEWS_DIR="$INSTALL_DIR/public/previews"
 LETSENCRYPT_DIR="$INSTALL_DIR/letsencrypt"
+POSTGRES_PASS_FILE="$INSTALL_DIR/.postgres_password"
 
 # ── Root check ────────────────────────────────────────────────────────────────
 [[ "$(id -u)" -eq 0 ]] || error "Please run as root: sudo $0"
+
+# ── PostgreSQL password (generated once, persisted across updates) ────────────
+if [[ -f "$POSTGRES_PASS_FILE" ]]; then
+  POSTGRES_PASSWORD="$(cat "$POSTGRES_PASS_FILE")"
+else
+  POSTGRES_PASSWORD="$(openssl rand -base64 32 | tr -dc 'a-zA-Z0-9' | head -c 32)"
+fi
 
 # ── OS detection ──────────────────────────────────────────────────────────────
 if   command -v apt-get &>/dev/null; then PKG_MGR="apt"
@@ -98,68 +106,34 @@ else
 fi
 success "Compose command: ${BOLD}${DC}${RESET}"
 
-# ══════════════════════════════════════════════════════════════════════════════
-# Config writers
-# ══════════════════════════════════════════════════════════════════════════════
-
-write_postgres_init() {
-  info "Writing $INSTALL_DIR/postgres-init/01-init.sql …"
-  mkdir -p "$INSTALL_DIR/postgres-init"
-  cat > "$INSTALL_DIR/postgres-init/01-init.sql" <<SQL
-CREATE TABLE IF NOT EXISTS photo_views (
-  id       SERIAL PRIMARY KEY,
-  album    VARCHAR(255) NOT NULL,
-  filename VARCHAR(255) NOT NULL,
-  views    BIGINT       NOT NULL DEFAULT 0,
-  UNIQUE (album, filename)
-);
-SQL
-  chmod 640 "$INSTALL_DIR/postgres-init/01-init.sql"
-  success "postgres-init/01-init.sql written."
+# ── Sync project files to INSTALL_DIR ────────────────────────────────────────
+# Copies everything except secrets, media, and generated files.
+sync_project_files() {
+  if [[ "$SCRIPT_DIR" == "$INSTALL_DIR" ]]; then
+    info "Running from $INSTALL_DIR — no copy needed."
+    return
+  fi
+  info "Syncing project files to $INSTALL_DIR …"
+  mkdir -p "$INSTALL_DIR"
+  rsync -a --delete \
+    --exclude='.env' \
+    --exclude='.env.*' \
+    --exclude='.postgres_password' \
+    --exclude='node_modules/' \
+    --exclude='photos/' \
+    --exclude='public/previews/' \
+    --exclude='letsencrypt/' \
+    --exclude='coverage/' \
+    --exclude='.git/' \
+    "$SCRIPT_DIR/" "$INSTALL_DIR/"
+  success "Project files synced."
 }
 
-write_traefik_static() {
-  info "Writing $INSTALL_DIR/traefik.yml …"
-  cat > "$INSTALL_DIR/traefik.yml" <<TRAEFIK
-entryPoints:
-  web:
-    address: ":80"
-    http:
-      redirections:
-        entryPoint:
-          to: websecure
-          scheme: https
-          permanent: true
-  websecure:
-    address: ":443"
-
-certificatesResolvers:
-  letsencrypt:
-    acme:
-      email: ${ACME_EMAIL}
-      storage: /letsencrypt/acme.json
-      httpChallenge:
-        entryPoint: web
-
-providers:
-  file:
-    filename: /config/dynamic.yml
-    watch: true
-
-api:
-  dashboard: false
-
-log:
-  level: WARN
-
-accessLog: {}
-TRAEFIK
-  success "traefik.yml written."
-}
-
+# ── Write traefik/dynamic.yml (domaine spécifique au serveur) ────────────────
 write_traefik_dynamic() {
-  info "Writing $INSTALL_DIR/dynamic.yml …"
-  cat > "$INSTALL_DIR/dynamic.yml" <<DYNAMIC
+  info "Writing $INSTALL_DIR/traefik/dynamic.yml …"
+  mkdir -p "$INSTALL_DIR/traefik"
+  cat > "$INSTALL_DIR/traefik/dynamic.yml" <<DYNAMIC
 http:
   routers:
     photo-book:
@@ -186,85 +160,32 @@ http:
         stsPreload: true
         forceSTSHeader: true
 DYNAMIC
-  success "dynamic.yml written."
+  success "traefik/dynamic.yml written."
 }
 
-write_compose() {
-  info "Writing $INSTALL_DIR/docker-compose.yml …"
-  cat > "$INSTALL_DIR/docker-compose.yml" <<COMPOSE
-services:
-
-  # ── Reverse proxy ─────────────────────────────────────────────────────────
-  traefik:
-    image: ${TRAEFIK_IMAGE}
-    restart: unless-stopped
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ${INSTALL_DIR}/traefik.yml:/etc/traefik/traefik.yml:ro
-      - ${INSTALL_DIR}/dynamic.yml:/config/dynamic.yml:ro
-      - ${LETSENCRYPT_DIR}:/letsencrypt
-    networks:
-      - proxy
-
-  # ── Base de données ────────────────────────────────────────────────────────
-  postgres:
-    image: ${POSTGRES_IMAGE}
-    restart: unless-stopped
-    environment:
-      POSTGRES_DB: photobook
-      POSTGRES_USER: photobook
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-    volumes:
-      - postgres-data:/var/lib/postgresql/data
-      - ${INSTALL_DIR}/postgres-init:/docker-entrypoint-initdb.d:ro
-    networks:
-      - proxy
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U photobook -d photobook"]
-      interval: 5s
-      timeout: 3s
-      retries: 10
-      start_period: 20s
-
-  # ── Application ───────────────────────────────────────────────────────────
-  photo-book:
-    image: ${IMAGE}
-    restart: unless-stopped
-    expose:
-      - "3000"
-    volumes:
-      - ${PHOTOS_DIR}:/app/photos
-      - ${PREVIEWS_DIR}:/app/public/previews
-    environment:
-      - NODE_ENV=production
-      - POSTGRES_HOST=postgres
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-    depends_on:
-      postgres:
-        condition: service_healthy
-    networks:
-      - proxy
-
-networks:
-  proxy:
-    driver: bridge
-
-volumes:
-  postgres-data:
-COMPOSE
-  success "docker-compose.yml written."
+# ── Write .env ────────────────────────────────────────────────────────────────
+write_env() {
+  info "Writing $INSTALL_DIR/.env …"
+  cat > "$INSTALL_DIR/.env" <<ENV
+DOMAIN=${DOMAIN}
+ACME_EMAIL=${ACME_EMAIL}
+POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+PHOTOS_DIR=${PHOTOS_DIR}
+IMAGE=${IMAGE}
+TRAEFIK_IMAGE=${TRAEFIK_IMAGE}
+POSTGRES_IMAGE=${POSTGRES_IMAGE}
+ENV
+  chmod 600 "$INSTALL_DIR/.env"
+  success ".env written."
 }
 
 # ── Update-only shortcut ──────────────────────────────────────────────────────
 if $UPDATE_ONLY; then
   [[ -f "$INSTALL_DIR/docker-compose.yml" ]] \
     || error "No existing install found at $INSTALL_DIR. Run without --update first."
-  write_postgres_init
-  write_traefik_static
+  sync_project_files
   write_traefik_dynamic
-  write_compose
+  write_env
   info "Pulling latest images …"
   cd "$INSTALL_DIR"
   $DC pull
@@ -286,8 +207,7 @@ echo
 
 # ── Directories ───────────────────────────────────────────────────────────────
 info "Creating directories …"
-mkdir -p "$INSTALL_DIR" "$PHOTOS_DIR" "$PREVIEWS_DIR" "$LETSENCRYPT_DIR"
-chmod 755 "$INSTALL_DIR"
+mkdir -p "$PHOTOS_DIR" "$PREVIEWS_DIR" "$LETSENCRYPT_DIR"
 chmod 777 "$PHOTOS_DIR" "$PREVIEWS_DIR"
 touch "$LETSENCRYPT_DIR/acme.json"
 chmod 600 "$LETSENCRYPT_DIR/acme.json"
@@ -300,10 +220,9 @@ if [[ ! -f "$POSTGRES_PASS_FILE" ]]; then
   success "PostgreSQL password generated and saved to $POSTGRES_PASS_FILE"
 fi
 
-write_postgres_init
-write_traefik_static
+sync_project_files
 write_traefik_dynamic
-write_compose
+write_env
 
 # ── Pull images ───────────────────────────────────────────────────────────────
 info "Pulling images from Docker Hub …"
@@ -326,7 +245,7 @@ fi
 
 cat > "/etc/systemd/system/${SERVICE}.service" <<EOF
 [Unit]
-Description=Photo Book — Traefik + App + MySQL (Docker Compose)
+Description=Photo Book — Traefik + App + PostgreSQL (Docker Compose)
 Documentation=https://github.com/jarod68/photo-book
 After=docker.service network-online.target
 Requires=docker.service
@@ -356,7 +275,7 @@ systemctl restart "${SERVICE}.service"
 sleep 5
 systemctl is-active --quiet "${SERVICE}.service" \
   && success "Service is running." \
-  || warn "Service may still be starting (MySQL init ~30 s). Check: journalctl -u ${SERVICE} -f"
+  || warn "Service may still be starting (PostgreSQL init ~30 s). Check: journalctl -u ${SERVICE} -f"
 
 # ── Final summary ─────────────────────────────────────────────────────────────
 echo
@@ -373,4 +292,3 @@ echo -e "  Mise à jour    : ${BOLD}sudo $0 --update${RESET}"
 echo
 echo -e "  ${YELLOW}Note :${RESET} DNS ${BOLD}${DOMAIN}${RESET} doit pointer vers l'IP de ce serveur."
 echo
-

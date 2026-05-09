@@ -1,0 +1,32 @@
+entryPoints:
+  web:
+    address: ":80"
+    http:
+      redirections:
+        entryPoint:
+          to: websecure
+          scheme: https
+          permanent: true
+  websecure:
+    address: ":443"
+
+certificatesResolvers:
+  letsencrypt:
+    acme:
+      # email fourni via TRAEFIK_CERTIFICATESRESOLVERS_LETSENCRYPT_ACME_EMAIL (docker-compose.yml)
+      storage: /letsencrypt/acme.json
+      httpChallenge:
+        entryPoint: web
+
+providers:
+  file:
+    filename: /config/dynamic.yml
+    watch: true
+
+api:
+  dashboard: false
+
+log:
+  level: WARN
+
+accessLog: {}
