@@ -39,11 +39,6 @@ services:
   # ── Application ───────────────────────────────────────────────────────────
   photo-book:
     image: ${IMAGE:-jarod68/photo-book:latest}
-    build:
-      context: .
-      platforms:
-        - linux/amd64
-        - linux/arm64
     restart: unless-stopped
     expose:
       - "3000"
