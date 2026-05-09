@@ -146,6 +146,7 @@ coverage/*
 
 photos/
 public/previews/
+public/medium/
 letsencrypt/
 .postgres_password
 .faces-blurred.json

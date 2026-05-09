@@ -7,15 +7,15 @@ const PHOTOS_DIR   = process.env.PHOTOS_DIR
   ? path.resolve(process.env.PHOTOS_DIR)
   : path.join(__dirname, '..', 'photos');
 const PREVIEWS_DIR = path.join(__dirname, '..', 'public', 'previews');
+const MEDIUM_DIR   = path.join(__dirname, '..', 'public', 'medium');
 
 const IMAGE_EXT  = new Set(['.jpg', '.jpeg', '.png', '.webp', '.tiff', '.tif']);
 const isImage    = f => IMAGE_EXT.has(path.extname(f).toLowerCase());
 const isAlbumDir = e => e.isDirectory() && /^[A-Za-z0-9]/.test(e.name);
 
 // ── Preview generation ────────────────────────────────────────────────────────
-// Generates a low-res JPEG on first request, cached to public/previews/.
-// 360° photos → 1536 px wide (maintains 2:1 for Pannellum preview)
-// Standard     → 1024 px wide
+// public/previews/ — thumbnail strip (1024 px standard, 1536 px 360°)
+// public/medium/   — 720p intermediate shown while the full image loads (1280 px)
 
 async function ensurePreview(albumName, filename, filePath, is360, _deps = {}) {
   const _fs    = _deps.fs    ?? fs;
@@ -36,6 +36,26 @@ async function ensurePreview(albumName, filename, filePath, is360, _deps = {}) {
   }
 
   return `/previews/${encodeURIComponent(albumName)}/${encodeURIComponent(previewName)}`;
+}
+
+async function ensureMedium(albumName, filename, filePath, _deps = {}) {
+  const _fs    = _deps.fs    ?? fs;
+  const _sharp = _deps.sharp ?? sharp;
+
+  const albumDir  = path.join(MEDIUM_DIR, albumName);
+  const medName   = path.parse(filename).name + '.jpg';
+  const medPath   = path.join(albumDir, medName);
+
+  if (!_fs.existsSync(medPath)) {
+    _fs.mkdirSync(albumDir, { recursive: true });
+    await _sharp(filePath)
+      .rotate()
+      .resize(1280, null, { withoutEnlargement: true })
+      .jpeg({ quality: 82, progressive: true })
+      .toFile(medPath);
+  }
+
+  return `/medium/${encodeURIComponent(albumName)}/${encodeURIComponent(medName)}`;
 }
 
 // ── EXIF metadata extraction ──────────────────────────────────────────────────
@@ -92,7 +112,10 @@ async function photoMeta(albumName, file, albumPath, _deps = {}) {
     }
   } catch (_) { /* use filename defaults */ }
 
-  const previewUrl = await ensurePreview(albumName, file, filePath, is360, _deps).catch(() => null);
+  const [previewUrl, mediumUrl] = await Promise.all([
+    ensurePreview(albumName, file, filePath, is360, _deps).catch(() => null),
+    ensureMedium(albumName, file, filePath, _deps).catch(() => null),
+  ]);
 
   let gps = null;
   try {
@@ -106,6 +129,7 @@ async function photoMeta(albumName, file, albumPath, _deps = {}) {
     filename:    file,
     url:         `/photos/${encodeURIComponent(albumName)}/${encodeURIComponent(file)}`,
     previewUrl,
+    mediumUrl,
     name:        String(name).trim(),
     description: String(description).trim(),
     is360,
@@ -129,8 +153,10 @@ async function preGenerateAll(_deps = {}) {
     const albumPath = path.join(PHOTOS_DIR, album.name);
     const files     = _fs.readdirSync(albumPath).filter(isImage).sort();
     for (const file of files) {
-      const previewPath = path.join(PREVIEWS_DIR, album.name, path.parse(file).name + '.jpg');
-      if (!_fs.existsSync(previewPath)) {
+      const base        = path.parse(file).name + '.jpg';
+      const previewPath = path.join(PREVIEWS_DIR, album.name, base);
+      const mediumPath  = path.join(MEDIUM_DIR,   album.name, base);
+      if (!_fs.existsSync(previewPath) || !_fs.existsSync(mediumPath)) {
         await photoMeta(album.name, file, albumPath, _deps).catch(e =>
           console.error('Preview error:', file, e.message),
         );
@@ -141,4 +167,4 @@ async function preGenerateAll(_deps = {}) {
   if (count > 0) console.log(`  ✓ ${count} miniature${count > 1 ? 's' : ''} générée${count > 1 ? 's' : ''}.`);
 }
 
-module.exports = { PHOTOS_DIR, PREVIEWS_DIR, IMAGE_EXT, isImage, isAlbumDir, ensurePreview, photoMeta, preGenerateAll };
+module.exports = { PHOTOS_DIR, PREVIEWS_DIR, MEDIUM_DIR, IMAGE_EXT, isImage, isAlbumDir, ensurePreview, ensureMedium, photoMeta, preGenerateAll };

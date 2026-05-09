@@ -18,7 +18,7 @@ COPY public/     ./public/
 
 # Create volume mount points and transfer full ownership to the node user (uid 1000)
 # node_modules/ was created by root during npm ci — chown covers it too
-RUN mkdir -p photos public/previews \
+RUN mkdir -p photos public/previews public/medium \
   && chown -R node:node /app
 
 USER node

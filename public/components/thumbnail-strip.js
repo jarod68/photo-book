@@ -24,12 +24,11 @@ export class ThumbnailStrip {
    * @param {(i: number) => void} onSelect
    * @param {{ prevBtn?: HTMLElement, nextBtn?: HTMLElement }} [arrows]
    */
-  constructor(el, onSelect, { prevBtn, nextBtn, onScrolling } = {}) {
-    this._el         = el;
-    this._onSelect   = onSelect;
-    this._prevBtn    = prevBtn    || null;
-    this._nextBtn    = nextBtn    || null;
-    this._onScrolling = onScrolling || null;
+  constructor(el, onSelect, { prevBtn, nextBtn } = {}) {
+    this._el       = el;
+    this._onSelect = onSelect;
+    this._prevBtn  = prevBtn || null;
+    this._nextBtn  = nextBtn || null;
 
     this._photos   = [];
     this._winStart = 0;
@@ -49,10 +48,6 @@ export class ThumbnailStrip {
         this._rafId = requestAnimationFrame(() => {
           this._rafId = null;
           this._updateWindow();
-          // Notify caller of the thumbnail currently centered so it can preload
-          if (!this._suppressAutoSelect && this._onScrolling) {
-            this._onScrolling(this._centerIndex());
-          }
         });
       }
       // Detect user scroll-end via debounce (fallback) —
