@@ -1,14 +1,68 @@
 services:
-  photo-book:
-    image: jarod68/photo-book:latest
-    build:
-        context: .
-        platforms:
-          - linux/amd64
-          - linux/arm64
-    ports:
-      - "3000:3000"
-    volumes:
-      - ./photos:/app/photos                   # albums (source of truth on the host)
-      - ./public/previews:/app/public/previews # preview cache persisted across restarts
+
+  # ── Reverse proxy ──────────────────────────────────────────────────────────
+  traefik:
+    image: ${TRAEFIK_IMAGE:-traefik:v3.3}
     restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./traefik/static.yml:/etc/traefik/traefik.yml:ro
+      - ./traefik/dynamic.yml:/config/dynamic.yml:ro
+      - ./letsencrypt:/letsencrypt
+    environment:
+      - TRAEFIK_CERTIFICATESRESOLVERS_LETSENCRYPT_ACME_EMAIL=${ACME_EMAIL}
+    networks:
+      - proxy
+
+  # ── Base de données ────────────────────────────────────────────────────────
+  postgres:
+    image: ${POSTGRES_IMAGE:-postgres:16-alpine}
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: photobook
+      POSTGRES_USER: photobook
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./postgres-init:/docker-entrypoint-initdb.d:ro
+    networks:
+      - proxy
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U photobook -d photobook"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 20s
+
+  # ── Application ───────────────────────────────────────────────────────────
+  photo-book:
+    image: ${IMAGE:-jarod68/photo-book:latest}
+    build:
+      context: .
+      platforms:
+        - linux/amd64
+        - linux/arm64
+    restart: unless-stopped
+    expose:
+      - "3000"
+    volumes:
+      - ${PHOTOS_DIR:-./photos}:/app/photos
+      - ./public/previews:/app/public/previews
+    environment:
+      - NODE_ENV=production
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - proxy
+
+networks:
+  proxy:
+    driver: bridge
+
+volumes:
+  postgres-data:
