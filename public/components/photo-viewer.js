@@ -48,6 +48,7 @@ export class PhotoViewer {
     this._initInteraction();
     this._initPanoControls();
     this._initPanoTouch();
+    this._initPanoEdgeSwipe();
 
   }
 
@@ -292,6 +293,50 @@ export class PhotoViewer {
     this._gyroBtn?.addEventListener('click', () => this._toggleGyro());
   }
 
+  // ── 360° edge swipe: intercept border touches to navigate between photos ─────
+  // Uses touch events with capture so Pannellum never sees the event.
+
+  _initPanoEdgeSwipe() {
+    const EDGE_PX = () => window.innerWidth * 0.15;
+    let edgeTouch = null; // { id, startX, startY }
+
+    const onTouchStart = e => {
+      if (this._pnl.style.display === 'none') return;
+      const t = e.changedTouches[0];
+      const edge = EDGE_PX();
+      if (t.clientX < edge || t.clientX > window.innerWidth - edge) {
+        e.stopPropagation();
+        e.preventDefault();
+        edgeTouch = { id: t.identifier, startX: t.clientX, startY: t.clientY };
+      }
+    };
+
+    const onTouchMove = e => {
+      if (!edgeTouch) return;
+      e.stopPropagation();
+      e.preventDefault();
+    };
+
+    const onTouchEnd = e => {
+      if (!edgeTouch) return;
+      e.stopPropagation();
+      const t = Array.from(e.changedTouches).find(c => c.identifier === edgeTouch.id);
+      if (t) {
+        const dx = t.clientX - edgeTouch.startX;
+        const dy = t.clientY - edgeTouch.startY;
+        if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy) * 1.5) {
+          this._onSwipe?.(dx < 0 ? 'left' : 'right');
+        }
+      }
+      edgeTouch = null;
+    };
+
+    this._pnl.addEventListener('touchstart',  onTouchStart, { capture: true, passive: false });
+    this._pnl.addEventListener('touchmove',   onTouchMove,  { capture: true, passive: false });
+    this._pnl.addEventListener('touchend',    onTouchEnd,   { capture: true });
+    this._pnl.addEventListener('touchcancel', () => { edgeTouch = null; }, { capture: true });
+  }
+
   // ── 360° touch: pause gyro while finger moves, recalibrate on lift ───────────
 
   _initPanoTouch() {
@@ -345,6 +390,10 @@ export class PhotoViewer {
     // Used by the click handler below to distinguish tap from drag.
     let _tapX = 0, _tapY = 0, _tapped = false;
 
+    // Edge-swipe: a touch starting within 15 % of either side navigates between photos.
+    const EDGE_PX = () => window.innerWidth * 0.15;
+    let isEdgeDrag = false;
+
     root.addEventListener('pointerdown', e => {
       _tapX    = e.clientX;
       _tapY    = e.clientY;
@@ -357,6 +406,9 @@ export class PhotoViewer {
       if (e.target.closest('button, a, .photo-map-mini')) return;
       ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
       root.setPointerCapture(e.pointerId);
+
+      const edge = EDGE_PX();
+      isEdgeDrag = e.clientX < edge || e.clientX > window.innerWidth - edge;
 
       if (ptrs.size === 2) {
         // Second finger down → start pinch, cancel any drag
@@ -415,16 +467,16 @@ export class PhotoViewer {
     const onEnd = e => {
       ptrs.delete(e.pointerId);
       if (dragId === e.pointerId) {
-        // Swipe de navigation : seulement si la photo n'est pas zoomée
-        if (this._scale === 1 && pinch === null) {
+        // Edge swipe → navigation entre photos (prioritaire sur zoom/pan)
+        if (isEdgeDrag && pinch === null) {
           const dx = e.clientX - dragSx;
           const dy = e.clientY - dragSy;
-          // Au moins 50 px horizontal, ratio horiz/vert > 1.5 pour éviter les faux positifs
-          if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) {
+          if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy) * 1.5) {
             this._onSwipe?.(dx < 0 ? 'left' : 'right');
           }
         }
-        dragId = null;
+        dragId     = null;
+        isEdgeDrag = false;
         this._img.style.cursor = this._scale > 1 ? 'grab' : '';
       }
       pinch = null;

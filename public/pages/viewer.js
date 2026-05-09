@@ -21,8 +21,6 @@ const state = {
 // ── DOM ───────────────────────────────────────────────────────────────────────
 const tabsEl      = document.getElementById('album-tabs');
 const thumbsEl    = document.getElementById('thumbnails');
-const prevBtn     = document.getElementById('prev-btn');
-const nextBtn     = document.getElementById('next-btn');
 const albumMapBtn = document.getElementById('album-map-btn');
 const locationEl  = document.getElementById('photo-location');
 const viewsEl     = document.getElementById('photo-views');
@@ -87,8 +85,9 @@ const viewer = new PhotoViewer({
 
 const tabs   = new AlbumTabs(tabsEl);
 const thumbs = new ThumbnailStrip(thumbsEl, i => showPhoto(i), {
-  prevBtn: document.getElementById('strip-prev'),
-  nextBtn: document.getElementById('strip-next'),
+  prevBtn:     document.getElementById('strip-prev'),
+  nextBtn:     document.getElementById('strip-next'),
+  onScrolling: i => preloadPhoto(i),
 });
 
 const photoMap = new PhotoMap({
@@ -203,7 +202,6 @@ function showPhoto(index) {
   appEl.classList.remove('ui-hidden');
 
   state.index = index;
-  updateNav();
   thumbs.activate(index);
   photoMap.update(photo, index, state.photos);
   albumMap.setCurrent(index);
@@ -238,18 +236,10 @@ function showPhoto(index) {
   preloadPhoto(index - 1);
 }
 
-function updateNav() {
-  prevBtn.disabled = state.index <= 0;
-  nextBtn.disabled = state.index >= state.photos.length - 1;
-}
-
 // ── Navigation ────────────────────────────────────────────────────────────────
-prevBtn.onclick = () => { if (state.index > 0) showPhoto(state.index - 1); };
-nextBtn.onclick = () => { if (state.index < state.photos.length - 1) showPhoto(state.index + 1); };
-
 document.addEventListener('keydown', e => {
-  if (e.key === 'ArrowLeft')  prevBtn.click();
-  if (e.key === 'ArrowRight') nextBtn.click();
+  if (e.key === 'ArrowLeft'  && state.index > 0)                       showPhoto(state.index - 1);
+  if (e.key === 'ArrowRight' && state.index < state.photos.length - 1) showPhoto(state.index + 1);
 });
 
 // ── Start ─────────────────────────────────────────────────────────────────────
