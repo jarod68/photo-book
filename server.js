@@ -15,6 +15,14 @@ const GEO_MAX  = 2000;
 
 // ─── Static files ─────────────────────────────────────────────────────────────
 
+// Medium (720p): generated once, never mutated → immutable 1 year
+app.use('/medium', express.static(path.join(__dirname, 'public', 'medium'), {
+  maxAge: '1y',
+  immutable: true,
+  etag: false,
+  lastModified: false,
+}));
+
 // Previews: generated once, never mutated → immutable 1 year
 app.use('/previews', express.static(path.join(__dirname, 'public', 'previews'), {
   maxAge: '1y',

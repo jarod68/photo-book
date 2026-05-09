@@ -49,6 +49,7 @@ done
 
 [[ -z "$PHOTOS_DIR" ]] && PHOTOS_DIR="$INSTALL_DIR/photos"
 PREVIEWS_DIR="$INSTALL_DIR/public/previews"
+MEDIUM_DIR="$INSTALL_DIR/public/medium"
 LETSENCRYPT_DIR="$INSTALL_DIR/letsencrypt"
 POSTGRES_PASS_FILE="$INSTALL_DIR/.postgres_password"
 
@@ -207,8 +208,8 @@ echo
 
 # ── Directories ───────────────────────────────────────────────────────────────
 info "Creating directories …"
-mkdir -p "$PHOTOS_DIR" "$PREVIEWS_DIR" "$LETSENCRYPT_DIR"
-chmod 777 "$PHOTOS_DIR" "$PREVIEWS_DIR"
+mkdir -p "$PHOTOS_DIR" "$PREVIEWS_DIR" "$MEDIUM_DIR" "$LETSENCRYPT_DIR"
+chmod 777 "$PHOTOS_DIR" "$PREVIEWS_DIR" "$MEDIUM_DIR"
 touch "$LETSENCRYPT_DIR/acme.json"
 chmod 600 "$LETSENCRYPT_DIR/acme.json"
 success "Directories ready."

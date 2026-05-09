@@ -45,6 +45,7 @@ services:
     volumes:
       - ${PHOTOS_DIR:-./photos}:/app/photos
       - ./public/previews:/app/public/previews
+      - ./public/medium:/app/public/medium
     environment:
       - NODE_ENV=production
       - POSTGRES_HOST=postgres

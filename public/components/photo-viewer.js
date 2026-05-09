@@ -66,9 +66,9 @@ export class PhotoViewer {
     this._badge.classList.toggle('visible', photo.is360);
 
     if (photo.is360) {
-      this._show360(photo.url);
+      this._show360(photo.url, photo.previewUrl);
     } else {
-      this._showStandard(photo.url, onDetect360);
+      this._showStandard(photo.url, photo.mediumUrl, onDetect360);
     }
   }
 
@@ -76,7 +76,7 @@ export class PhotoViewer {
 
   // ── 360° ───────────────────────────────────────────────────────────────────
 
-  _show360(url) {
+  _show360(url, previewUrl) {
     this._pnl.style.display = 'block';
     this._img.style.display = 'none';
     this._img.classList.remove('loaded');
@@ -95,6 +95,7 @@ export class PhotoViewer {
         this._viewer = pannellum.viewer('pnl-container', {
           type:               'equirectangular',
           panorama:           url,
+          preview:            previewUrl || undefined,
           autoLoad:           true,
           showZoomCtrl:       false,
           showFullscreenCtrl: false,
@@ -223,27 +224,83 @@ export class PhotoViewer {
 
   // ── Standard photo ─────────────────────────────────────────────────────────
 
-  _showStandard(url, onDetect360) {
+  _showStandard(url, mediumUrl, onDetect360) {
     this._destroyPannellum();
     this._pnl.style.display = 'none';
-    this._controls.wrapper.style.display = 'flex';  // zoom + recenter visibles
-    if (this._gyroBtn) this._gyroBtn.style.display = 'none'; // gyro uniquement 360°
+    this._controls.wrapper.style.display = 'flex';
+    if (this._gyroBtn) this._gyroBtn.style.display = 'none';
     this._img.classList.remove('loaded');
     this._img.style.display = 'block';
 
-    this._img.onload = () => {
-      // Client-side 360° fallback for untagged equirectangular images
-      const r = this._img.naturalWidth / this._img.naturalHeight;
-      if (r >= 1.95 && r <= 2.05 && this._img.naturalWidth >= 3000) {
+    // Token to abort stale callbacks when the user navigates quickly.
+    const token = Symbol();
+    this._loadToken = token;
+
+    // Check if the full image is already in the browser cache.
+    // Browsers set .complete = true synchronously for cached resources.
+    const probe = new Image();
+    probe.src = url;
+    const fullCached = probe.complete && probe.naturalWidth > 0;
+
+    // 360° client-side fallback (untagged panoramas, checked on full resolution only).
+    const check360 = (w, h) => {
+      const r = w / h;
+      return r >= 1.95 && r <= 2.05 && w >= 3000;
+    };
+
+    if (fullCached) {
+      // Full already in cache → show directly, no medium step.
+      if (check360(probe.naturalWidth, probe.naturalHeight)) {
         this._badge.classList.add('visible');
         onDetect360?.();
         this._show360(url);
         return;
       }
+      this._img.src = url;
       this._img.classList.add('loaded');
+      return;
+    }
+
+    // Full not cached → show medium first, then swap when full is ready.
+    const swapToFull = () => {
+      const pre = new Image();
+      pre.onload = () => {
+        if (this._loadToken !== token) return;
+        if (check360(pre.naturalWidth, pre.naturalHeight)) {
+          this._badge.classList.add('visible');
+          onDetect360?.();
+          this._show360(url);
+          return;
+        }
+        this._img.src = url;
+      };
+      pre.onerror = () => {};
+      pre.src = url;
     };
-    this._img.onerror = () => this._img.classList.add('loaded');
-    this._img.src = url;
+
+    const showDirect = () => {
+      this._img.onload = () => {
+        if (this._loadToken !== token) return;
+        this._img.classList.add('loaded');
+      };
+      this._img.onerror = () => { if (this._loadToken === token) this._img.classList.add('loaded'); };
+      this._img.src = url;
+    };
+
+    if (mediumUrl && mediumUrl !== url) {
+      this._img.onload = () => {
+        if (this._loadToken !== token) return;
+        this._img.classList.add('loaded');
+        swapToFull();
+      };
+      this._img.onerror = () => {
+        if (this._loadToken !== token) return;
+        showDirect();
+      };
+      this._img.src = mediumUrl;
+    } else {
+      showDirect();
+    }
   }
 
   // ── Helpers ────────────────────────────────────────────────────────────────

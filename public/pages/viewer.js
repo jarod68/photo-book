@@ -85,9 +85,8 @@ const viewer = new PhotoViewer({
 
 const tabs   = new AlbumTabs(tabsEl);
 const thumbs = new ThumbnailStrip(thumbsEl, i => showPhoto(i), {
-  prevBtn:     document.getElementById('strip-prev'),
-  nextBtn:     document.getElementById('strip-next'),
-  onScrolling: i => preloadPhoto(i),
+  prevBtn: document.getElementById('strip-prev'),
+  nextBtn: document.getElementById('strip-next'),
 });
 
 const photoMap = new PhotoMap({
@@ -180,19 +179,6 @@ likeBtn.addEventListener('click', e => {
     .catch(() => {});
 });
 
-// ── Préchargement ─────────────────────────────────────────────────────────────
-// On garde les refs Image en vie : certains navigateurs vident le cache HTTP
-// si l'objet Image est collecté par le GC avant que le chargement soit utilisé.
-const _preloaded = new Set();
-
-function preloadPhoto(index) {
-  const photo = state.photos[index];
-  if (!photo?.url || _preloaded.has(photo.url)) return;
-  _preloaded.add(photo.url);
-  const img = new Image();
-  img.src = photo.url;
-}
-
 // ── Photo display ─────────────────────────────────────────────────────────────
 function showPhoto(index) {
   const photo = state.photos[index];
@@ -231,9 +217,6 @@ function showPhoto(index) {
     })
     .catch(() => {});
 
-  // Précharger la photo suivante et précédente en arrière-plan
-  preloadPhoto(index + 1);
-  preloadPhoto(index - 1);
 }
 
 // ── Navigation ────────────────────────────────────────────────────────────────
