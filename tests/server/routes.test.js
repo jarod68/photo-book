@@ -33,9 +33,13 @@ vi.mock('fs', async () => {
 // server.js est chargé en premier — il place database.js dans le cache CJS
 const { app } = await import('../../server.js');
 
-// createRequire donne accès au même cache CJS que les require() de server.js
+// createRequire donne accès au même cache CJS que les require() de server.js.
+// fsMod et exifrMod sont les mêmes objets que ceux utilisés par server.js :
+// modifier leurs propriétés ici est immédiatement visible dans les routes.
 const _require  = createRequire(import.meta.url);
 const database  = _require('../../services/database.js');
+const fsMod     = _require('fs');    // vi.fn() instances depuis vi.mock('fs', …)
+const exifrMod  = _require('exifr'); // module réel — on utilisera vi.spyOn
 
 const mockQuery = vi.fn();
 
@@ -219,5 +223,140 @@ describe('GET /api/albums', () => {
     const res = await request(app).get('/api/albums');
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body)).toBe(true);
+  });
+});
+
+// ── /api/albums/:album ────────────────────────────────────────────────────────
+
+describe('GET /api/albums/:album', () => {
+  beforeEach(() => {
+    vi.spyOn(fsMod, 'existsSync').mockReturnValue(false);
+    vi.spyOn(fsMod, 'readdirSync').mockReturnValue([]);
+  });
+
+  afterEach(() => vi.restoreAllMocks());
+
+  it("retourne 404 si l'album n'existe pas", async () => {
+    // fsMod.existsSync returns false by default (describe beforeEach spy)
+    const res = await request(app).get('/api/albums/Inconnu');
+    expect(res.status).toBe(404);
+  });
+
+  it('retourne 200 avec { name, photos } si l\'album existe (sans DB)', async () => {
+    fsMod.existsSync.mockReturnValue(true);
+    fsMod.readdirSync.mockReturnValue(['photo.jpg']);
+
+    const res = await request(app).get('/api/albums/Paris');
+    expect(res.status).toBe(200);
+    expect(res.body.name).toBe('Paris');
+    expect(Array.isArray(res.body.photos)).toBe(true);
+    expect(res.body.photos).toHaveLength(1);
+  });
+
+  it('enrichit les photos avec views et likes si la DB est prête', async () => {
+    fsMod.existsSync.mockReturnValue(true);
+    fsMod.readdirSync.mockReturnValue(['photo.jpg']);
+    mockQuery
+      .mockResolvedValueOnce({ rows: [{ filename: 'photo.jpg', views: '7' }] })
+      .mockResolvedValueOnce({ rows: [{ filename: 'photo.jpg', likes: '3' }] });
+    database._setState({ query: mockQuery }, true);
+
+    const res = await request(app).get('/api/albums/Paris');
+    expect(res.status).toBe(200);
+    expect(res.body.photos[0].views).toBe(7);
+    expect(res.body.photos[0].likes).toBe(3);
+  });
+
+  it('retourne 500 si readdirSync lève une exception', async () => {
+    fsMod.existsSync.mockReturnValue(true);
+    fsMod.readdirSync.mockImplementation(() => { throw new Error('disk error'); });
+
+    const res = await request(app).get('/api/albums/Paris');
+    expect(res.status).toBe(500);
+  });
+});
+
+// ── /api/map ──────────────────────────────────────────────────────────────────
+// exifr est mocké par vi.spyOn sur le module chargé par server.js.
+// vi.restoreAllMocks() en afterEach restaure l'original après chaque test.
+
+describe('GET /api/map', () => {
+  const albumDir = { name: 'Paris', isDirectory: () => true };
+
+  beforeEach(() => {
+    vi.spyOn(fsMod, 'existsSync').mockReturnValue(false);
+    vi.spyOn(fsMod, 'readdirSync').mockReturnValue([]);
+    vi.spyOn(exifrMod, 'gps').mockResolvedValue(null);
+    vi.spyOn(exifrMod, 'parse').mockResolvedValue(null);
+  });
+
+  afterEach(() => vi.restoreAllMocks());
+
+  it('retourne [] si PHOTOS_DIR est absent', async () => {
+    // fsMod.existsSync returns false by default
+    const res = await request(app).get('/api/map');
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual([]);
+  });
+
+  it("retourne [] si aucune photo n'a de coordonnées GPS", async () => {
+    fsMod.existsSync.mockReturnValue(true);
+    fsMod.readdirSync
+      .mockReturnValueOnce([albumDir])
+      .mockReturnValueOnce(['photo.jpg']);
+    // exifrMod.gps returns null by default → photo ignorée
+
+    const res = await request(app).get('/api/map');
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual([]);
+  });
+
+  it('retourne les photos GPS avec tous les champs attendus', async () => {
+    fsMod.existsSync
+      .mockReturnValueOnce(true)   // PHOTOS_DIR existe
+      .mockReturnValue(false);     // preview non générée
+    fsMod.readdirSync
+      .mockReturnValueOnce([albumDir])
+      .mockReturnValueOnce(['img.jpg']);
+    exifrMod.gps.mockResolvedValue({ latitude: 48.8566, longitude: 2.3522 });
+    exifrMod.parse.mockResolvedValue({ DateTimeOriginal: new Date('2024-06-15T12:00:00Z') });
+
+    const res = await request(app).get('/api/map');
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(1);
+    const photo = res.body[0];
+    expect(photo.gps).toEqual({ lat: 48.8566, lng: 2.3522 });
+    expect(photo.album).toBe('Paris');
+    expect(photo.filename).toBe('img.jpg');
+    expect(photo.name).toBe('img');
+    expect(photo.url).toBe('/photos/Paris/img.jpg');
+    expect(photo.albumIndex).toBe(0);
+    expect(photo.date).toBe('2024-06-15T12:00:00.000Z');
+    expect(photo.previewUrl).toBeNull();
+  });
+
+  it('inclut previewUrl si le fichier de preview existe sur le disque', async () => {
+    fsMod.existsSync.mockReturnValue(true); // PHOTOS_DIR + preview
+    fsMod.readdirSync
+      .mockReturnValueOnce([albumDir])
+      .mockReturnValueOnce(['img.jpg']);
+    exifrMod.gps.mockResolvedValue({ latitude: 48.8566, longitude: 2.3522 });
+
+    const res = await request(app).get('/api/map');
+    expect(res.body[0].previewUrl).toBe('/previews/Paris/img.jpg');
+  });
+
+  it('ignore les photos sans coordonnées GPS', async () => {
+    fsMod.existsSync.mockReturnValueOnce(true).mockReturnValue(false);
+    fsMod.readdirSync
+      .mockReturnValueOnce([albumDir])
+      .mockReturnValueOnce(['avec-gps.jpg', 'sans-gps.jpg']);
+    exifrMod.gps
+      .mockResolvedValueOnce({ latitude: 48.8566, longitude: 2.3522 })
+      .mockResolvedValueOnce(null);
+
+    const res = await request(app).get('/api/map');
+    expect(res.body).toHaveLength(1);
+    expect(res.body[0].filename).toBe('avec-gps.jpg');
   });
 });

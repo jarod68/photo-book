@@ -247,7 +247,7 @@ describe('preGenerateAll', () => {
 
     await preGenerateAll(deps);
 
-    expect(sharpFn).toHaveBeenCalledTimes(2);
+    expect(sharpFn).toHaveBeenCalledTimes(4); // preview + medium × 2 photos
   });
 
   it('saute les photos dont la preview existe déjà', async () => {
