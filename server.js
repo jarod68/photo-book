@@ -309,6 +309,81 @@ app.get('/api/geocode', async (req, res) => {
   }
 });
 
+// ─── File watching ────────────────────────────────────────────────────────────
+
+async function deletePhotoFromDb(album, filename) {
+  if (!database.dbReady) return;
+  console.log(`  ✕ Photo supprimée — nettoyage BDD : ${album}/${filename}`);
+  const q = (sql) => database.db.query(sql, [album, filename]);
+  await q('DELETE FROM photo_view_log WHERE album = $1 AND filename = $2');
+  await q('DELETE FROM photo_likes    WHERE album = $1 AND filename = $2');
+  await q('DELETE FROM photo_views    WHERE album = $1 AND filename = $2');
+}
+
+async function deleteAlbumFromDb(album) {
+  if (!database.dbReady) return;
+  console.log(`  ✕ Album supprimé — nettoyage BDD : ${album}`);
+  const q = (sql) => database.db.query(sql, [album]);
+  await q('DELETE FROM photo_view_log WHERE album = $1');
+  await q('DELETE FROM photo_likes    WHERE album = $1');
+  await q('DELETE FROM photo_views    WHERE album = $1');
+}
+
+function watchPhotosDir() {
+  if (!fs.existsSync(PHOTOS_DIR)) return;
+
+  let debounceTimer = null;
+  const scheduleRegenerate = () => {
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(() => {
+      console.log('  ↻ Nouvelles photos détectées — génération des miniatures…');
+      preGenerateAll().catch(console.error);
+    }, 2_000);
+  };
+
+  const watchAlbum = (albumPath, albumName) => {
+    try {
+      fs.watch(albumPath, (_event, name) => {
+        if (!name || !isImage(name)) return;
+        const full = path.join(albumPath, name);
+        if (fs.existsSync(full)) {
+          scheduleRegenerate();
+        } else {
+          deletePhotoFromDb(albumName, name).catch(console.error);
+        }
+      });
+    } catch (_) {}
+  };
+
+  try {
+    fs.watch(PHOTOS_DIR, (_event, name) => {
+      if (!name) return;
+      setTimeout(() => {
+        try {
+          const full = path.join(PHOTOS_DIR, name);
+          if (fs.existsSync(full) && fs.statSync(full).isDirectory()) {
+            // Nouveau album détecté
+            scheduleRegenerate();
+            watchAlbum(full, name);
+          } else if (!fs.existsSync(full)) {
+            // Album supprimé
+            deleteAlbumFromDb(name).catch(console.error);
+          }
+        } catch (_) {}
+      }, 500);
+    });
+  } catch (err) {
+    console.warn('  ⚠ Surveillance des photos indisponible :', err.message);
+    return;
+  }
+
+  fs.readdirSync(PHOTOS_DIR, { withFileTypes: true })
+    .filter(isAlbumDir)
+    .forEach(a => watchAlbum(path.join(PHOTOS_DIR, a.name), a.name));
+
+  console.log('  ✓ Surveillance des nouvelles photos activée.');
+}
+
 // ─── Start ────────────────────────────────────────────────────────────────────
 
 if (require.main === module) {
@@ -319,6 +394,7 @@ if (require.main === module) {
     console.log(`  Previews: ${PREVIEWS_DIR}\n`);
     database.connectDb().then(() => database.syncPhotosToDb()).catch(console.error);
     preGenerateAll().catch(console.error);
+    watchPhotosDir();
   });
 }
 
