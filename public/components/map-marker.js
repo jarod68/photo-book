@@ -46,6 +46,24 @@ export function buildMarkerIcon(num, isCurrent, locationLabel) {
   });
 }
 
+/**
+ * Cluster icon for L.markerClusterGroup — concentric-ring style, matches pin palette.
+ * @param {L.MarkerCluster} cluster
+ * @returns {L.DivIcon}
+ */
+export function buildClusterIcon(cluster) {
+  const count = cluster.getChildCount();
+  const tier  = count < 10 ? 'sm' : count < 100 ? 'md' : 'lg';
+  const size  = { sm: 40, md: 50, lg: 60 }[tier];
+  return L.divIcon({
+    html:        `<div class="map-cluster map-cluster--${tier}"><span>${count}</span></div>`,
+    className:   '',
+    iconSize:    [size, size],
+    iconAnchor:  [size / 2, size / 2],
+    popupAnchor: [0, -(size / 2 + 4)],
+  });
+}
+
 /** Extract first segment of "Paris, France" → "Paris" */
 export function shortLocation(location) {
   if (!location) return null;
