@@ -45,17 +45,18 @@ async function ensureMedium(albumName, filename, filePath, _deps = {}) {
   const albumDir  = path.join(MEDIUM_DIR, albumName);
   const medName   = path.parse(filename).name + '.jpg';
   const medPath   = path.join(albumDir, medName);
+  const mediumUrl = `/medium/${encodeURIComponent(albumName)}/${encodeURIComponent(medName)}`;
 
-  if (!_fs.existsSync(medPath)) {
-    _fs.mkdirSync(albumDir, { recursive: true });
-    await _sharp(filePath)
-      .rotate()
-      .resize(1280, null, { withoutEnlargement: true })
-      .jpeg({ quality: 82, progressive: true })
-      .toFile(medPath);
-  }
+  if (_fs.existsSync(medPath)) return mediumUrl;
 
-  return `/medium/${encodeURIComponent(albumName)}/${encodeURIComponent(medName)}`;
+  _fs.mkdirSync(albumDir, { recursive: true });
+  await _sharp(filePath)
+    .rotate()
+    .resize(1280, null, { withoutEnlargement: true })
+    .jpeg({ quality: 82, progressive: true })
+    .toFile(medPath);
+
+  return mediumUrl;
 }
 
 // ── EXIF metadata extraction ──────────────────────────────────────────────────
@@ -114,7 +115,10 @@ async function photoMeta(albumName, file, albumPath, _deps = {}) {
 
   const [previewUrl, mediumUrl] = await Promise.all([
     ensurePreview(albumName, file, filePath, is360, _deps).catch(() => null),
-    ensureMedium(albumName, file, filePath, _deps).catch(() => null),
+    ensureMedium(albumName, file, filePath, _deps).catch(err => {
+      console.error('ensureMedium failed:', albumName, file, err.message);
+      return null;
+    }),
   ]);
 
   let gps = null;

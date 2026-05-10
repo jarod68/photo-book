@@ -1,4 +1,4 @@
-import { buildMarkerIcon } from '../components/map-marker.js';
+import { buildMarkerIcon, buildClusterIcon } from '../components/map-marker.js';
 import { getMapPhotos }   from '../api/client.js';
 import {
   haversineKm, catmullRom, cubicSample,
@@ -135,15 +135,26 @@ async function init() {
       .forEach((p, i) => seqNum.set(`${p.album}/${p.filename}`, i + 1));
   });
 
-  // Markers photos par-dessus le tracé
+  // Markers photos regroupés en clusters selon le niveau de zoom
+  const clusterGroup = L.markerClusterGroup({
+    iconCreateFunction:  buildClusterIcon,
+    maxClusterRadius:    60,
+    spiderfyOnMaxZoom:   true,
+    showCoverageOnHover: false,
+    zoomToBoundsOnClick: true,
+    animate:             true,
+  });
+
   photos.forEach(photo => {
     const n     = seqNum.get(`${photo.album}/${photo.filename}`) ?? (photo.albumIndex + 1);
     const label = photo.album + '-' + n;
     const icon  = buildMarkerIcon(n, false, label);
-    L.marker([photo.gps.lat, photo.gps.lng], { icon })
-      .addTo(map)
+    const marker = L.marker([photo.gps.lat, photo.gps.lng], { icon })
       .bindPopup(() => buildPopup(photo), { maxWidth: 200, minWidth: 160 });
+    clusterGroup.addLayer(marker);
   });
+
+  map.addLayer(clusterGroup);
 }
 
 // ── Popup ─────────────────────────────────────────────────────────────────────

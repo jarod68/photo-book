@@ -68,7 +68,12 @@ export class PhotoViewer {
     if (photo.is360) {
       this._show360(photo.url, photo.previewUrl);
     } else {
-      this._showStandard(photo.url, photo.mediumUrl, onDetect360);
+      // photo.mediumUrl can be null if the server failed to generate the file.
+      // Derive it from photo.url as a fallback: /photos/A/f.EXT → /medium/A/f.jpg
+      // _showStandard's onerror handler will fall back to full if the file is absent.
+      const mediumUrl = photo.mediumUrl
+        ?? photo.url.replace(/^\/photos\//, '/medium/').replace(/\.[^./?#]+$/, '.jpg');
+      this._showStandard(photo.url, mediumUrl, onDetect360);
     }
   }
 
@@ -232,37 +237,38 @@ export class PhotoViewer {
     this._img.classList.remove('loaded');
     this._img.style.display = 'block';
 
-    // Token to abort stale callbacks when the user navigates quickly.
     const token = Symbol();
     this._loadToken = token;
 
-    // Check if the full image is already in the browser cache.
-    // Browsers set .complete = true synchronously for cached resources.
-    const probe = new Image();
-    probe.src = url;
-    const fullCached = probe.complete && probe.naturalWidth > 0;
-
-    // 360° client-side fallback (untagged panoramas, checked on full resolution only).
     const check360 = (w, h) => {
       const r = w / h;
       return r >= 1.95 && r <= 2.05 && w >= 3000;
     };
 
-    if (fullCached) {
-      // Full already in cache → show directly, no medium step.
-      if (check360(probe.naturalWidth, probe.naturalHeight)) {
-        this._badge.classList.add('visible');
-        onDetect360?.();
-        this._show360(url);
-        return;
-      }
+    // Exception: full already loaded this session → skip medium.
+    // performance.getEntriesByName detects the cache without starting
+    // any network request (unlike new Image().src which does).
+    const alreadyLoaded = performance.getEntriesByName(url, 'resource').length > 0;
+    if (alreadyLoaded) {
+      this._img.onload = () => {
+        if (this._loadToken !== token) return;
+        if (check360(this._img.naturalWidth, this._img.naturalHeight)) {
+          this._badge.classList.add('visible');
+          onDetect360?.();
+          this._show360(url);
+          return;
+        }
+        this._img.classList.add('loaded');
+      };
+      this._img.onerror = () => { if (this._loadToken === token) this._img.classList.add('loaded'); };
       this._img.src = url;
-      this._img.classList.add('loaded');
       return;
     }
 
-    // Full not cached → show medium first, then swap when full is ready.
-    const swapToFull = () => {
+    // Step 1: load medium and display it.
+    // Step 2: after medium is visible, fetch full in a hidden Image to
+    //         populate the cache, then swap it into this._img.
+    const loadFull = () => {
       const pre = new Image();
       pre.onload = () => {
         if (this._loadToken !== token) return;
@@ -272,17 +278,17 @@ export class PhotoViewer {
           this._show360(url);
           return;
         }
+        // Replace medium handler before changing src to prevent re-entry.
+        this._img.onload  = () => { if (this._loadToken === token) this._img.classList.add('loaded'); };
+        this._img.onerror = () => {};
         this._img.src = url;
       };
       pre.onerror = () => {};
       pre.src = url;
     };
 
-    const showDirect = () => {
-      this._img.onload = () => {
-        if (this._loadToken !== token) return;
-        this._img.classList.add('loaded');
-      };
+    const loadFullDirect = () => {
+      this._img.onload  = () => { if (this._loadToken === token) this._img.classList.add('loaded'); };
       this._img.onerror = () => { if (this._loadToken === token) this._img.classList.add('loaded'); };
       this._img.src = url;
     };
@@ -291,15 +297,15 @@ export class PhotoViewer {
       this._img.onload = () => {
         if (this._loadToken !== token) return;
         this._img.classList.add('loaded');
-        swapToFull();
+        loadFull();
       };
       this._img.onerror = () => {
         if (this._loadToken !== token) return;
-        showDirect();
+        loadFullDirect();
       };
       this._img.src = mediumUrl;
     } else {
-      showDirect();
+      loadFullDirect();
     }
   }
 

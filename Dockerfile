@@ -9,7 +9,8 @@ COPY package.json package-lock.json ./
 # sharp ships a prebuilt musl binary for Alpine — no system libvips needed
 # Remove npm after install: not needed at runtime, eliminates bundled CVEs
 RUN npm ci --omit=dev \
-  && rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
+  && rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx \
+  && apk add --no-cache su-exec
 
 # Application source
 COPY server.js   ./
@@ -21,8 +22,11 @@ COPY public/     ./public/
 RUN mkdir -p photos public/previews public/medium \
   && chown -R node:node /app
 
-USER node
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
 EXPOSE 3000
 
+# Entrypoint runs as root to fix bind-mount permissions, then drops to node via su-exec
+ENTRYPOINT ["docker-entrypoint.sh"]
 CMD ["node", "server.js"]
