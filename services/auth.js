@@ -80,6 +80,12 @@ async function requireAuth(req, res, next) {
   next();
 }
 
+function requireAdmin(req, res, next) {
+  if (_testBypass) return next();
+  if (req.user?.role !== 'admin') return res.status(403).json({ error: 'Forbidden' });
+  next();
+}
+
 function authStaticGuard(req, res, next) {
   if (_testBypass) return next();
   const token = req.cookies?.pb_session;
@@ -92,4 +98,4 @@ function authStaticGuard(req, res, next) {
 // Test-only: bypass all auth checks
 function _setBypass(val) { _testBypass = val; }
 
-module.exports = { ensureAdmin, login, getSessionUser, logout, requireAuth, authStaticGuard, _setBypass };
+module.exports = { ensureAdmin, login, getSessionUser, logout, requireAuth, requireAdmin, authStaticGuard, _setBypass };

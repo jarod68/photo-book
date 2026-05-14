@@ -7,6 +7,13 @@ await requireLogin();
 const { user } = await fetch('/api/auth/me').then(r => r.json());
 if (user) document.getElementById('admin-user').textContent = user.username;
 
+const isAdmin = user?.role === 'admin';
+if (!isAdmin) {
+  for (const id of ['section-albums', 'section-users', 'section-system']) {
+    document.getElementById(id).hidden = true;
+  }
+}
+
 document.getElementById('logout-btn').addEventListener('click', async () => {
   await fetch('/api/auth/logout', { method: 'POST' });
   window.location.replace('/');
@@ -368,6 +375,167 @@ function esc(str) {
   return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 
-loadSystem();
-loadAlbums();
+// ── Users management ──────────────────────────────────────────────────────────
+
+async function loadUsers() {
+  const body = document.getElementById('users-body');
+  try {
+    const { users } = await fetch('/api/admin/users').then(r => r.json());
+    if (!users.length) {
+      body.innerHTML = '<tr><td colspan="4" class="admin-empty">No users.</td></tr>';
+      return;
+    }
+    body.innerHTML = users.map(u => renderUserRow(u)).join('');
+    body.querySelectorAll('.user-role-select').forEach(sel =>
+      sel.addEventListener('change', () => saveRole(Number(sel.dataset.id), sel.value, sel)));
+    body.querySelectorAll('[data-pwd]').forEach(btn =>
+      btn.addEventListener('click', () => openPwdModal(Number(btn.dataset.pwd), btn.dataset.username)));
+    body.querySelectorAll('[data-del]').forEach(btn =>
+      btn.addEventListener('click', () => deleteUser(Number(btn.dataset.del), btn.dataset.username)));
+  } catch (_) {
+    body.innerHTML = '<tr><td colspan="4" class="admin-error">Failed to load.</td></tr>';
+  }
+}
+
+function renderUserRow(u) {
+  const date = new Date(u.created_at).toLocaleDateString('fr-FR', { year: 'numeric', month: 'short', day: 'numeric' });
+  const isProtected = u.username === 'admin';
+  return `
+    <tr data-user-id="${u.id}">
+      <td>${esc(u.username)}</td>
+      <td>
+        <select class="admin-role-select user-role-select" data-id="${u.id}"${isProtected ? ' disabled' : ''}>
+          <option value="basic"${u.role === 'basic' ? ' selected' : ''}>basic</option>
+          <option value="admin"${u.role === 'admin' ? ' selected' : ''}>admin</option>
+        </select>
+      </td>
+      <td style="color:var(--text-dim);font-size:12.5px">${esc(date)}</td>
+      <td class="admin-row-actions">
+        <button class="admin-icon-btn" data-pwd="${u.id}" data-username="${esc(u.username)}" title="Change password">${iconKey()}</button>
+        <button class="admin-icon-btn admin-icon-btn--danger" data-del="${u.id}" data-username="${esc(u.username)}"
+                title="Delete user"${isProtected ? ' disabled' : ''}>${iconTrash()}</button>
+      </td>
+    </tr>`;
+}
+
+async function saveRole(id, role, selectEl) {
+  const prev = selectEl.dataset.prev ?? selectEl.value;
+  selectEl.dataset.prev = role;
+  const res = await fetch(`/api/admin/users/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ role }),
+  });
+  if (!res.ok) {
+    const { error } = await res.json().catch(() => ({}));
+    alert(error ?? 'Failed to update role');
+    selectEl.value = prev;
+    selectEl.dataset.prev = prev;
+  }
+}
+
+async function deleteUser(id, username) {
+  if (!confirm(`Delete user "${username}"?\nThis cannot be undone.`)) return;
+  const res = await fetch(`/api/admin/users/${id}`, { method: 'DELETE' });
+  if (res.ok) { await loadUsers(); }
+  else {
+    const { error } = await res.json().catch(() => ({}));
+    alert(error ?? 'Delete failed');
+  }
+}
+
+// ── New user form ─────────────────────────────────────────────────────────────
+
+document.getElementById('new-user-btn').addEventListener('click', () => {
+  const form = document.getElementById('new-user-form');
+  form.hidden = false;
+  document.getElementById('new-user-username').focus();
+});
+
+document.getElementById('new-user-cancel').addEventListener('click', () => {
+  document.getElementById('new-user-form').hidden = true;
+  document.getElementById('new-user-username').value = '';
+  document.getElementById('new-user-password').value = '';
+});
+
+document.getElementById('new-user-form').addEventListener('submit', async e => {
+  e.preventDefault();
+  const username = document.getElementById('new-user-username').value.trim();
+  const password = document.getElementById('new-user-password').value;
+  const role     = document.getElementById('new-user-role').value;
+  if (!username || !password) return;
+  const res = await fetch('/api/admin/users', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username, password, role }),
+  });
+  if (res.ok) {
+    document.getElementById('new-user-form').hidden = true;
+    document.getElementById('new-user-username').value = '';
+    document.getElementById('new-user-password').value = '';
+    await loadUsers();
+  } else {
+    const { error } = await res.json().catch(() => ({}));
+    alert(error ?? 'Create failed');
+  }
+});
+
+// ── Password modal ────────────────────────────────────────────────────────────
+
+const pwdOverlay  = document.getElementById('pwd-overlay');
+const pwdNewInput = document.getElementById('pwd-new');
+const pwdErrorEl  = document.getElementById('pwd-error');
+let pwdUserId     = null;
+
+function openPwdModal(id, username) {
+  pwdUserId = id;
+  document.getElementById('pwd-username').textContent = username;
+  pwdNewInput.value = '';
+  pwdErrorEl.textContent = '';
+  pwdOverlay.hidden = false;
+  pwdNewInput.focus();
+}
+
+function closePwdModal() {
+  pwdOverlay.hidden = true;
+  pwdUserId = null;
+}
+
+document.getElementById('pwd-save-btn').addEventListener('click', async () => {
+  const password = pwdNewInput.value;
+  if (!password) { pwdErrorEl.textContent = 'Password cannot be empty'; return; }
+  pwdErrorEl.textContent = '';
+  const res = await fetch(`/api/admin/users/${pwdUserId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ password }),
+  });
+  if (res.ok) { closePwdModal(); }
+  else {
+    const { error } = await res.json().catch(() => ({}));
+    pwdErrorEl.textContent = error ?? 'Failed to update password';
+  }
+});
+
+document.getElementById('pwd-close-btn').addEventListener('click', closePwdModal);
+pwdOverlay.addEventListener('click', e => { if (e.target === pwdOverlay) closePwdModal(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && !pwdOverlay.hidden) closePwdModal(); });
+
+function iconKey() {
+  return `<svg viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+    <path d="M0 8a4 4 0 0 1 7.465-2H14a.5.5 0 0 1 .354.146l1.5 1.5a.5.5 0
+      0 1 0 .708l-1.5 1.5a.5.5 0 0 1-.708 0L13 9.207l-.646.647a.5.5 0 0
+      1-.708 0L11 9.207l-.646.647a.5.5 0 0 1-.708 0L9 9.207l-.646.647A.5.5
+      0 0 1 8 10h-.535A4 4 0 0 1 0 8zm4-3a3 3 0 1 0 2.712 4.285A.5.5 0 0 1
+      7.163 9h.63l.853-.854a.5.5 0 0 1 .708 0l.646.647.646-.647a.5.5 0 0 1
+      .708 0l.646.647.646-.647a.5.5 0 0 1 .708 0l.746.746.952-.952-1.236-1.236H7.163a.5.5
+      0 0 1-.45-.285A3 3 0 0 0 4 5zm0 3a1 1 0 1 1 0-2 1 1 0 0 1 0 2z"/>
+  </svg>`;
+}
+
 loadTopPhotos();
+if (isAdmin) {
+  loadSystem();
+  loadAlbums();
+  loadUsers();
+}

@@ -1569,6 +1569,44 @@ body {
   color: var(--text-dim);
 }
 
+/* ── User management ─────────────────────────────────────────────────────── */
+.admin-role-select {
+  background: rgba(255,255,255,0.05);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 12.5px;
+  padding: 5px 8px;
+  outline: none;
+  cursor: pointer;
+  transition: border-color 0.18s;
+}
+.admin-role-select:hover  { border-color: var(--border-h); }
+.admin-role-select:focus  { border-color: var(--accent); }
+.admin-role-select option { background: #1a1a1b; }
+
+.admin-icon-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.pwd-modal { max-width: 360px; }
+
+.pwd-modal-body {
+  padding: 20px 20px 12px;
+}
+.pwd-modal-body .admin-inline-input {
+  width: 100%;
+  box-sizing: border-box;
+  min-width: 0;
+}
+
+.pwd-error-text {
+  font-size: 12.5px;
+  min-height: 18px;
+}
+
 /* ── Admin shortcut button (fixed, all pages) ────────────────────────────── */
 .admin-shortcut-btn {
   position: fixed;

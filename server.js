@@ -2,6 +2,7 @@ const express      = require('express');
 const path         = require('path');
 const fs           = require('fs');
 const exifr        = require('exifr');
+const bcrypt       = require('bcryptjs');
 const cookieParser = require('cookie-parser');
 
 const multer     = require('multer');
@@ -15,7 +16,7 @@ const PORT = process.env.PORT || 3000;
 
 app.use(cookieParser());
 
-const { requireAuth, authStaticGuard } = auth;
+const { requireAuth, requireAdmin, authStaticGuard } = auth;
 
 // ─── Reverse geocoding cache (in-memory) ─────────────────────────────────────
 const geoCache = new Map(); // key: "lat,lng" → location string | null
@@ -115,7 +116,7 @@ app.use('/api/admin', requireAuth);
 
 // ─── Admin routes ─────────────────────────────────────────────────────────────
 
-app.get('/api/admin/stats', async (req, res) => {
+app.get('/api/admin/stats', requireAdmin, async (req, res) => {
   try {
     // Filesystem is the source of truth for album existence
     const entries = fs.existsSync(PHOTOS_DIR)
@@ -151,7 +152,7 @@ app.get('/api/admin/stats', async (req, res) => {
   }
 });
 
-app.get('/api/admin/system', async (req, res) => {
+app.get('/api/admin/system', requireAdmin, async (req, res) => {
   let containers = [];
   try { containers = await dockerInfo.getContainers(); } catch (_) {}
   res.json({
@@ -191,7 +192,7 @@ app.get('/api/admin/top-photos', async (req, res) => {
 
 const ALBUM_NAME_RE = /^[A-Za-z0-9][^/\\]*$/;
 
-app.post('/api/admin/albums', express.json(), async (req, res) => {
+app.post('/api/admin/albums', requireAdmin, express.json(), async (req, res) => {
   const { name } = req.body ?? {};
   if (!name || !ALBUM_NAME_RE.test(name)) return res.status(400).json({ error: 'Invalid album name' });
   try {
@@ -205,7 +206,7 @@ app.post('/api/admin/albums', express.json(), async (req, res) => {
   }
 });
 
-app.patch('/api/admin/albums/:album', express.json(), async (req, res) => {
+app.patch('/api/admin/albums/:album', requireAdmin, express.json(), async (req, res) => {
   const { name: newName } = req.body ?? {};
   const oldName = req.params.album;
   if (!newName || !ALBUM_NAME_RE.test(newName)) return res.status(400).json({ error: 'Invalid album name' });
@@ -234,7 +235,7 @@ app.patch('/api/admin/albums/:album', express.json(), async (req, res) => {
   }
 });
 
-app.delete('/api/admin/albums/:album', async (req, res) => {
+app.delete('/api/admin/albums/:album', requireAdmin, async (req, res) => {
   try {
     const albumPath = safeAlbumPath(req.params.album);
     if (!fs.existsSync(albumPath)) return res.status(404).json({ error: 'Album not found' });
@@ -251,7 +252,7 @@ app.delete('/api/admin/albums/:album', async (req, res) => {
   }
 });
 
-app.delete('/api/admin/albums/:album/photos/:filename', async (req, res) => {
+app.delete('/api/admin/albums/:album/photos/:filename', requireAdmin, async (req, res) => {
   try {
     const { album, filename } = req.params;
     const albumPath = safeAlbumPath(album);
@@ -273,7 +274,7 @@ app.delete('/api/admin/albums/:album/photos/:filename', async (req, res) => {
   }
 });
 
-app.post('/api/admin/albums/:album/photos', (req, res) => {
+app.post('/api/admin/albums/:album/photos', requireAdmin, (req, res) => {
   let albumPath;
   try {
     albumPath = safeAlbumPath(req.params.album);
@@ -294,6 +295,80 @@ app.post('/api/admin/albums/:album/photos', (req, res) => {
     preGenerateAll().catch(console.error);
     res.json({ ok: true, count: req.files?.length ?? 0 });
   });
+});
+
+// ─── User management ─────────────────────────────────────────────────────────
+
+const VALID_ROLES = new Set(['admin', 'basic']);
+
+app.get('/api/admin/users', requireAdmin, async (req, res) => {
+  try {
+    const { rows } = await database.db.query(
+      'SELECT id, username, role, created_at FROM users ORDER BY id',
+    );
+    res.json({ users: rows });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.post('/api/admin/users', requireAdmin, express.json(), async (req, res) => {
+  try {
+    const { username, password, role } = req.body ?? {};
+    if (!username || !password) return res.status(400).json({ error: 'Username and password are required' });
+    if (!VALID_ROLES.has(role))  return res.status(400).json({ error: 'Role must be admin or basic' });
+    const hash = await bcrypt.hash(password, 12);
+    const { rows } = await database.db.query(
+      'INSERT INTO users (username, password_hash, role) VALUES ($1, $2, $3) RETURNING id, username, role, created_at',
+      [username.trim(), hash, role],
+    );
+    res.status(201).json({ user: rows[0] });
+  } catch (err) {
+    if (err.code === '23505') return res.status(409).json({ error: 'Username already taken' });
+    console.error(err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.patch('/api/admin/users/:id', requireAdmin, express.json(), async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (!Number.isFinite(id)) return res.status(400).json({ error: 'Invalid user id' });
+    const { role, password } = req.body ?? {};
+    if (role !== undefined && !VALID_ROLES.has(role)) return res.status(400).json({ error: 'Role must be admin or basic' });
+    const { rows: found } = await database.db.query('SELECT username FROM users WHERE id = $1', [id]);
+    if (!found.length) return res.status(404).json({ error: 'User not found' });
+    if (role !== undefined && found[0].username === 'admin') return res.status(403).json({ error: 'The admin user role cannot be changed' });
+    const sets = []; const params = [];
+    if (role !== undefined) { params.push(role);                          sets.push(`role = $${params.length}`); }
+    if (password)           { params.push(await bcrypt.hash(password, 12)); sets.push(`password_hash = $${params.length}`); }
+    if (!sets.length) return res.status(400).json({ error: 'Nothing to update' });
+    params.push(id);
+    const { rowCount } = await database.db.query(
+      `UPDATE users SET ${sets.join(', ')} WHERE id = $${params.length}`, params,
+    );
+    if (!rowCount) return res.status(404).json({ error: 'User not found' });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.delete('/api/admin/users/:id', requireAdmin, async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (!Number.isFinite(id)) return res.status(400).json({ error: 'Invalid user id' });
+    const { rows } = await database.db.query('SELECT username FROM users WHERE id = $1', [id]);
+    if (!rows.length)                   return res.status(404).json({ error: 'User not found' });
+    if (rows[0].username === 'admin')   return res.status(403).json({ error: 'The admin user cannot be deleted' });
+    await database.db.query('DELETE FROM users WHERE id = $1', [id]);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 // ─── Routes ───────────────────────────────────────────────────────────────────
