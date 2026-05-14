@@ -94,9 +94,9 @@ export class AlbumMap {
       bounds.push([photo.gps.lat, photo.gps.lng]);
     });
 
-    // Double rAF : le conteneur vient de passer display:none → visible,
-    // Leaflet a mis en cache une taille zéro. On attend que le navigateur
-    // ait terminé le layout avant d'appeler invalidateSize puis fitBounds.
+    // Double rAF: the container just transitioned from display:none → visible.
+    // Leaflet cached a zero size; wait for the browser to finish layout
+    // before calling invalidateSize and fitBounds.
     requestAnimationFrame(() => requestAnimationFrame(() => {
       this._map.invalidateSize();
       if (bounds.length === 1) {

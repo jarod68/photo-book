@@ -189,7 +189,7 @@ export class PhotoViewer {
     };
 
     // rAF loop: exponential smoothing then feed Pannellum at display refresh rate
-    const SMOOTH = 0.2;   // 0.1 = très fluide/lent, 0.3 = réactif
+    const SMOOTH = 0.2;   // 0.1 = very smooth/slow, 0.3 = responsive
     const tick = () => {
       if (!this._gyroOn) return;
       this._gyroRaf = requestAnimationFrame(tick);
@@ -463,9 +463,9 @@ export class PhotoViewer {
       _tapped  = true;
 
       if (this._img.style.display === 'none') return;
-      // Ne pas capturer les clics sur les éléments interactifs superposés
-      // (mini-carte, boutons de navigation, etc.) — setPointerCapture bloquerait
-      // leur événement click en redirigeant pointerup vers #viewer.
+      // Don't capture clicks on overlaid interactive elements
+      // (mini-map, navigation buttons, etc.) — setPointerCapture would block
+      // their click event by redirecting pointerup to #viewer.
       if (e.target.closest('button, a, .photo-map-mini')) return;
       ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
       root.setPointerCapture(e.pointerId);
@@ -497,7 +497,7 @@ export class PhotoViewer {
     });
 
     root.addEventListener('pointermove', e => {
-      // Invalide le tap dès que le doigt/curseur bouge de plus de 8 px
+      // Invalidate tap as soon as finger/cursor moves more than 8 px
       if (_tapped && Math.hypot(e.clientX - _tapX, e.clientY - _tapY) > 8) _tapped = false;
 
       if (!ptrs.has(e.pointerId) || this._img.style.display === 'none') return;
@@ -530,7 +530,7 @@ export class PhotoViewer {
     const onEnd = e => {
       ptrs.delete(e.pointerId);
       if (dragId === e.pointerId) {
-        // Edge swipe → navigation entre photos (prioritaire sur zoom/pan)
+        // Edge swipe → navigate between photos (takes priority over zoom/pan)
         if (isEdgeDrag && pinch === null) {
           const dx = e.clientX - dragSx;
           const dy = e.clientY - dragSy;
@@ -553,15 +553,15 @@ export class PhotoViewer {
     root.addEventListener('pointerup',     onEnd);
     root.addEventListener('pointercancel', onEnd);
 
-    // ── Clic simple → toggle UI  /  double-clic → reset zoom ou recenter 360° ──
+    // ── Single click → toggle UI  /  double-click → reset zoom or recenter 360° ──
     let _clickTimer = null;
 
     root.addEventListener('click', e => {
-      if (!_tapped) return;                                          // c'était un drag
-      if (e.target.closest('button, a, .photo-map-mini')) return;   // élément interactif
+      if (!_tapped) return;                                          // was a drag
+      if (e.target.closest('button, a, .photo-map-mini')) return;   // interactive element
 
       if (_clickTimer) {
-        // Deuxième clic dans la fenêtre → double-clic
+        // Second click in the window → double-click
         clearTimeout(_clickTimer);
         _clickTimer = null;
         if (this._viewer) {
@@ -572,7 +572,7 @@ export class PhotoViewer {
           this._resetZoom();
         }
       } else {
-        // Premier clic — on attend pour voir si un deuxième suit
+        // First click — wait to see if a second follows
         _clickTimer = setTimeout(() => {
           _clickTimer = null;
           this._onToggleUI?.();

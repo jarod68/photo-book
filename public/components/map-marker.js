@@ -5,8 +5,8 @@
  * optional location label pill to the right of the pin.
  */
 
-const COLOR_DEFAULT = '#3b82f6'; // bleu cobalt
-const COLOR_CURRENT = '#ef4444'; // rouge — photo en cours
+const COLOR_DEFAULT = '#3b82f6'; // cobalt blue
+const COLOR_CURRENT = '#ef4444'; // red — current photo
 
 /**
  * @param {number}       num           - number shown inside the pin

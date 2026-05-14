@@ -1,7 +1,7 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 /* ── Palette ─────────────────────────────────────────────────────────────────
-   Thème sombre neutre, accent bleu cobalt cohérent avec les pins et tracés.
+   Neutral dark theme, cobalt blue accent consistent with pins and routes.
    ─────────────────────────────────────────────────────────────────────────── */
 :root {
   --bg:         #0d0d0e;
@@ -424,7 +424,7 @@ body {
 }
 .photo-location.visible { display: block; }
 
-/* ── Meta (localisation + vues) ─────────────────────────────────────────────── */
+/* ── Meta (location + views) ────────────────────────────────────────────────── */
 #photo-meta {
   display: flex;
   align-items: center;
@@ -821,7 +821,7 @@ body {
 }
 .map-popup-view:hover { background: #3b82f6; color: #fff !important; }
 
-/* ── Clusters de markers ─────────────────────────────────────────────────────── */
+/* ── Marker clusters ─────────────────────────────────────────────────────────── */
 .map-cluster {
   display: flex;
   align-items: center;
@@ -854,7 +854,7 @@ body {
 .map-cluster--md span { width: 36px; height: 36px; font-size: 13px; }
 .map-cluster--lg span { width: 44px; height: 44px; font-size: 14px; }
 
-/* ── Bouton toggle tracé ────────────────────────────────────────────────────── */
+/* ── Route toggle button ────────────────────────────────────────────────────── */
 .route-toggle-btn {
   position: absolute;
   top: 12px;
@@ -957,7 +957,7 @@ body {
   }
 }
 
-/* ── Bouton like ─────────────────────────────────────────────────────────── */
+/* ── Like button ─────────────────────────────────────────────────────────── */
 .like-btn {
   display: inline-flex;
   align-items: center;

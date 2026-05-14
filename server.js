@@ -313,7 +313,7 @@ app.get('/api/geocode', async (req, res) => {
 
 async function deletePhotoFromDb(album, filename) {
   if (!database.dbReady) return;
-  console.log(`  ✕ Photo supprimée — nettoyage BDD : ${album}/${filename}`);
+  console.log(`  ✕ Photo deleted — DB cleanup: ${album}/${filename}`);
   const q = (sql) => database.db.query(sql, [album, filename]);
   await q('DELETE FROM photo_view_log WHERE album = $1 AND filename = $2');
   await q('DELETE FROM photo_likes    WHERE album = $1 AND filename = $2');
@@ -322,7 +322,7 @@ async function deletePhotoFromDb(album, filename) {
 
 async function deleteAlbumFromDb(album) {
   if (!database.dbReady) return;
-  console.log(`  ✕ Album supprimé — nettoyage BDD : ${album}`);
+  console.log(`  ✕ Album deleted — DB cleanup: ${album}`);
   const q = (sql) => database.db.query(sql, [album]);
   await q('DELETE FROM photo_view_log WHERE album = $1');
   await q('DELETE FROM photo_likes    WHERE album = $1');
@@ -336,7 +336,7 @@ function watchPhotosDir() {
   const scheduleRegenerate = () => {
     clearTimeout(debounceTimer);
     debounceTimer = setTimeout(() => {
-      console.log('  ↻ Nouvelles photos détectées — génération des miniatures…');
+      console.log('  ↻ New photos detected — generating thumbnails…');
       preGenerateAll().catch(console.error);
     }, 2_000);
   };
@@ -362,18 +362,18 @@ function watchPhotosDir() {
         try {
           const full = path.join(PHOTOS_DIR, name);
           if (fs.existsSync(full) && fs.statSync(full).isDirectory()) {
-            // Nouveau album détecté
+            // New album detected
             scheduleRegenerate();
             watchAlbum(full, name);
           } else if (!fs.existsSync(full)) {
-            // Album supprimé
+            // Album deleted
             deleteAlbumFromDb(name).catch(console.error);
           }
         } catch (_) {}
       }, 500);
     });
   } catch (err) {
-    console.warn('  ⚠ Surveillance des photos indisponible :', err.message);
+    console.warn('  ⚠ Photo watcher unavailable:', err.message);
     return;
   }
 
@@ -381,7 +381,7 @@ function watchPhotosDir() {
     .filter(isAlbumDir)
     .forEach(a => watchAlbum(path.join(PHOTOS_DIR, a.name), a.name));
 
-  console.log('  ✓ Surveillance des nouvelles photos activée.');
+  console.log('  ✓ Photo watcher started.');
 }
 
 // ─── Start ────────────────────────────────────────────────────────────────────

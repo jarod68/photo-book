@@ -15,7 +15,7 @@ const state = {
   current: null,
   photos:  [],
   index:   -1,
-  liked:   new Set(), // filenames likés par cet utilisateur dans l'album courant
+  liked:   new Set(), // filenames liked by this user in the current album
 };
 
 // ── DOM ───────────────────────────────────────────────────────────────────────
@@ -162,7 +162,7 @@ likeBtn.addEventListener('click', e => {
   const photo = state.photos[state.index];
   if (!photo) return;
 
-  // Mise à jour optimiste
+  // Optimistic update
   const nowLiked = !state.liked.has(photo.filename);
   if (nowLiked) { state.liked.add(photo.filename);    photo.likes = (photo.likes ?? 0) + 1; }
   else          { state.liked.delete(photo.filename); photo.likes = Math.max(0, (photo.likes ?? 1) - 1); }
@@ -184,7 +184,7 @@ function showPhoto(index) {
   const photo = state.photos[index];
   if (!photo) return;
 
-  // Rétablir l'UI si elle était cachée (changement de photo depuis la bande ou le clavier)
+  // Restore UI if hidden (photo changed from strip or keyboard)
   appEl.classList.remove('ui-hidden');
 
   state.index = index;
@@ -199,7 +199,7 @@ function showPhoto(index) {
     thumbs.addBadge(index);
   });
 
-  // Affiche la valeur connue immédiatement, puis met à jour avec la valeur confirmée
+  // Show known value immediately, then update with confirmed value from server
   viewsEl.textContent = photo.views != null ? formatViews(photo.views) : '';
   recordView(state.current, photo.filename, userToken)
     .then(data => {

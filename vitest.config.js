@@ -15,7 +15,7 @@ export default defineConfig({
         'public/utils/**/*.js',
       ],
       exclude: [
-        'public/pages/**',       // composants UI, pas testables sans navigateur
+        'public/pages/**',       // UI components, not testable without a browser
         'public/components/**',
       ],
       reporter: ['text', 'html'],

@@ -168,7 +168,7 @@ async function preGenerateAll(_deps = {}) {
       }
     }
   }
-  if (count > 0) console.log(`  ✓ ${count} miniature${count > 1 ? 's' : ''} générée${count > 1 ? 's' : ''}.`);
+  if (count > 0) console.log(`  ✓ ${count} thumbnail${count > 1 ? 's' : ''} generated.`);
 }
 
 module.exports = { PHOTOS_DIR, PREVIEWS_DIR, MEDIUM_DIR, IMAGE_EXT, isImage, isAlbumDir, ensurePreview, ensureMedium, photoMeta, preGenerateAll };

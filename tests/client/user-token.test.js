@@ -3,8 +3,8 @@ import { getUserToken } from '../../public/utils/user-token.js';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
-// happy-dom ne fournit pas une implémentation complète de localStorage
-// (localStorage.clear() manque) — on fournit notre propre stub
+// happy-dom does not provide a complete localStorage implementation
+// (localStorage.clear() is missing) — we provide our own stub
 function makeStorage() {
   const store = Object.create(null);
   return {

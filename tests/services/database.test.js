@@ -4,18 +4,18 @@ import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 vi.mock('../../services/image.js', () => ({
   PHOTOS_DIR: '/test/photos',
   isImage:    f => f.endsWith('.jpg'),
-  // Accepte les entrées withFileTypes dont isDirectory() renvoie true,
-  // ce qui permet de tester syncPhotosToDb avec de vrais albums fictifs.
+  // Accepts withFileTypes entries whose isDirectory() returns true,
+  // allowing syncPhotosToDb to be tested with realistic fake albums.
   isAlbumDir: e => e.isDirectory?.() ?? false,
 }));
 
-// Module importé une seule fois — état réinitialisé via _reset() entre les tests.
-// On injecte un pool mock directement dans connectDb() pour éviter les problèmes
-// d'interception du require('pg') CJS dans l'interop ESM de Vitest.
+// Module imported once — state reset via _reset() between tests.
+// We inject a mock pool directly into connectDb() to avoid interception issues
+// with require('pg') CJS in Vitest's ESM interop.
 const database = await import('../../services/database.js');
 
-// fsMod : même objet fs que celui utilisé par database.js (cache CJS partagé).
-// vi.spyOn sur ses propriétés est immédiatement visible dans le module testé.
+// fsMod: same fs object used by database.js (shared CJS cache).
+// vi.spyOn on its properties is immediately visible in the tested module.
 const _require = createRequire(import.meta.url);
 const fsMod    = _require('fs');
 
@@ -28,7 +28,7 @@ beforeEach(() => {
   database._reset();
 });
 
-// ── état initial ──────────────────────────────────────────────────────────────
+// ── initial state ─────────────────────────────────────────────────────────────
 
 describe('état initial', () => {
   it('dbReady vaut false avant connectDb()', () => {
@@ -80,9 +80,9 @@ describe('connectDb', () => {
 
     const connectPromise = database.connectDb(mockPool);
 
-    await vi.advanceTimersByTimeAsync(5_000); // échec 1
-    await vi.advanceTimersByTimeAsync(5_000); // échec 2
-    await connectPromise;                      // succès à la 3e tentative
+    await vi.advanceTimersByTimeAsync(5_000); // failure 1
+    await vi.advanceTimersByTimeAsync(5_000); // failure 2
+    await connectPromise;                      // succeeds on 3rd attempt
 
     expect(database.dbReady).toBe(true);
     vi.useRealTimers();
@@ -93,7 +93,7 @@ describe('connectDb', () => {
     mockQuery.mockRejectedValue(new Error('fail'));
 
     const p = database.connectDb(mockPool);
-    // 11 sleeps de 5 s (attempts 1–11) ; pas de sleep après attempt 12
+    // 11 sleeps of 5 s (attempts 1–11); no sleep after attempt 12
     for (let i = 0; i < 11; i++) await vi.advanceTimersByTimeAsync(5_000);
     await p;
 
@@ -112,7 +112,7 @@ describe('syncPhotosToDb', () => {
   afterEach(() => vi.restoreAllMocks());
 
   it("ne fait rien si dbReady est false", async () => {
-    // connectDb non appelé → dbReady reste false
+    // connectDb not called → dbReady stays false
     await database.syncPhotosToDb();
     expect(mockQuery).not.toHaveBeenCalled();
   });
@@ -151,7 +151,7 @@ describe('syncPhotosToDb', () => {
     vi.spyOn(fsMod, 'existsSync').mockReturnValue(true);
     vi.spyOn(fsMod, 'readdirSync')
       .mockReturnValueOnce([albumEntry, romeEntry]) // PHOTOS_DIR
-      .mockReturnValueOnce(['photo.jpg', 'doc.pdf']) // Paris (1 image, 1 ignoré)
+      .mockReturnValueOnce(['photo.jpg', 'doc.pdf']) // Paris (1 image, 1 ignored)
       .mockReturnValueOnce(['img.jpg']);             // Rome
 
     await database.syncPhotosToDb();

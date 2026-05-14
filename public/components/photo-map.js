@@ -93,8 +93,8 @@ export class PhotoMap {
     }
 
     this._miniMarker.setLatLng([gps.lat, gps.lng]);
-    // Le conteneur était peut-être display:none (photo sans GPS précédente) :
-    // invalidateSize() recalibre la taille avant setView.
+    // Container may have been display:none (previous photo had no GPS):
+    // invalidateSize() recalibrates the size before setView.
     requestAnimationFrame(() => {
       this._miniMap.invalidateSize();
       this._miniMap.setView([gps.lat, gps.lng], 13);
@@ -140,9 +140,9 @@ export class PhotoMap {
       bounds.push([photo.gps.lat, photo.gps.lng]);
     });
 
-    // setView APRÈS invalidateSize : le conteneur vient d'être affiché (display:none → flex),
-    // Leaflet a mis en cache une taille zéro. On attend deux frames pour que le navigateur
-    // ait terminé le layout, puis on recalibre avant de positionner la vue.
+    // setView AFTER invalidateSize: the container was just shown (display:none → flex).
+    // Leaflet cached a zero size; wait two frames for the browser to finish
+    // layout, then recalibrate before positioning the view.
     const current = this._current;
     const fitBounds = bounds.length > 0 ? bounds : null;
     requestAnimationFrame(() => requestAnimationFrame(() => {

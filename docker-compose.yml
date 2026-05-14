@@ -16,7 +16,7 @@ services:
     networks:
       - proxy
 
-  # ── Base de données ────────────────────────────────────────────────────────
+  # ── Database ──────────────────────────────────────────────────────────────
   postgres:
     image: ${POSTGRES_IMAGE:-postgres:16-alpine}
     restart: unless-stopped

@@ -3,8 +3,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import request from 'supertest';
 
 // ── Mocks ─────────────────────────────────────────────────────────────────────
-// database.js n'est PAS mocké : on récupère la même instance CJS que server.js
-// via createRequire, puis on contrôle l'état avec _reset() / _setState().
+// database.js is NOT mocked: we retrieve the same CJS instance as server.js
+// via createRequire, then control the state with _reset() / _setState().
 
 vi.mock('../../services/image.js', () => ({
   PHOTOS_DIR:    '/test/photos',
@@ -30,16 +30,16 @@ vi.mock('fs', async () => {
   };
 });
 
-// server.js est chargé en premier — il place database.js dans le cache CJS
+// server.js is loaded first — it places database.js in the CJS cache
 const { app } = await import('../../server.js');
 
-// createRequire donne accès au même cache CJS que les require() de server.js.
-// fsMod et exifrMod sont les mêmes objets que ceux utilisés par server.js :
-// modifier leurs propriétés ici est immédiatement visible dans les routes.
+// createRequire gives access to the same CJS cache as server.js's require() calls.
+// fsMod and exifrMod are the same objects used by server.js:
+// modifying their properties here is immediately visible in the routes.
 const _require  = createRequire(import.meta.url);
 const database  = _require('../../services/database.js');
 const fsMod     = _require('fs');    // vi.fn() instances depuis vi.mock('fs', …)
-const exifrMod  = _require('exifr'); // module réel — on utilisera vi.spyOn
+const exifrMod  = _require('exifr'); // real module — we will use vi.spyOn
 
 const mockQuery = vi.fn();
 
@@ -103,7 +103,7 @@ describe('POST /api/view', () => {
   });
 
   it("retourne { views: null } si la DB n'est pas prête", async () => {
-    // database._reset() appelé en beforeEach → dbReady = false
+    // database._reset() called in beforeEach → dbReady = false
     const res = await request(app)
       .post('/api/view')
       .send({ album: 'Paris', filename: 'photo.jpg', token: VALID_TOKEN });
@@ -160,7 +160,7 @@ describe('POST /api/like', () => {
 
   it("insère un like si pas encore liké", async () => {
     mockQuery
-      .mockResolvedValueOnce({ rowCount: 0 })              // pas de like existant
+      .mockResolvedValueOnce({ rowCount: 0 })              // no existing like
       .mockResolvedValueOnce({ rowCount: 1 })              // INSERT like
       .mockResolvedValueOnce({ rows: [{ count: '1' }] });  // COUNT
     database._setState({ query: mockQuery }, true);
@@ -175,7 +175,7 @@ describe('POST /api/like', () => {
 
   it("supprime le like si déjà liké (unlike)", async () => {
     mockQuery
-      .mockResolvedValueOnce({ rowCount: 1 })              // like existant
+      .mockResolvedValueOnce({ rowCount: 1 })              // existing like
       .mockResolvedValueOnce({ rowCount: 1 })              // DELETE like
       .mockResolvedValueOnce({ rows: [{ count: '0' }] });  // COUNT
     database._setState({ query: mockQuery }, true);
@@ -277,8 +277,8 @@ describe('GET /api/albums/:album', () => {
 });
 
 // ── /api/map ──────────────────────────────────────────────────────────────────
-// exifr est mocké par vi.spyOn sur le module chargé par server.js.
-// vi.restoreAllMocks() en afterEach restaure l'original après chaque test.
+// exifr is mocked via vi.spyOn on the module loaded by server.js.
+// vi.restoreAllMocks() in afterEach restores the original after each test.
 
 describe('GET /api/map', () => {
   const albumDir = { name: 'Paris', isDirectory: () => true };
@@ -304,7 +304,7 @@ describe('GET /api/map', () => {
     fsMod.readdirSync
       .mockReturnValueOnce([albumDir])
       .mockReturnValueOnce(['photo.jpg']);
-    // exifrMod.gps returns null by default → photo ignorée
+    // exifrMod.gps returns null by default → photo skipped
 
     const res = await request(app).get('/api/map');
     expect(res.status).toBe(200);
@@ -314,7 +314,7 @@ describe('GET /api/map', () => {
   it('retourne les photos GPS avec tous les champs attendus', async () => {
     fsMod.existsSync
       .mockReturnValueOnce(true)   // PHOTOS_DIR existe
-      .mockReturnValue(false);     // preview non générée
+      .mockReturnValue(false);     // preview not generated
     fsMod.readdirSync
       .mockReturnValueOnce([albumDir])
       .mockReturnValueOnce(['img.jpg']);
