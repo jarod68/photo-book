@@ -30,7 +30,7 @@ async function init() {
     if (albums.length > 0) {
       await selectAlbum(albums[0].name);
     } else {
-      viewerMessage('Ajoutez des dossiers dans photos/ pour créer des albums');
+      viewerMessage('Add folders to photos/ to create albums');
     }
   } catch (err) {
     viewerMessage('Impossible de charger les albums');

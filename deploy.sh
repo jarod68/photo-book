@@ -130,7 +130,7 @@ sync_project_files() {
   success "Project files synced."
 }
 
-# ── Write traefik/dynamic.yml (domaine spécifique au serveur) ────────────────
+# ── Write traefik/dynamic.yml (server-specific domain) ───────────────────────
 write_traefik_dynamic() {
   info "Writing $INSTALL_DIR/traefik/dynamic.yml …"
   mkdir -p "$INSTALL_DIR/traefik"
@@ -281,7 +281,7 @@ systemctl is-active --quiet "${SERVICE}.service" \
 # ── Final summary ─────────────────────────────────────────────────────────────
 echo
 echo -e "${BOLD}${GREEN}╔══════════════════════════════════════════════════╗${RESET}"
-echo -e "${BOLD}${GREEN}║  photo-book déployé avec succès !                ║${RESET}"
+echo -e "${BOLD}${GREEN}║  photo-book deployed successfully!               ║${RESET}"
 echo -e "${BOLD}${GREEN}╚══════════════════════════════════════════════════╝${RESET}"
 echo
 echo -e "  URL            : ${BOLD}https://${DOMAIN}${RESET}"
@@ -289,7 +289,7 @@ echo -e "  Photos         : ${BOLD}${PHOTOS_DIR}${RESET}"
 echo -e "  Certificat TLS : ${BOLD}${LETSENCRYPT_DIR}/acme.json${RESET}"
 echo -e "  Logs           : ${BOLD}journalctl -u ${SERVICE} -f${RESET}"
 echo -e "  Logs Postgres  : ${BOLD}cd ${INSTALL_DIR} && ${DC} logs -f postgres${RESET}"
-echo -e "  Mise à jour    : ${BOLD}sudo $0 --update${RESET}"
+echo -e "  Update         : ${BOLD}sudo $0 --update${RESET}"
 echo
-echo -e "  ${YELLOW}Note :${RESET} DNS ${BOLD}${DOMAIN}${RESET} doit pointer vers l'IP de ce serveur."
+echo -e "  ${YELLOW}Note:${RESET} DNS ${BOLD}${DOMAIN}${RESET} must point to this server's IP."
 echo

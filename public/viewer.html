@@ -1,9 +1,11 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <title>Visionneuse — Photo Book</title>
+  <title>photo-book — viewer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pannellum@2.5.6/build/pannellum.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css">
   <link rel="stylesheet" href="style.css">
@@ -13,11 +15,11 @@
 
     <nav id="album-nav" aria-label="Albums">
       <div id="album-tabs" role="tablist"></div>
-      <button id="album-map-btn" class="album-map-btn" title="Carte de l'album" disabled>
+      <button id="album-map-btn" class="album-map-btn" title="Album map" disabled>
         <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor" aria-hidden="true">
           <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
         </svg>
-        Carte
+        Map
       </button>
     </nav>
 
@@ -31,7 +33,7 @@
         <div id="photo-meta">
           <p id="photo-location" class="photo-location"></p>
           <span id="photo-views" class="photo-views"></span>
-          <button id="like-btn" class="like-btn" aria-label="J'aime" aria-pressed="false">
+          <button id="like-btn" class="like-btn" aria-label="Like" aria-pressed="false">
             <svg class="like-heart like-heart-outline" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
             <svg class="like-heart like-heart-filled" viewBox="0 0 24 24" width="13" height="13" fill="currentColor" aria-hidden="true"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
             <span id="like-count"></span>
@@ -43,15 +45,15 @@
       <!-- Mini-map: shown when the current photo has GPS data -->
       <div id="photo-map-mini" class="photo-map-mini hidden">
         <div id="photo-map-canvas"></div>
-        <button id="photo-map-expand" class="photo-map-expand-btn" title="Agrandir la carte">
+        <button id="photo-map-expand" class="photo-map-expand-btn" title="Expand map">
           <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>
         </button>
       </div>
 
       <div id="pano-controls">
-        <button id="pano-zoom-in"  aria-label="Zoom avant">+</button>
-        <button id="pano-zoom-out" aria-label="Zoom arrière">−</button>
-        <button id="pano-recenter" aria-label="Recentrer">⊙</button>
+        <button id="pano-zoom-in"  aria-label="Zoom in">+</button>
+        <button id="pano-zoom-out" aria-label="Zoom out">−</button>
+        <button id="pano-recenter" aria-label="Re-center">⊙</button>
         <button id="pano-gyro" aria-label="Gyroscope">
           <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
             <circle cx="12" cy="12" r="3"/>
@@ -63,9 +65,9 @@
     </main>
 
     <div id="strip">
-      <button id="strip-prev" class="strip-arrow strip-arrow-left" aria-label="Défiler à gauche" disabled>&#8249;</button>
+      <button id="strip-prev" class="strip-arrow strip-arrow-left" aria-label="Scroll left" disabled>&#8249;</button>
       <div id="thumbnails" role="listbox" aria-label="Photos"></div>
-      <button id="strip-next" class="strip-arrow strip-arrow-right" aria-label="Défiler à droite" disabled>&#8250;</button>
+      <button id="strip-next" class="strip-arrow strip-arrow-right" aria-label="Scroll right" disabled>&#8250;</button>
     </div>
 
   </div>
@@ -73,13 +75,13 @@
   <!-- Map modal: enlarged view of a single photo location -->
   <div id="map-modal" class="map-modal hidden" role="dialog" aria-modal="true">
     <div id="map-modal-canvas"></div>
-    <button id="map-modal-close" class="map-modal-close" aria-label="Fermer">✕</button>
+    <button id="map-modal-close" class="map-modal-close" aria-label="Close">✕</button>
   </div>
 
   <!-- Album map overlay: all photos on one map -->
   <div id="album-map-overlay" class="album-map-overlay hidden" role="dialog" aria-modal="true">
     <div id="album-map-canvas"></div>
-    <button id="album-map-close" class="album-map-close" aria-label="Fermer">✕</button>
+    <button id="album-map-close" class="album-map-close" aria-label="Close">✕</button>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/pannellum@2.5.6/build/pannellum.js"></script>

@@ -16,13 +16,13 @@ async function init() {
 
     if (albums.length === 0) {
       grid.insertAdjacentHTML('beforeend',
-        '<p class="grid-empty">Ajoutez des dossiers dans <code>photos/</code> pour créer des albums.</p>');
+        '<p class="grid-empty">Add folders to <code>photos/</code> to create albums.</p>');
       return;
     }
 
     albums.forEach(album => grid.appendChild(createAlbumCard(album)));
   } catch (err) {
-    grid.innerHTML = '<p class="grid-empty">Impossible de charger les albums.</p>';
+    grid.innerHTML = '<p class="grid-empty">Could not load albums.</p>';
     console.error(err);
   }
 }
@@ -39,13 +39,13 @@ function createMapCard() {
   // SVG: decorative dots scattered like map pins
   visual.innerHTML = `
     <svg class="album-card-map-dots" viewBox="0 0 260 174" xmlns="http://www.w3.org/2000/svg">
-      ${_pin(52,  62,  '#3b82f6', 0.9)}
-      ${_pin(110, 44,  '#3b82f6', 0.75)}
-      ${_pin(168, 80,  '#ef4444', 1.0)}
-      ${_pin(210, 52,  '#3b82f6', 0.7)}
-      ${_pin(78,  118, '#3b82f6', 0.65)}
-      ${_pin(145, 130, '#3b82f6', 0.55)}
-      ${_pin(225, 115, '#3b82f6', 0.6)}
+      ${_pin(52,  62,  '#5894B5', 0.9)}
+      ${_pin(110, 44,  '#5894B5', 0.75)}
+      ${_pin(168, 80,  '#E5573B', 1.0)}
+      ${_pin(210, 52,  '#5894B5', 0.7)}
+      ${_pin(78,  118, '#5894B5', 0.65)}
+      ${_pin(145, 130, '#5894B5', 0.55)}
+      ${_pin(225, 115, '#5894B5', 0.6)}
       ${_line(52,68, 110,50)}
       ${_line(110,50, 168,86)}
       ${_line(168,86, 210,58)}
@@ -58,11 +58,11 @@ function createMapCard() {
 
   const name = document.createElement('div');
   name.className = 'album-card-name';
-  name.textContent = 'Carte';
+  name.textContent = 'Map';
 
   const sub = document.createElement('div');
   sub.className = 'album-card-count';
-  sub.textContent = 'Toutes les localisations';
+  sub.textContent = 'All locations';
 
   info.appendChild(name);
   info.appendChild(sub);

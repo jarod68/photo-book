@@ -3,8 +3,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import request from 'supertest';
 
 // ── Mocks ─────────────────────────────────────────────────────────────────────
-// database.js n'est PAS mocké : on récupère la même instance CJS que server.js
-// via createRequire, puis on contrôle l'état avec _reset() / _setState().
+// database.js is NOT mocked: we retrieve the same CJS instance as server.js
+// via createRequire, then control state with _reset() / _setState().
 
 vi.mock('../../services/image.js', () => ({
   PHOTOS_DIR:    '/test/photos',
@@ -30,16 +30,16 @@ vi.mock('fs', async () => {
   };
 });
 
-// server.js est chargé en premier — il place database.js dans le cache CJS
+// server.js is loaded first — it puts database.js into the CJS cache
 const { app } = await import('../../server.js');
 
-// createRequire donne accès au même cache CJS que les require() de server.js.
-// fsMod et exifrMod sont les mêmes objets que ceux utilisés par server.js :
-// modifier leurs propriétés ici est immédiatement visible dans les routes.
+// createRequire gives access to the same CJS cache as server.js require() calls.
+// fsMod and exifrMod are the same objects used by server.js:
+// modifying their properties here is immediately visible in the routes.
 const _require  = createRequire(import.meta.url);
 const database  = _require('../../services/database.js');
 const fsMod     = _require('fs');    // vi.fn() instances depuis vi.mock('fs', …)
-const exifrMod  = _require('exifr'); // module réel — on utilisera vi.spyOn
+const exifrMod  = _require('exifr'); // real module — we use vi.spyOn
 
 const mockQuery = vi.fn();
 
@@ -59,22 +59,22 @@ describe('GET /api/geocode', () => {
 
   afterEach(() => vi.unstubAllGlobals());
 
-  it('retourne 400 pour lat NaN', async () => {
+  it('returns 400 for NaN lat', async () => {
     const res = await request(app).get('/api/geocode?lat=abc&lng=2');
     expect(res.status).toBe(400);
   });
 
-  it('retourne 400 pour lat hors plage (> 90)', async () => {
+  it('returns 400 for lat out of range (> 90)', async () => {
     const res = await request(app).get('/api/geocode?lat=91&lng=0');
     expect(res.status).toBe(400);
   });
 
-  it('retourne 400 pour lng hors plage (< -180)', async () => {
+  it('returns 400 for lng out of range (< -180)', async () => {
     const res = await request(app).get('/api/geocode?lat=0&lng=-181');
     expect(res.status).toBe(400);
   });
 
-  it('retourne 200 pour des coordonnées valides', async () => {
+  it('returns 200 for valid coordinates', async () => {
     const res = await request(app).get('/api/geocode?lat=48.85&lng=2.35');
     expect(res.status).toBe(200);
     expect(res.body).toHaveProperty('location');
@@ -86,7 +86,7 @@ describe('GET /api/geocode', () => {
 const VALID_TOKEN = '123e4567-e89b-12d3-a456-426614174000';
 
 describe('POST /api/view', () => {
-  it('retourne 400 si le token est absent', async () => {
+  it('returns 400 if token is missing', async () => {
     database._setState({ query: mockQuery }, true);
     const res = await request(app)
       .post('/api/view')
@@ -94,7 +94,7 @@ describe('POST /api/view', () => {
     expect(res.status).toBe(400);
   });
 
-  it("retourne 400 si le token n'est pas un UUID valide", async () => {
+  it('returns 400 if token is not a valid UUID', async () => {
     database._setState({ query: mockQuery }, true);
     const res = await request(app)
       .post('/api/view')
@@ -102,8 +102,8 @@ describe('POST /api/view', () => {
     expect(res.status).toBe(400);
   });
 
-  it("retourne { views: null } si la DB n'est pas prête", async () => {
-    // database._reset() appelé en beforeEach → dbReady = false
+  it('returns { views: null } if DB is not ready', async () => {
+    // database._reset() called in beforeEach → dbReady = false
     const res = await request(app)
       .post('/api/view')
       .send({ album: 'Paris', filename: 'photo.jpg', token: VALID_TOKEN });
@@ -111,7 +111,7 @@ describe('POST /api/view', () => {
     expect(res.body.views).toBeNull();
   });
 
-  it('retourne views + likes + liked si la DB est prête', async () => {
+  it('returns views + likes + liked if DB is ready', async () => {
     mockQuery
       .mockResolvedValueOnce({ rowCount: 1 })                         // INSERT view_log
       .mockResolvedValueOnce({ rowCount: 1 })                         // INSERT photo_views +1
@@ -133,7 +133,7 @@ describe('POST /api/view', () => {
 // ── /api/like ─────────────────────────────────────────────────────────────────
 
 describe('POST /api/like', () => {
-  it('retourne 400 si le token est absent', async () => {
+  it('returns 400 if token is missing', async () => {
     database._setState({ query: mockQuery }, true);
     const res = await request(app)
       .post('/api/like')
@@ -141,7 +141,7 @@ describe('POST /api/like', () => {
     expect(res.status).toBe(400);
   });
 
-  it('retourne 400 pour un UUID invalide', async () => {
+  it('returns 400 for an invalid UUID', async () => {
     database._setState({ query: mockQuery }, true);
     const res = await request(app)
       .post('/api/like')
@@ -149,7 +149,7 @@ describe('POST /api/like', () => {
     expect(res.status).toBe(400);
   });
 
-  it('retourne le résultat par défaut si DB non prête', async () => {
+  it('returns default result if DB not ready', async () => {
     // database._reset() → dbReady = false
     const res = await request(app)
       .post('/api/like')
@@ -158,9 +158,9 @@ describe('POST /api/like', () => {
     expect(res.body).toEqual({ liked: false, count: 0 });
   });
 
-  it("insère un like si pas encore liké", async () => {
+  it('inserts a like if not yet liked', async () => {
     mockQuery
-      .mockResolvedValueOnce({ rowCount: 0 })              // pas de like existant
+      .mockResolvedValueOnce({ rowCount: 0 })              // no existing like
       .mockResolvedValueOnce({ rowCount: 1 })              // INSERT like
       .mockResolvedValueOnce({ rows: [{ count: '1' }] });  // COUNT
     database._setState({ query: mockQuery }, true);
@@ -173,9 +173,9 @@ describe('POST /api/like', () => {
     expect(res.body.count).toBe(1);
   });
 
-  it("supprime le like si déjà liké (unlike)", async () => {
+  it('removes the like if already liked (unlike)', async () => {
     mockQuery
-      .mockResolvedValueOnce({ rowCount: 1 })              // like existant
+      .mockResolvedValueOnce({ rowCount: 1 })              // existing like
       .mockResolvedValueOnce({ rowCount: 1 })              // DELETE like
       .mockResolvedValueOnce({ rows: [{ count: '0' }] });  // COUNT
     database._setState({ query: mockQuery }, true);
@@ -192,20 +192,20 @@ describe('POST /api/like', () => {
 // ── /api/liked ────────────────────────────────────────────────────────────────
 
 describe('GET /api/liked', () => {
-  it('retourne { filenames: [] } si token invalide', async () => {
+  it('returns { filenames: [] } for invalid token', async () => {
     database._setState({ query: mockQuery }, true);
     const res = await request(app).get('/api/liked?album=Paris&token=bad');
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ filenames: [] });
   });
 
-  it('retourne { filenames: [] } si DB non prête', async () => {
+  it('returns { filenames: [] } if DB not ready', async () => {
     // database._reset() → dbReady = false
     const res = await request(app).get(`/api/liked?album=Paris&token=${VALID_TOKEN}`);
     expect(res.body).toEqual({ filenames: [] });
   });
 
-  it('retourne les filenames likés', async () => {
+  it('returns liked filenames', async () => {
     mockQuery.mockResolvedValueOnce({
       rows: [{ filename: 'a.jpg' }, { filename: 'b.jpg' }],
     });
@@ -219,7 +219,7 @@ describe('GET /api/liked', () => {
 // ── /api/albums ───────────────────────────────────────────────────────────────
 
 describe('GET /api/albums', () => {
-  it('retourne 200 avec un tableau', async () => {
+  it('returns 200 with an array', async () => {
     const res = await request(app).get('/api/albums');
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body)).toBe(true);
@@ -236,13 +236,13 @@ describe('GET /api/albums/:album', () => {
 
   afterEach(() => vi.restoreAllMocks());
 
-  it("retourne 404 si l'album n'existe pas", async () => {
+  it('returns 404 if album does not exist', async () => {
     // fsMod.existsSync returns false by default (describe beforeEach spy)
     const res = await request(app).get('/api/albums/Inconnu');
     expect(res.status).toBe(404);
   });
 
-  it('retourne 200 avec { name, photos } si l\'album existe (sans DB)', async () => {
+  it('returns 200 with { name, photos } if album exists (no DB)', async () => {
     fsMod.existsSync.mockReturnValue(true);
     fsMod.readdirSync.mockReturnValue(['photo.jpg']);
 
@@ -253,7 +253,7 @@ describe('GET /api/albums/:album', () => {
     expect(res.body.photos).toHaveLength(1);
   });
 
-  it('enrichit les photos avec views et likes si la DB est prête', async () => {
+  it('enriches photos with views and likes if DB is ready', async () => {
     fsMod.existsSync.mockReturnValue(true);
     fsMod.readdirSync.mockReturnValue(['photo.jpg']);
     mockQuery
@@ -267,7 +267,7 @@ describe('GET /api/albums/:album', () => {
     expect(res.body.photos[0].likes).toBe(3);
   });
 
-  it('retourne 500 si readdirSync lève une exception', async () => {
+  it('returns 500 if readdirSync throws', async () => {
     fsMod.existsSync.mockReturnValue(true);
     fsMod.readdirSync.mockImplementation(() => { throw new Error('disk error'); });
 
@@ -277,8 +277,8 @@ describe('GET /api/albums/:album', () => {
 });
 
 // ── /api/map ──────────────────────────────────────────────────────────────────
-// exifr est mocké par vi.spyOn sur le module chargé par server.js.
-// vi.restoreAllMocks() en afterEach restaure l'original après chaque test.
+// exifr is mocked via vi.spyOn on the module loaded by server.js.
+// vi.restoreAllMocks() in afterEach restores the original after each test.
 
 describe('GET /api/map', () => {
   const albumDir = { name: 'Paris', isDirectory: () => true };
@@ -292,19 +292,19 @@ describe('GET /api/map', () => {
 
   afterEach(() => vi.restoreAllMocks());
 
-  it('retourne [] si PHOTOS_DIR est absent', async () => {
+  it('returns [] if PHOTOS_DIR is missing', async () => {
     // fsMod.existsSync returns false by default
     const res = await request(app).get('/api/map');
     expect(res.status).toBe(200);
     expect(res.body).toEqual([]);
   });
 
-  it("retourne [] si aucune photo n'a de coordonnées GPS", async () => {
+  it('returns [] if no photos have GPS coordinates', async () => {
     fsMod.existsSync.mockReturnValue(true);
     fsMod.readdirSync
       .mockReturnValueOnce([albumDir])
       .mockReturnValueOnce(['photo.jpg']);
-    // exifrMod.gps returns null by default → photo ignorée
+    // exifrMod.gps returns null by default → photo skipped
 
     const res = await request(app).get('/api/map');
     expect(res.status).toBe(200);
@@ -314,7 +314,7 @@ describe('GET /api/map', () => {
   it('retourne les photos GPS avec tous les champs attendus', async () => {
     fsMod.existsSync
       .mockReturnValueOnce(true)   // PHOTOS_DIR existe
-      .mockReturnValue(false);     // preview non générée
+      .mockReturnValue(false);     // preview not generated
     fsMod.readdirSync
       .mockReturnValueOnce([albumDir])
       .mockReturnValueOnce(['img.jpg']);
@@ -346,7 +346,7 @@ describe('GET /api/map', () => {
     expect(res.body[0].previewUrl).toBe('/previews/Paris/img.jpg');
   });
 
-  it('ignore les photos sans coordonnées GPS', async () => {
+  it('ignores photos without GPS coordinates', async () => {
     fsMod.existsSync.mockReturnValueOnce(true).mockReturnValue(false);
     fsMod.readdirSync
       .mockReturnValueOnce([albumDir])

@@ -17,7 +17,7 @@ export function createAlbumCard(album) {
   } else {
     const empty = document.createElement('div');
     empty.className = 'album-card-empty';
-    empty.textContent = 'Album vide';
+    empty.textContent = 'Empty album';
     card.appendChild(empty);
   }
 

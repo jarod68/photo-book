@@ -32,7 +32,7 @@ function makeExifr(data = {}, gpsData = null) {
 // ── ensurePreview ─────────────────────────────────────────────────────────────
 
 describe('ensurePreview', () => {
-  it("retourne l'URL sans appeler sharp si la preview existe déjà", async () => {
+  it('returns the URL without calling sharp if preview already exists', async () => {
     const { fn: sharpFn } = makeSharp();
     const mockFs = makeFs({ exists: true });
 
@@ -44,7 +44,7 @@ describe('ensurePreview', () => {
     expect(url).toBe('/previews/Paris/photo.jpg');
   });
 
-  it('crée le dossier et génère la preview si elle est absente', async () => {
+  it('creates the folder and generates the preview if absent', async () => {
     const { fn: sharpFn, chain } = makeSharp();
     const mockFs = makeFs({ exists: false });
 
@@ -81,7 +81,7 @@ describe('ensurePreview', () => {
     expect(chain.resize).toHaveBeenCalledWith(1536, null, { withoutEnlargement: true });
   });
 
-  it("encode les caractères spéciaux dans l'URL retournée", async () => {
+  it('encodes special characters in the returned URL', async () => {
     const { fn: sharpFn } = makeSharp();
     const mockFs = makeFs({ exists: true });
 
@@ -107,7 +107,7 @@ describe('ensurePreview', () => {
 // ── photoMeta ─────────────────────────────────────────────────────────────────
 
 describe('photoMeta', () => {
-  it('retourne les valeurs par défaut quand aucune donnée EXIF', async () => {
+  it('returns default values when no EXIF data', async () => {
     const deps = {
       exifr: makeExifr(),
       fs:    makeFs({ exists: true }),
@@ -125,7 +125,7 @@ describe('photoMeta', () => {
     expect(meta.previewUrl).toBe('/previews/Paris/photo.jpg');
   });
 
-  it('utilise le champ Title EXIF comme nom', async () => {
+  it('uses EXIF Title field as name', async () => {
     const deps = {
       exifr: makeExifr({ Title: 'Tour Eiffel' }),
       fs:    makeFs({ exists: true }),
@@ -136,7 +136,7 @@ describe('photoMeta', () => {
     expect(meta.name).toBe('Tour Eiffel');
   });
 
-  it('ignore les valeurs placeholder EXIF', async () => {
+  it('ignores EXIF placeholder values', async () => {
     const deps = {
       exifr: makeExifr({ Title: 'OLYMPUS DIGITAL CAMERA' }),
       fs:    makeFs({ exists: true }),
@@ -147,7 +147,7 @@ describe('photoMeta', () => {
     expect(meta.name).toBe('ma-photo');
   });
 
-  it("détecte is360 via ProjectionType 'equirectangular'", async () => {
+  it("detects is360 via ProjectionType 'equirectangular'", async () => {
     const deps = {
       exifr: makeExifr({ ProjectionType: 'equirectangular' }),
       fs:    makeFs({ exists: true }),
@@ -158,7 +158,7 @@ describe('photoMeta', () => {
     expect(meta.is360).toBe(true);
   });
 
-  it("détecte is360 via le ratio d'aspect 2:1 (ImageWidth/ImageHeight)", async () => {
+  it('detects is360 via 2:1 aspect ratio (ImageWidth/ImageHeight)', async () => {
     const deps = {
       exifr: makeExifr({ ImageWidth: 8000, ImageHeight: 4000 }),
       fs:    makeFs({ exists: true }),
@@ -169,7 +169,7 @@ describe('photoMeta', () => {
     expect(meta.is360).toBe(true);
   });
 
-  it('extrait les coordonnées GPS', async () => {
+  it('extracts GPS coordinates', async () => {
     const mockExifr = {
       parse: vi.fn().mockResolvedValue({}),
       gps:   vi.fn().mockResolvedValue({ latitude: 48.856600, longitude: 2.352200 }),
@@ -181,7 +181,7 @@ describe('photoMeta', () => {
     expect(meta.gps).toEqual({ lat: 48.8566, lng: 2.3522 });
   });
 
-  it('extrait la location IPTC (City + Country)', async () => {
+  it('extracts IPTC location (City + Country)', async () => {
     const deps = {
       exifr: makeExifr({ City: 'Paris', 'Country-PrimaryLocationName': 'France' }),
       fs:    makeFs({ exists: true }),
@@ -192,7 +192,7 @@ describe('photoMeta', () => {
     expect(meta.location).toBe('Paris, France');
   });
 
-  it('retourne previewUrl = null si ensurePreview échoue', async () => {
+  it('returns previewUrl = null if ensurePreview fails', async () => {
     const sharpFn = vi.fn(() => {
       throw new Error('sharp error');
     });
@@ -206,7 +206,7 @@ describe('photoMeta', () => {
     expect(meta.previewUrl).toBeNull();
   });
 
-  it("encode les caractères spéciaux dans l'URL de la photo", async () => {
+  it('encodes special characters in the photo URL', async () => {
     const deps = {
       exifr: makeExifr(),
       fs:    makeFs({ exists: true }),
@@ -221,7 +221,7 @@ describe('photoMeta', () => {
 // ── preGenerateAll ────────────────────────────────────────────────────────────
 
 describe('preGenerateAll', () => {
-  it("ne fait rien si PHOTOS_DIR n'existe pas", async () => {
+  it('does nothing if PHOTOS_DIR does not exist', async () => {
     const mockFs = { existsSync: vi.fn().mockReturnValue(false), readdirSync: vi.fn() };
 
     await preGenerateAll({ fs: mockFs });
@@ -229,14 +229,14 @@ describe('preGenerateAll', () => {
     expect(mockFs.readdirSync).not.toHaveBeenCalled();
   });
 
-  it('génère les previews manquantes pour chaque photo', async () => {
+  it('generates missing previews for each photo', async () => {
     const dir  = name => ({ isDirectory: () => true,  name });
     const { fn: sharpFn } = makeSharp();
 
     const mockFs = {
       existsSync: vi.fn()
-        .mockReturnValueOnce(true)   // PHOTOS_DIR existe
-        .mockReturnValue(false),     // aucune preview n'existe
+        .mockReturnValueOnce(true)   // PHOTOS_DIR exists
+        .mockReturnValue(false),     // no previews exist
       mkdirSync:   vi.fn(),
       readdirSync: vi.fn()
         .mockReturnValueOnce([dir('Paris')])     // albums
@@ -250,12 +250,12 @@ describe('preGenerateAll', () => {
     expect(sharpFn).toHaveBeenCalledTimes(4); // preview + medium × 2 photos
   });
 
-  it('saute les photos dont la preview existe déjà', async () => {
+  it('skips photos whose preview already exists', async () => {
     const dir = name => ({ isDirectory: () => true, name });
     const { fn: sharpFn } = makeSharp();
 
     const mockFs = {
-      existsSync: vi.fn().mockReturnValue(true), // tout existe (PHOTOS_DIR + previews)
+      existsSync: vi.fn().mockReturnValue(true), // everything exists (PHOTOS_DIR + previews)
       mkdirSync:   vi.fn(),
       readdirSync: vi.fn()
         .mockReturnValueOnce([dir('Paris')])

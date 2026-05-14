@@ -46,7 +46,7 @@ async function connectDb(dbInstance = null) {
         )
       `);
       dbReady = true;
-      console.log('  ✓ PostgreSQL connecté.');
+      console.log('  ✓ PostgreSQL connected.');
       return;
     } catch (err) {
       if (attempt < 12) {
@@ -72,11 +72,10 @@ async function syncPhotosToDb() {
     }
     total += files.length;
   }
-  console.log(`  ✓ ${total} photo(s) enregistrée(s) dans photo_views.`);
+  console.log(`  ✓ ${total} photo(s) synced to photo_views.`);
 }
 
-// Fonctions de test uniquement — permettent de contrôler l'état interne
-// sans passer par connectDb() (qui nécessite une vraie connexion PostgreSQL).
+// Test-only helpers — allow controlling internal state without a real PostgreSQL connection.
 function _reset() {
   db      = null;
   dbReady = false;
@@ -87,7 +86,7 @@ function _setState(newDb, ready) {
   dbReady = ready;
 }
 
-// Getters pour exposer les valeurs courantes après initialisation asynchrone
+// Getters expose current values after async initialization
 module.exports = {
   get db()      { return db; },
   get dbReady() { return dbReady; },

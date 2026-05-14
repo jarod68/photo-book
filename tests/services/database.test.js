@@ -4,18 +4,18 @@ import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 vi.mock('../../services/image.js', () => ({
   PHOTOS_DIR: '/test/photos',
   isImage:    f => f.endsWith('.jpg'),
-  // Accepte les entrées withFileTypes dont isDirectory() renvoie true,
-  // ce qui permet de tester syncPhotosToDb avec de vrais albums fictifs.
+  // Accepts withFileTypes entries whose isDirectory() returns true,
+  // allowing syncPhotosToDb to be tested with real mock albums.
   isAlbumDir: e => e.isDirectory?.() ?? false,
 }));
 
-// Module importé une seule fois — état réinitialisé via _reset() entre les tests.
-// On injecte un pool mock directement dans connectDb() pour éviter les problèmes
-// d'interception du require('pg') CJS dans l'interop ESM de Vitest.
+// Module imported once — state reset via _reset() between tests.
+// We inject a mock pool directly into connectDb() to avoid issues
+// intercepting require('pg') CJS in Vitest's ESM interop.
 const database = await import('../../services/database.js');
 
-// fsMod : même objet fs que celui utilisé par database.js (cache CJS partagé).
-// vi.spyOn sur ses propriétés est immédiatement visible dans le module testé.
+// fsMod: same fs object used by database.js (shared CJS cache).
+// vi.spyOn on its properties is immediately visible in the tested module.
 const _require = createRequire(import.meta.url);
 const fsMod    = _require('fs');
 
@@ -28,14 +28,14 @@ beforeEach(() => {
   database._reset();
 });
 
-// ── état initial ──────────────────────────────────────────────────────────────
+// ── initial state ─────────────────────────────────────────────────────────────
 
-describe('état initial', () => {
-  it('dbReady vaut false avant connectDb()', () => {
+describe('initial state', () => {
+  it('dbReady is false before connectDb()', () => {
     expect(database.dbReady).toBe(false);
   });
 
-  it('db vaut null avant connectDb()', () => {
+  it('db is null before connectDb()', () => {
     expect(database.db).toBeNull();
   });
 });
@@ -43,12 +43,12 @@ describe('état initial', () => {
 // ── connectDb ─────────────────────────────────────────────────────────────────
 
 describe('connectDb', () => {
-  it('passe dbReady à true en cas de succès', async () => {
+  it('sets dbReady to true on success', async () => {
     await database.connectDb(mockPool);
     expect(database.dbReady).toBe(true);
   });
 
-  it('crée les trois tables requises', async () => {
+  it('creates the three required tables', async () => {
     await database.connectDb(mockPool);
     const sqls = mockQuery.mock.calls.map(c => c[0]);
     expect(sqls.some(s => s.includes('photo_views'))).toBe(true);
@@ -56,7 +56,7 @@ describe('connectDb', () => {
     expect(sqls.some(s => s.includes('photo_likes'))).toBe(true);
   });
 
-  it('laisse dbReady à false si toutes les tentatives échouent', async () => {
+  it('leaves dbReady as false if all attempts fail', async () => {
     vi.useFakeTimers();
     mockQuery.mockRejectedValue(new Error('ECONNREFUSED'));
 
@@ -69,7 +69,7 @@ describe('connectDb', () => {
     vi.useRealTimers();
   }, 10_000);
 
-  it('réussit après quelques échecs (retry)', async () => {
+  it('succeeds after a few failures (retry)', async () => {
     vi.useFakeTimers();
     let attempt = 0;
     mockQuery.mockImplementation(() => {
@@ -80,20 +80,20 @@ describe('connectDb', () => {
 
     const connectPromise = database.connectDb(mockPool);
 
-    await vi.advanceTimersByTimeAsync(5_000); // échec 1
-    await vi.advanceTimersByTimeAsync(5_000); // échec 2
-    await connectPromise;                      // succès à la 3e tentative
+    await vi.advanceTimersByTimeAsync(5_000); // failure 1
+    await vi.advanceTimersByTimeAsync(5_000); // failure 2
+    await connectPromise;                      // success on 3rd attempt
 
     expect(database.dbReady).toBe(true);
     vi.useRealTimers();
   }, 10_000);
 
-  it('effectue exactement 12 tentatives et ne dort pas après la dernière', async () => {
+  it('makes exactly 12 attempts and does not sleep after the last one', async () => {
     vi.useFakeTimers();
     mockQuery.mockRejectedValue(new Error('fail'));
 
     const p = database.connectDb(mockPool);
-    // 11 sleeps de 5 s (attempts 1–11) ; pas de sleep après attempt 12
+    // 11 sleeps of 5s (attempts 1–11); no sleep after attempt 12
     for (let i = 0; i < 11; i++) await vi.advanceTimersByTimeAsync(5_000);
     await p;
 
@@ -111,13 +111,13 @@ describe('syncPhotosToDb', () => {
 
   afterEach(() => vi.restoreAllMocks());
 
-  it("ne fait rien si dbReady est false", async () => {
-    // connectDb non appelé → dbReady reste false
+  it('does nothing if dbReady is false', async () => {
+    // connectDb not called → dbReady stays false
     await database.syncPhotosToDb();
     expect(mockQuery).not.toHaveBeenCalled();
   });
 
-  it("ne fait rien si PHOTOS_DIR n'existe pas", async () => {
+  it('does nothing if PHOTOS_DIR does not exist', async () => {
     database._setState(mockPool, true);
     vi.spyOn(fsMod, 'existsSync').mockReturnValue(false);
 
@@ -125,7 +125,7 @@ describe('syncPhotosToDb', () => {
     expect(mockQuery).not.toHaveBeenCalled();
   });
 
-  it('insère une ligne par photo dans photo_views', async () => {
+  it('inserts one row per photo into photo_views', async () => {
     database._setState(mockPool, true);
     vi.spyOn(fsMod, 'existsSync').mockReturnValue(true);
     vi.spyOn(fsMod, 'readdirSync')
@@ -145,13 +145,13 @@ describe('syncPhotosToDb', () => {
     );
   });
 
-  it('traite plusieurs albums et ignore les fichiers non-images', async () => {
+  it('processes multiple albums and ignores non-image files', async () => {
     const romeEntry = { name: 'Rome', isDirectory: () => true };
     database._setState(mockPool, true);
     vi.spyOn(fsMod, 'existsSync').mockReturnValue(true);
     vi.spyOn(fsMod, 'readdirSync')
       .mockReturnValueOnce([albumEntry, romeEntry]) // PHOTOS_DIR
-      .mockReturnValueOnce(['photo.jpg', 'doc.pdf']) // Paris (1 image, 1 ignoré)
+      .mockReturnValueOnce(['photo.jpg', 'doc.pdf']) // Paris (1 image, 1 skipped)
       .mockReturnValueOnce(['img.jpg']);             // Rome
 
     await database.syncPhotosToDb();

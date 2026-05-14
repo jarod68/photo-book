@@ -3,8 +3,8 @@ import { getUserToken } from '../../public/utils/user-token.js';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
-// happy-dom ne fournit pas une implémentation complète de localStorage
-// (localStorage.clear() manque) — on fournit notre propre stub
+// happy-dom does not provide a full localStorage implementation
+// (localStorage.clear() is missing) — we provide our own stub
 function makeStorage() {
   const store = Object.create(null);
   return {
@@ -24,22 +24,22 @@ afterEach(() => {
 });
 
 describe('getUserToken', () => {
-  it('génère un UUID valide au premier appel', () => {
+  it('generates a valid UUID on first call', () => {
     expect(getUserToken()).toMatch(UUID_RE);
   });
 
-  it('retourne le même token à chaque appel', () => {
+  it('returns the same token on every call', () => {
     const t1 = getUserToken();
     const t2 = getUserToken();
     expect(t1).toBe(t2);
   });
 
-  it('persiste le token dans localStorage', () => {
+  it('persists the token in localStorage', () => {
     const token = getUserToken();
     expect(localStorage.getItem('pb_user_token')).toBe(token);
   });
 
-  it('utilise un token existant dans localStorage', () => {
+  it('uses an existing token from localStorage', () => {
     const existing = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
     localStorage.setItem('pb_user_token', existing);
     expect(getUserToken()).toBe(existing);

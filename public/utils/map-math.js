@@ -1,6 +1,6 @@
-export const MAX_DAYS   = 21;   // fenêtre consécutive max : 3 semaines
-export const MAX_KM     = 400;  // rayon max entre deux points consécutifs
-export const CLUSTER_KM = 5;    // rayon de regroupement de photos proches
+export const MAX_DAYS   = 21;   // max consecutive window: 3 weeks
+export const MAX_KM     = 400;  // max radius between two consecutive points
+export const CLUSTER_KM = 5;    // grouping radius for nearby photos
 
 /** @param {number} lat1 @param {number} lng1 @param {number} lat2 @param {number} lng2 @returns {number} */
 export function haversineKm(lat1, lng1, lat2, lng2) {

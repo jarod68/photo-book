@@ -8,7 +8,7 @@ import {
 const ROUTE_COLOR = '#3b82f6';
 const ARROW_TS    = [0.2, 0.5, 0.8];
 
-// ── Icône flèche directionnelle (suit la tangente de la courbe) ───────────────
+// ── Directional arrow icon (follows the curve tangent) ───────────────────────
 function arrowIcon(deg) {
   return L.divIcon({
     html: `<div style="transform:rotate(${deg.toFixed(1)}deg);transform-origin:center;line-height:0">
@@ -24,13 +24,13 @@ function arrowIcon(deg) {
   });
 }
 
-// ── Dessin du tracé ───────────────────────────────────────────────────────────
+// ── Route drawing ─────────────────────────────────────────────────────────────
 function drawRoute(layer, photos) {
   buildSegments(photos).forEach(segment => {
     const nodes     = clusterSegment(segment);
     const centroids = nodes.map(centroid);
 
-    // Pin discret pour les nœuds multi-photos (même zone géographique)
+    // Small pin for multi-photo nodes (same geographic area)
     nodes.forEach((group, gi) => {
       if (group.length < 2) return;
       const c = centroids[gi];
@@ -45,7 +45,7 @@ function drawRoute(layer, photos) {
       }).addTo(layer);
     });
 
-    // Tracé Catmull-Rom entre les barycentres consécutifs
+    // Catmull-Rom curve between consecutive centroids
     for (let i = 0; i < centroids.length - 1; i++) {
       const a = centroids[i];
       const b = centroids[i + 1];
@@ -54,7 +54,7 @@ function drawRoute(layer, photos) {
 
       const { pts, cp1, cp2, P0, P1 } = catmullRom(centroids, i);
 
-      // Halo blanc pour lisibilité
+      // White halo for readability
       L.polyline(pts, {
         color: '#ffffff', weight: 7, opacity: 0.28, lineCap: 'round',
       }).addTo(layer);
@@ -65,7 +65,7 @@ function drawRoute(layer, photos) {
         dashArray: '12 8', lineCap: 'round', lineJoin: 'round',
       }).addTo(layer);
 
-      // Flèches directionnelles le long de la courbe
+      // Directional arrows along the curve
       ARROW_TS.forEach(t => {
         const { lat, lng, deg } = cubicSample(t, P0, cp1, cp2, P1);
         L.marker([lat, lng], {
@@ -84,8 +84,8 @@ async function init() {
 
   const countEl = document.getElementById('map-page-count');
   countEl.textContent = photos.length
-    ? `${photos.length} photo${photos.length > 1 ? 's' : ''} géolocalisée${photos.length > 1 ? 's' : ''}`
-    : 'Aucune photo géolocalisée';
+    ? `${photos.length} geotagged photo${photos.length > 1 ? 's' : ''}`
+    : 'No geotagged photos';
 
   const map = L.map('world-map', {
     minZoom: 2, maxZoom: 18, worldCopyJump: true,
@@ -98,27 +98,27 @@ async function init() {
 
   if (photos.length === 0) return;
 
-  // Calque du tracé (togglable)
+  // Route layer (toggleable)
   const routeLayer = L.layerGroup().addTo(map);
   drawRoute(routeLayer, photos);
 
-  // Bouton de bascule
+  // Toggle button
   const toggleBtn = document.getElementById('route-toggle');
   toggleBtn.addEventListener('click', () => {
     const visible = map.hasLayer(routeLayer);
     if (visible) {
       map.removeLayer(routeLayer);
       toggleBtn.classList.remove('active');
-      toggleBtn.title = 'Afficher le tracé';
+      toggleBtn.title = 'Show route';
     } else {
       map.addLayer(routeLayer);
       toggleBtn.classList.add('active');
-      toggleBtn.title = 'Masquer le tracé';
+      toggleBtn.title = 'Hide route';
     }
   });
 
-  // Numérotation par album, ordonnée par date de prise de vue
-  // Label : "NomAlbum-N"  ex. "Costa Rica-1"
+  // Per-album numbering, sorted by capture date
+  // Label: "AlbumName-N"  e.g. "Costa Rica-1"
   const albumGroups = {};
   photos.forEach(p => { (albumGroups[p.album] ??= []).push(p); });
 
@@ -135,7 +135,7 @@ async function init() {
       .forEach((p, i) => seqNum.set(`${p.album}/${p.filename}`, i + 1));
   });
 
-  // Markers photos regroupés en clusters selon le niveau de zoom
+  // Photo markers grouped into clusters based on zoom level
   const clusterGroup = L.markerClusterGroup({
     iconCreateFunction:  buildClusterIcon,
     maxClusterRadius:    60,
@@ -189,7 +189,7 @@ function buildPopup(photo) {
 
   const link = document.createElement('a');
   link.className = 'map-popup-view';
-  link.textContent = "Voir dans l'album";
+  link.textContent = "View in album";
   link.href = `viewer.html?album=${encodeURIComponent(photo.album)}&photo=${encodeURIComponent(photo.filename)}`;
   wrap.appendChild(link);
 

@@ -14,7 +14,7 @@ import {
 // ── haversineKm ───────────────────────────────────────────────────────────────
 
 describe('haversineKm', () => {
-  it('retourne 0 pour le même point', () => {
+  it('returns 0 for the same point', () => {
     expect(haversineKm(48.8566, 2.3522, 48.8566, 2.3522)).toBe(0);
   });
 
@@ -30,7 +30,7 @@ describe('haversineKm', () => {
     expect(km).toBeLessThan(5_900);
   });
 
-  it('est symétrique (A→B = B→A)', () => {
+  it('is symmetric (A→B = B→A)', () => {
     const ab = haversineKm(48.8566, 2.3522, 51.5074, -0.1278);
     const ba = haversineKm(51.5074, -0.1278, 48.8566, 2.3522);
     expect(ab).toBeCloseTo(ba, 6);
@@ -40,7 +40,7 @@ describe('haversineKm', () => {
 // ── centroid ──────────────────────────────────────────────────────────────────
 
 describe('centroid', () => {
-  it('retourne le point unique si un seul élément', () => {
+  it('returns the single point if only one element', () => {
     const photos = [{ gps: { lat: 48.0, lng: 2.0 } }];
     expect(centroid(photos)).toEqual({ lat: 48.0, lng: 2.0 });
   });
@@ -70,7 +70,7 @@ describe('centroid', () => {
 const photo = (lat, lng, date) => ({ gps: { lat, lng }, date });
 
 describe('buildSegments', () => {
-  it('retourne [] si moins de 2 photos datées', () => {
+  it('returns [] if fewer than 2 dated photos', () => {
     expect(buildSegments([])).toEqual([]);
     expect(buildSegments([photo(48, 2, '2024-01-01')])).toEqual([]);
   });
@@ -83,7 +83,7 @@ describe('buildSegments', () => {
     expect(buildSegments(photos)).toEqual([]);
   });
 
-  it("regroupe deux photos proches dans le temps et dans l'espace", () => {
+  it('groups two photos close in time and space', () => {
     const photos = [
       photo(48.8566, 2.3522, '2024-01-01'),
       photo(48.8600, 2.3600, '2024-01-02'),
@@ -93,7 +93,7 @@ describe('buildSegments', () => {
     expect(segments[0]).toHaveLength(2);
   });
 
-  it(`coupe le segment si l'écart dépasse ${MAX_DAYS} jours`, () => {
+  it(`cuts the segment if the gap exceeds ${MAX_DAYS} days`, () => {
     const photos = [
       photo(48.8566, 2.3522, '2024-01-01'),
       photo(48.8600, 2.3600, `2024-0${1 + MAX_DAYS + 1}-01`),
@@ -101,7 +101,7 @@ describe('buildSegments', () => {
     expect(buildSegments(photos)).toEqual([]);
   });
 
-  it(`coupe le segment si la distance dépasse ${MAX_KM} km`, () => {
+  it(`cuts the segment if the distance exceeds ${MAX_KM} km`, () => {
     const photos = [
       photo(48.8566, 2.3522, '2024-01-01'),  // Paris
       photo(41.9028, 12.4964, '2024-01-02'), // Rome (~1 107 km)
@@ -109,7 +109,7 @@ describe('buildSegments', () => {
     expect(buildSegments(photos)).toEqual([]);
   });
 
-  it('trie les photos par date avant segmentation', () => {
+  it('sorts photos by date before segmentation', () => {
     const photos = [
       photo(48.8600, 2.3600, '2024-01-03'),
       photo(48.8566, 2.3522, '2024-01-01'),
@@ -124,17 +124,17 @@ describe('buildSegments', () => {
 // ── clusterSegment ────────────────────────────────────────────────────────────
 
 describe('clusterSegment', () => {
-  it('regroupe les points dans le rayon de cluster', () => {
+  it('groups points within cluster radius', () => {
     const segment = [
       { gps: { lat: 48.8566, lng: 2.3522 } },
-      { gps: { lat: 48.8570, lng: 2.3530 } }, // ~100 m de distance
+      { gps: { lat: 48.8570, lng: 2.3530 } }, // ~100 m apart
     ];
     const nodes = clusterSegment(segment);
     expect(nodes).toHaveLength(1);
     expect(nodes[0]).toHaveLength(2);
   });
 
-  it(`sépare les points distants de plus de ${CLUSTER_KM} km`, () => {
+  it(`separates points more than ${CLUSTER_KM} km apart`, () => {
     const segment = [
       { gps: { lat: 48.8566, lng: 2.3522 } }, // Paris
       { gps: { lat: 43.2965, lng: 5.3698 } }, // Marseille
@@ -145,7 +145,7 @@ describe('clusterSegment', () => {
     expect(nodes[1]).toHaveLength(1);
   });
 
-  it('retourne un seul nœud pour un seul élément', () => {
+  it('returns a single node for a single element', () => {
     const segment = [{ gps: { lat: 48.8566, lng: 2.3522 } }];
     const nodes = clusterSegment(segment);
     expect(nodes).toHaveLength(1);
@@ -159,7 +159,7 @@ describe('catmullRom', () => {
   const B = { lat: 1, lng: 0 };
   const C = { lat: 2, lng: 0 };
 
-  it('le premier et dernier point de la courbe correspondent aux nœuds', () => {
+  it('first and last curve points match the nodes', () => {
     const { pts } = catmullRom([A, B], 0);
     expect(pts[0][0]).toBeCloseTo(A.lat);
     expect(pts[0][1]).toBeCloseTo(A.lng);
@@ -167,18 +167,18 @@ describe('catmullRom', () => {
     expect(pts[pts.length - 1][1]).toBeCloseTo(B.lng);
   });
 
-  it('génère le nombre de points demandé (steps + 1)', () => {
+  it('generates the requested number of points (steps + 1)', () => {
     const { pts } = catmullRom([A, B], 0, 10);
     expect(pts).toHaveLength(11);
   });
 
-  it('retourne les bons points de contrôle P0 et P1', () => {
+  it('returns the correct control points P0 and P1', () => {
     const { P0, P1 } = catmullRom([A, B, C], 0);
     expect(P0).toEqual(A);
     expect(P1).toEqual(B);
   });
 
-  it('retourne cp1 entre P0 et P1', () => {
+  it('returns cp1 between P0 and P1', () => {
     const { cp1, P0, P1 } = catmullRom([A, B, C], 0);
     expect(cp1.lat).toBeGreaterThanOrEqual(Math.min(P0.lat, P1.lat));
     expect(cp1.lat).toBeLessThanOrEqual(Math.max(P0.lat, P1.lat));
@@ -193,25 +193,25 @@ describe('cubicSample', () => {
   const cp1 = { lat: 0.3, lng: 0 };
   const cp2 = { lat: 0.7, lng: 0 };
 
-  it('t=0 retourne le point de départ', () => {
+  it('t=0 returns the start point', () => {
     const { lat, lng } = cubicSample(0, P0, cp1, cp2, P1);
     expect(lat).toBeCloseTo(0);
     expect(lng).toBeCloseTo(0);
   });
 
-  it("t=1 retourne le point d'arrivée", () => {
+  it('t=1 returns the end point', () => {
     const { lat, lng } = cubicSample(1, P0, cp1, cp2, P1);
     expect(lat).toBeCloseTo(1);
     expect(lng).toBeCloseTo(0);
   });
 
-  it('t=0.5 retourne un point intermédiaire', () => {
+  it('t=0.5 returns an intermediate point', () => {
     const { lat } = cubicSample(0.5, P0, cp1, cp2, P1);
     expect(lat).toBeGreaterThan(0);
     expect(lat).toBeLessThan(1);
   });
 
-  it('retourne un cap (deg) dans [0, 360[', () => {
+  it('returns a bearing (deg) in [0, 360[', () => {
     const { deg } = cubicSample(0.5, P0, cp1, cp2, P1);
     expect(deg).toBeGreaterThanOrEqual(0);
     expect(deg).toBeLessThan(360);

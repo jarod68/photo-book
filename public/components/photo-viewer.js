@@ -1,7 +1,7 @@
 /**
  * PhotoViewer — single Pannellum container + standard <img> with zoom/pan.
  * No spinner: the viewer background (#000) is visible during loading.
- * Pannellum's `preview` option shows a low-res aperçu from cache immediately.
+ * Pannellum's `preview` option shows a low-res preview from cache immediately.
  */
 export class PhotoViewer {
   /**
@@ -189,7 +189,7 @@ export class PhotoViewer {
     };
 
     // rAF loop: exponential smoothing then feed Pannellum at display refresh rate
-    const SMOOTH = 0.2;   // 0.1 = très fluide/lent, 0.3 = réactif
+    const SMOOTH = 0.2;   // 0.1 = very smooth/slow, 0.3 = responsive
     const tick = () => {
       if (!this._gyroOn) return;
       this._gyroRaf = requestAnimationFrame(tick);
@@ -463,9 +463,9 @@ export class PhotoViewer {
       _tapped  = true;
 
       if (this._img.style.display === 'none') return;
-      // Ne pas capturer les clics sur les éléments interactifs superposés
-      // (mini-carte, boutons de navigation, etc.) — setPointerCapture bloquerait
-      // leur événement click en redirigeant pointerup vers #viewer.
+      // Do not capture clicks on overlaid interactive elements
+      // (mini-map, nav buttons, etc.) — setPointerCapture would block
+      // their click event by redirecting pointerup to #viewer.
       if (e.target.closest('button, a, .photo-map-mini')) return;
       ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
       root.setPointerCapture(e.pointerId);
@@ -497,7 +497,7 @@ export class PhotoViewer {
     });
 
     root.addEventListener('pointermove', e => {
-      // Invalide le tap dès que le doigt/curseur bouge de plus de 8 px
+      // Invalidate the tap as soon as the finger/cursor moves more than 8 px
       if (_tapped && Math.hypot(e.clientX - _tapX, e.clientY - _tapY) > 8) _tapped = false;
 
       if (!ptrs.has(e.pointerId) || this._img.style.display === 'none') return;
@@ -557,11 +557,11 @@ export class PhotoViewer {
     let _clickTimer = null;
 
     root.addEventListener('click', e => {
-      if (!_tapped) return;                                          // c'était un drag
-      if (e.target.closest('button, a, .photo-map-mini')) return;   // élément interactif
+      if (!_tapped) return;                                          // was a drag
+      if (e.target.closest('button, a, .photo-map-mini')) return;   // interactive element
 
       if (_clickTimer) {
-        // Deuxième clic dans la fenêtre → double-clic
+        // Second click within the window → double-click
         clearTimeout(_clickTimer);
         _clickTimer = null;
         if (this._viewer) {
@@ -572,7 +572,7 @@ export class PhotoViewer {
           this._resetZoom();
         }
       } else {
-        // Premier clic — on attend pour voir si un deuxième suit
+        // First click — wait to see if a second one follows
         _clickTimer = setTimeout(() => {
           _clickTimer = null;
           this._onToggleUI?.();
