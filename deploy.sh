@@ -148,11 +148,26 @@ http:
       middlewares:
         - hsts
 
+    adminer:
+      rule: "Host(\`${DOMAIN}\`) && PathPrefix(\`/db\`)"
+      entryPoints:
+        - websecure
+      service: adminer
+      tls:
+        certResolver: letsencrypt
+      middlewares:
+        - hsts
+
   services:
     photo-book:
       loadBalancer:
         servers:
           - url: "http://photo-book:3000"
+
+    adminer:
+      loadBalancer:
+        servers:
+          - url: "http://adminer:8080"
 
   middlewares:
     hsts:
