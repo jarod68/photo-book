@@ -127,6 +127,7 @@ sync_project_files() {
     --exclude='coverage/' \
     --exclude='.git/' \
     "$SCRIPT_DIR/" "$INSTALL_DIR/"
+  chmod +x "$INSTALL_DIR/docker-entrypoint.sh"
   success "Project files synced."
 }
 

@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Photo Book — Admin</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="page-admin">
+
+  <header class="admin-header">
+    <div class="admin-header-left">
+      <a href="/" class="admin-back">← Photo Book</a>
+      <h1 class="admin-title">Admin</h1>
+    </div>
+    <div class="admin-header-right">
+      <span id="admin-user" class="admin-username"></span>
+      <button id="logout-btn" class="admin-logout-btn">Sign out</button>
+    </div>
+  </header>
+
+  <main class="admin-main">
+
+    <section class="admin-section">
+      <h2 class="admin-section-title">Albums</h2>
+      <div class="admin-table-wrap">
+        <table class="admin-table" id="albums-table">
+          <thead>
+            <tr>
+              <th>Album</th>
+              <th class="num">Photos</th>
+              <th class="num">Views</th>
+              <th class="num">Likes</th>
+            </tr>
+          </thead>
+          <tbody id="albums-body">
+            <tr><td colspan="4" class="admin-loading">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="admin-section">
+      <h2 class="admin-section-title">System</h2>
+      <div id="system-meta" class="admin-system-meta"></div>
+      <div class="admin-table-wrap">
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <th>Container</th>
+              <th>Image</th>
+              <th>Reference / digest</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="system-body">
+            <tr><td colspan="4" class="admin-loading">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="admin-section">
+      <h2 class="admin-section-title">Top photos</h2>
+      <div class="admin-table-wrap">
+        <table class="admin-table" id="photos-table">
+          <thead>
+            <tr>
+              <th>Photo</th>
+              <th>Album</th>
+              <th class="num">Views</th>
+              <th class="num">Likes</th>
+            </tr>
+          </thead>
+          <tbody id="photos-body">
+            <tr><td colspan="4" class="admin-loading">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+  </main>
+
+  <script type="module" src="pages/admin.js"></script>
+</body>
+</html>

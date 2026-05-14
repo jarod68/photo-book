@@ -45,6 +45,23 @@ async function connectDb(dbInstance = null) {
           PRIMARY KEY (album, filename, user_token)
         )
       `);
+      await db.query(`
+        CREATE TABLE IF NOT EXISTS users (
+          id            SERIAL PRIMARY KEY,
+          username      VARCHAR(64)  NOT NULL UNIQUE,
+          password_hash VARCHAR(255) NOT NULL,
+          role          VARCHAR(32)  NOT NULL DEFAULT 'viewer',
+          created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+      await db.query(`
+        CREATE TABLE IF NOT EXISTS user_sessions (
+          token      CHAR(64)  PRIMARY KEY,
+          user_id    INTEGER   NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          expires_at TIMESTAMP NOT NULL
+        )
+      `);
       dbReady = true;
       console.log('  ✓ PostgreSQL connected.');
       return;

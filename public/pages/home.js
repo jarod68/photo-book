@@ -1,3 +1,4 @@
+import '../utils/admin-shortcut.js';
 import { createAlbumCard } from '../components/album-card.js';
 
 const grid    = document.getElementById('album-grid');

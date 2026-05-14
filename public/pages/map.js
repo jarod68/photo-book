@@ -1,3 +1,4 @@
+import '../utils/admin-shortcut.js';
 import { buildMarkerIcon, buildClusterIcon } from '../components/map-marker.js';
 import { getMapPhotos }   from '../api/client.js';
 import {

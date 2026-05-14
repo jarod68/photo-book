@@ -1,3 +1,4 @@
+import '../utils/admin-shortcut.js';
 import { AlbumTabs }      from '../components/album-tabs.js';
 import { ThumbnailStrip } from '../components/thumbnail-strip.js';
 import { PhotoViewer }    from '../components/photo-viewer.js';

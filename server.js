@@ -1,13 +1,20 @@
-const express = require('express');
-const path    = require('path');
-const fs      = require('fs');
-const exifr   = require('exifr');
+const express      = require('express');
+const path         = require('path');
+const fs           = require('fs');
+const exifr        = require('exifr');
+const cookieParser = require('cookie-parser');
 
 const { PHOTOS_DIR, PREVIEWS_DIR, isImage, isAlbumDir, ensurePreview, photoMeta, preGenerateAll } = require('./services/image');
-const database = require('./services/database'); // database.db, database.dbReady (getters)
+const database   = require('./services/database'); // database.db, database.dbReady (getters)
+const auth       = require('./services/auth');
+const dockerInfo = require('./services/docker-info');
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
+
+app.use(cookieParser());
+
+const { requireAuth, authStaticGuard } = auth;
 
 // ─── Reverse geocoding cache (in-memory) ─────────────────────────────────────
 const geoCache = new Map(); // key: "lat,lng" → location string | null
@@ -31,8 +38,7 @@ app.use('/previews', express.static(path.join(__dirname, 'public', 'previews'), 
   lastModified: false,
 }));
 
-// App assets: HTML no-cache (picks up new deploys immediately),
-// JS/CSS/fonts cached 1 day with ETag revalidation.
+// App assets: login.html is public; other HTML pages require auth.
 app.use(express.static(path.join(__dirname, 'public'), {
   etag: true,
   lastModified: true,
@@ -65,6 +71,111 @@ function safeAlbumPath(name) {
   if (!full.startsWith(base) && full !== PHOTOS_DIR) throw new Error('Invalid album');
   return full;
 }
+
+// ─── Auth routes (public) ─────────────────────────────────────────────────────
+
+app.post('/api/auth/login', express.json(), async (req, res) => {
+  if (!database.dbReady) return res.status(503).json({ error: 'Service unavailable' });
+  const { username, password } = req.body ?? {};
+  if (!username || !password) return res.status(400).json({ error: 'Missing credentials' });
+  try {
+    const token = await auth.login(username, password);
+    if (!token) return res.status(401).json({ error: 'Invalid credentials' });
+    res.cookie('pb_session', token, {
+      httpOnly: true,
+      secure:   process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge:   30 * 24 * 60 * 60 * 1000,
+    });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.post('/api/auth/logout', async (req, res) => {
+  const token = req.cookies.pb_session;
+  if (token && database.dbReady) await auth.logout(token).catch(() => {});
+  res.clearCookie('pb_session');
+  res.json({ ok: true });
+});
+
+app.get('/api/auth/me', async (req, res) => {
+  if (!database.dbReady) return res.json({ user: null });
+  const token = req.cookies.pb_session;
+  if (!token) return res.json({ user: null });
+  const user = await auth.getSessionUser(token).catch(() => null);
+  res.json({ user: user ? { username: user.username, role: user.role } : null });
+});
+
+// Admin routes require authentication
+app.use('/api/admin', requireAuth);
+
+// ─── Admin routes ─────────────────────────────────────────────────────────────
+
+app.get('/api/admin/stats', async (req, res) => {
+  if (!database.dbReady) return res.json({ albums: [] });
+  try {
+    const [{ rows: viewRows }, { rows: likeRows }] = await Promise.all([
+      database.db.query(
+        'SELECT album, COUNT(*) AS photos, SUM(views) AS views FROM photo_views GROUP BY album ORDER BY views DESC NULLS LAST',
+      ),
+      database.db.query(
+        'SELECT album, COUNT(*) AS likes FROM photo_likes GROUP BY album',
+      ),
+    ]);
+    const likeMap = new Map(likeRows.map(r => [r.album, Number(r.likes)]));
+    const albums  = viewRows.map(r => ({
+      album:  r.album,
+      photos: Number(r.photos),
+      views:  Number(r.views),
+      likes:  likeMap.get(r.album) ?? 0,
+    }));
+    res.json({ albums });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.get('/api/admin/system', async (req, res) => {
+  let containers = [];
+  try { containers = await dockerInfo.getContainers(); } catch (_) {}
+  res.json({
+    node:       process.version,
+    uptime:     Math.floor(process.uptime()),
+    containers,
+  });
+});
+
+app.get('/api/admin/top-photos', async (req, res) => {
+  if (!database.dbReady) return res.json({ photos: [] });
+  try {
+    const limit = Math.min(parseInt(req.query.limit) || 10, 50);
+    const [{ rows: viewRows }, { rows: likeRows }] = await Promise.all([
+      database.db.query(
+        'SELECT album, filename, views FROM photo_views ORDER BY views DESC LIMIT $1',
+        [limit],
+      ),
+      database.db.query(
+        'SELECT album, filename, COUNT(*) AS likes FROM photo_likes GROUP BY album, filename',
+      ),
+    ]);
+    const likeMap = new Map(likeRows.map(r => [`${r.album}/${r.filename}`, Number(r.likes)]));
+    const photos  = viewRows.map(r => ({
+      album:    r.album,
+      filename: r.filename,
+      views:    Number(r.views),
+      likes:    likeMap.get(`${r.album}/${r.filename}`) ?? 0,
+      url:      `/photos/${encodeURIComponent(r.album)}/${encodeURIComponent(r.filename)}`,
+    }));
+    res.json({ photos });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
 
 // ─── Routes ───────────────────────────────────────────────────────────────────
 
@@ -392,7 +503,10 @@ if (require.main === module) {
     console.log(`  ➜  http://localhost:${PORT}`);
     console.log(`  Photos:   ${PHOTOS_DIR}`);
     console.log(`  Previews: ${PREVIEWS_DIR}\n`);
-    database.connectDb().then(() => database.syncPhotosToDb()).catch(console.error);
+    database.connectDb()
+      .then(() => auth.ensureAdmin())
+      .then(() => database.syncPhotosToDb())
+      .catch(console.error);
     preGenerateAll().catch(console.error);
     watchPhotosDir();
   });

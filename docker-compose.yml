@@ -46,6 +46,8 @@ services:
       - ${PHOTOS_DIR:-./photos}:/app/photos
       - ./public/previews:/app/public/previews
       - ./public/medium:/app/public/medium
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./docker-entrypoint.sh:/usr/local/bin/docker-entrypoint.sh:ro
     environment:
       - NODE_ENV=production
       - POSTGRES_HOST=postgres

@@ -1002,3 +1002,291 @@ body {
   opacity: 0;
   pointer-events: none;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+   LOGIN PAGE  (body.page-login)
+═══════════════════════════════════════════════════════════════════════════════ */
+
+.page-login {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  background: var(--bg);
+}
+
+.login-card {
+  width: 100%;
+  max-width: 360px;
+  padding: 40px 36px 36px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  margin: 24px;
+}
+
+.login-back {
+  display: inline-block;
+  font-size: 12.5px;
+  color: var(--text-dim);
+  text-decoration: none;
+  margin-bottom: 20px;
+  transition: color 0.18s;
+}
+.login-back:hover { color: var(--text); }
+
+.login-logo {
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--text);
+  margin-bottom: 28px;
+}
+
+.login-dot { color: var(--accent); }
+
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.login-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.login-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-dim);
+  letter-spacing: 0.02em;
+}
+
+.login-input {
+  background: rgba(255,255,255,0.05);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  color: var(--text);
+  font-size: 14px;
+  padding: 9px 12px;
+  outline: none;
+  transition: border-color 0.18s;
+}
+
+.login-input:focus {
+  border-color: var(--accent);
+}
+
+.login-error {
+  font-size: 12.5px;
+  color: #f87171;
+  margin: 0;
+}
+
+.login-btn {
+  background: var(--accent);
+  border: none;
+  border-radius: 7px;
+  color: #fff;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  padding: 10px 16px;
+  transition: background 0.18s;
+  margin-top: 4px;
+}
+
+.login-btn:hover  { background: var(--accent-h); }
+.login-btn:active { opacity: 0.85; }
+.login-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+   ADMIN PAGE  (body.page-admin)
+═══════════════════════════════════════════════════════════════════════════════ */
+
+.page-admin {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.admin-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 32px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-strip);
+  flex-shrink: 0;
+}
+
+.admin-header-left  { display: flex; align-items: center; gap: 20px; }
+.admin-header-right { display: flex; align-items: center; gap: 14px; }
+
+.admin-back {
+  font-size: 13px;
+  color: var(--text-dim);
+  text-decoration: none;
+  transition: color 0.18s;
+}
+.admin-back:hover { color: var(--text); }
+
+.admin-title {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.admin-username {
+  font-size: 12.5px;
+  color: var(--text-dim);
+}
+
+.admin-logout-btn {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 12.5px;
+  padding: 5px 12px;
+  transition: border-color 0.18s, color 0.18s;
+}
+.admin-logout-btn:hover { border-color: var(--border-h); color: var(--text); }
+
+.admin-main {
+  padding: 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 40px;
+  flex: 1;
+}
+
+.admin-section-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-dim);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  margin-bottom: 14px;
+}
+
+.admin-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.admin-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13.5px;
+}
+
+.admin-table th {
+  padding: 10px 16px;
+  text-align: left;
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--text-dim);
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.admin-table td {
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+}
+
+.admin-table tr:last-child td { border-bottom: none; }
+
+.admin-table tr:hover td { background: var(--surface); }
+
+.admin-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+
+.admin-link {
+  color: var(--accent);
+  text-decoration: none;
+}
+.admin-link:hover { text-decoration: underline; }
+
+.admin-loading,
+.admin-empty,
+.admin-error {
+  color: var(--text-dim);
+  font-size: 13px;
+  padding: 20px 16px;
+  text-align: center;
+}
+.admin-error { color: #f87171; }
+
+/* ── System info ──────────────────────────────────────────────────────────── */
+.admin-system-meta {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+
+.admin-meta-pill {
+  font-size: 12px;
+  padding: 3px 10px;
+  border-radius: 20px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  font-family: 'SF Mono', 'Fira Code', monospace;
+}
+
+.admin-mono {
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-size: 12.5px;
+}
+
+.admin-digest {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.admin-ref  { color: var(--text); }
+.admin-hash { color: var(--text-dim); font-size: 11.5px; }
+
+.admin-state {
+  display: inline-block;
+  font-size: 11.5px;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+.admin-state-ok   { background: rgba(34,197,94,0.12); color: #4ade80; }
+.admin-state-warn { background: rgba(234,179,8,0.12);  color: #facc15; }
+
+/* ── Admin shortcut button (fixed, all pages) ────────────────────────────── */
+.admin-shortcut-btn {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.10);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(238,238,242,0.25);
+  text-decoration: none;
+  transition: background 0.2s, color 0.2s, border-color 0.2s;
+  z-index: 9000;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+.admin-shortcut-btn:hover {
+  background: rgba(255,255,255,0.11);
+  border-color: rgba(255,255,255,0.20);
+  color: rgba(238,238,242,0.65);
+}
+.admin-shortcut-btn svg { width: 15px; height: 15px; }

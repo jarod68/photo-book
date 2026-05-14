@@ -38,8 +38,12 @@ const { app } = await import('../../server.js');
 // modifying their properties here is immediately visible in the routes.
 const _require  = createRequire(import.meta.url);
 const database  = _require('../../services/database.js');
-const fsMod     = _require('fs');    // vi.fn() instances depuis vi.mock('fs', …)
+const authMod   = _require('../../services/auth.js');
+const fsMod     = _require('fs');    // vi.fn() instances from vi.mock('fs', …)
 const exifrMod  = _require('exifr'); // real module — we will use vi.spyOn
+
+// Bypass auth for all route tests (vi.mock cannot intercept CJS require)
+authMod._setBypass(true);
 
 const mockQuery = vi.fn();
 

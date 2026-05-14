@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Photo Book — Sign in</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="page-login">
+  <div class="login-card">
+    <a href="/" class="login-back">← Back</a>
+    <h1 class="login-logo">Photo Book<span class="login-dot">.</span></h1>
+
+    <form id="login-form" class="login-form" novalidate>
+      <div class="login-field">
+        <label for="username" class="login-label">Username</label>
+        <input id="username" class="login-input" type="text" autocomplete="username"
+               autocapitalize="none" spellcheck="false" required>
+      </div>
+      <div class="login-field">
+        <label for="password" class="login-label">Password</label>
+        <input id="password" class="login-input" type="password" autocomplete="current-password" required>
+      </div>
+      <p id="login-error" class="login-error" hidden></p>
+      <button type="submit" class="login-btn">Sign in</button>
+    </form>
+  </div>
+
+  <script type="module" src="pages/login.js"></script>
+</body>
+</html>
