@@ -4,7 +4,8 @@ const fs           = require('fs');
 const exifr        = require('exifr');
 const cookieParser = require('cookie-parser');
 
-const { PHOTOS_DIR, PREVIEWS_DIR, isImage, isAlbumDir, ensurePreview, photoMeta, preGenerateAll } = require('./services/image');
+const multer     = require('multer');
+const { PHOTOS_DIR, PREVIEWS_DIR, MEDIUM_DIR, isImage, isAlbumDir, ensurePreview, photoMeta, preGenerateAll } = require('./services/image');
 const database   = require('./services/database'); // database.db, database.dbReady (getters)
 const auth       = require('./services/auth');
 const dockerInfo = require('./services/docker-info');
@@ -115,23 +116,34 @@ app.use('/api/admin', requireAuth);
 // ─── Admin routes ─────────────────────────────────────────────────────────────
 
 app.get('/api/admin/stats', async (req, res) => {
-  if (!database.dbReady) return res.json({ albums: [] });
   try {
-    const [{ rows: viewRows }, { rows: likeRows }] = await Promise.all([
-      database.db.query(
-        'SELECT album, COUNT(*) AS photos, SUM(views) AS views FROM photo_views GROUP BY album ORDER BY views DESC NULLS LAST',
-      ),
-      database.db.query(
-        'SELECT album, COUNT(*) AS likes FROM photo_likes GROUP BY album',
-      ),
-    ]);
-    const likeMap = new Map(likeRows.map(r => [r.album, Number(r.likes)]));
-    const albums  = viewRows.map(r => ({
-      album:  r.album,
-      photos: Number(r.photos),
-      views:  Number(r.views),
-      likes:  likeMap.get(r.album) ?? 0,
-    }));
+    // Filesystem is the source of truth for album existence
+    const entries = fs.existsSync(PHOTOS_DIR)
+      ? fs.readdirSync(PHOTOS_DIR, { withFileTypes: true }).filter(isAlbumDir)
+      : [];
+    const fsMap = new Map(entries.map(e => [
+      e.name,
+      fs.readdirSync(path.join(PHOTOS_DIR, e.name)).filter(isImage).length,
+    ]));
+
+    let viewMap = new Map();
+    let likeMap = new Map();
+    if (database.dbReady) {
+      const [{ rows: viewRows }, { rows: likeRows }] = await Promise.all([
+        database.db.query('SELECT album, SUM(views) AS views FROM photo_views GROUP BY album'),
+        database.db.query('SELECT album, COUNT(*) AS likes FROM photo_likes GROUP BY album'),
+      ]);
+      viewMap = new Map(viewRows.map(r => [r.album, Number(r.views)]));
+      likeMap = new Map(likeRows.map(r => [r.album, Number(r.likes)]));
+    }
+
+    const albums = [...fsMap.entries()].map(([album, photos]) => ({
+      album,
+      photos,
+      views: viewMap.get(album) ?? 0,
+      likes: likeMap.get(album) ?? 0,
+    })).sort((a, b) => b.views - a.views || a.album.localeCompare(b.album));
+
     res.json({ albums });
   } catch (err) {
     console.error(err);
@@ -175,6 +187,113 @@ app.get('/api/admin/top-photos', async (req, res) => {
     console.error(err);
     res.status(500).json({ error: 'Internal server error' });
   }
+});
+
+const ALBUM_NAME_RE = /^[A-Za-z0-9][^/\\]*$/;
+
+app.post('/api/admin/albums', express.json(), async (req, res) => {
+  const { name } = req.body ?? {};
+  if (!name || !ALBUM_NAME_RE.test(name)) return res.status(400).json({ error: 'Invalid album name' });
+  try {
+    const albumPath = safeAlbumPath(name);
+    if (fs.existsSync(albumPath)) return res.status(409).json({ error: 'Album already exists' });
+    fs.mkdirSync(albumPath, { recursive: true });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.patch('/api/admin/albums/:album', express.json(), async (req, res) => {
+  const { name: newName } = req.body ?? {};
+  const oldName = req.params.album;
+  if (!newName || !ALBUM_NAME_RE.test(newName)) return res.status(400).json({ error: 'Invalid album name' });
+  try {
+    const oldPath = safeAlbumPath(oldName);
+    const newPath = safeAlbumPath(newName);
+    if (!fs.existsSync(oldPath)) return res.status(404).json({ error: 'Album not found' });
+    if (fs.existsSync(newPath))  return res.status(409).json({ error: 'Name already taken' });
+    fs.renameSync(oldPath, newPath);
+    for (const base of [PREVIEWS_DIR, MEDIUM_DIR]) {
+      const o = path.join(base, oldName);
+      const n = path.join(base, newName);
+      if (fs.existsSync(o)) fs.renameSync(o, n);
+    }
+    if (database.dbReady) {
+      await Promise.all([
+        database.db.query('UPDATE photo_views    SET album=$1 WHERE album=$2', [newName, oldName]),
+        database.db.query('UPDATE photo_view_log SET album=$1 WHERE album=$2', [newName, oldName]),
+        database.db.query('UPDATE photo_likes    SET album=$1 WHERE album=$2', [newName, oldName]),
+      ]);
+    }
+    res.json({ ok: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.delete('/api/admin/albums/:album', async (req, res) => {
+  try {
+    const albumPath = safeAlbumPath(req.params.album);
+    if (!fs.existsSync(albumPath)) return res.status(404).json({ error: 'Album not found' });
+    fs.rmSync(albumPath, { recursive: true, force: true });
+    for (const base of [PREVIEWS_DIR, MEDIUM_DIR]) {
+      const d = path.join(base, req.params.album);
+      if (fs.existsSync(d)) fs.rmSync(d, { recursive: true, force: true });
+    }
+    await deleteAlbumFromDb(req.params.album);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.delete('/api/admin/albums/:album/photos/:filename', async (req, res) => {
+  try {
+    const { album, filename } = req.params;
+    const albumPath = safeAlbumPath(album);
+    if (!isImage(filename)) return res.status(400).json({ error: 'Not an image' });
+    const filePath = path.resolve(path.join(albumPath, filename));
+    if (!filePath.startsWith(albumPath + path.sep)) return res.status(400).json({ error: 'Invalid filename' });
+    if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'Photo not found' });
+    fs.unlinkSync(filePath);
+    const previewName = path.parse(filename).name + '.jpg';
+    for (const base of [PREVIEWS_DIR, MEDIUM_DIR]) {
+      const p = path.join(base, album, previewName);
+      if (fs.existsSync(p)) fs.unlinkSync(p);
+    }
+    await deletePhotoFromDb(album, filename);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.post('/api/admin/albums/:album/photos', (req, res) => {
+  let albumPath;
+  try {
+    albumPath = safeAlbumPath(req.params.album);
+    if (!fs.existsSync(albumPath)) return res.status(404).json({ error: 'Album not found' });
+  } catch {
+    return res.status(400).json({ error: 'Invalid album' });
+  }
+
+  multer({
+    storage: multer.diskStorage({
+      destination: (_req, _file, cb) => cb(null, albumPath),
+      filename:    (_req, file,  cb) => cb(null, file.originalname),
+    }),
+    fileFilter: (_req, file, cb) => cb(null, isImage(file.originalname)),
+    limits: { fileSize: 200 * 1024 * 1024 },
+  }).array('photos', 500)(req, res, err => {
+    if (err) return res.status(400).json({ error: err.message });
+    preGenerateAll().catch(console.error);
+    res.json({ ok: true, count: req.files?.length ?? 0 });
+  });
 });
 
 // ─── Routes ───────────────────────────────────────────────────────────────────

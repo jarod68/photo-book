@@ -22,7 +22,16 @@
   <main class="admin-main">
 
     <section class="admin-section">
-      <h2 class="admin-section-title">Albums</h2>
+      <div class="admin-section-header">
+        <h2 class="admin-section-title">Albums</h2>
+        <button id="new-album-btn" class="admin-action-btn">+ New album</button>
+      </div>
+      <form id="new-album-form" class="admin-new-album-form" hidden>
+        <input id="new-album-input" class="admin-inline-input" type="text"
+               placeholder="Album name" autocomplete="off" spellcheck="false">
+        <button type="submit" class="admin-action-btn">Create</button>
+        <button type="button" id="new-album-cancel" class="admin-action-btn admin-action-btn--ghost">Cancel</button>
+      </form>
       <div class="admin-table-wrap">
         <table class="admin-table" id="albums-table">
           <thead>
@@ -31,10 +40,11 @@
               <th class="num">Photos</th>
               <th class="num">Views</th>
               <th class="num">Likes</th>
+              <th></th>
             </tr>
           </thead>
           <tbody id="albums-body">
-            <tr><td colspan="4" class="admin-loading">Loading…</td></tr>
+            <tr><td colspan="5" class="admin-loading">Loading…</td></tr>
           </tbody>
         </table>
       </div>
@@ -80,6 +90,42 @@
     </section>
 
   </main>
+
+  <!-- Upload modal -->
+  <div id="upload-overlay" class="upload-overlay" hidden>
+    <div class="upload-modal">
+      <div class="upload-modal-header">
+        <h3 class="upload-modal-title">Upload to <strong id="upload-album-name"></strong></h3>
+        <button id="upload-close-btn" class="upload-close-btn" aria-label="Close">✕</button>
+      </div>
+
+      <div id="drop-zone" class="drop-zone">
+        <svg class="drop-zone-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path stroke-linecap="round" stroke-linejoin="round"
+            d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021
+               18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/>
+        </svg>
+        <p class="drop-zone-text">Drop photos here</p>
+        <label class="admin-action-btn drop-zone-btn" for="upload-file-input">Add files</label>
+        <input id="upload-file-input" type="file" multiple
+               accept=".jpg,.jpeg,.png,.webp,.tiff,.tif" hidden>
+      </div>
+
+      <ul id="upload-file-list" class="upload-file-list"></ul>
+
+      <div id="upload-progress-wrap" class="upload-progress-wrap" hidden>
+        <div class="upload-progress-bar">
+          <div id="upload-progress-fill" class="upload-progress-fill"></div>
+        </div>
+        <span id="upload-progress-text" class="upload-progress-text">0%</span>
+      </div>
+
+      <div class="upload-modal-footer">
+        <span id="upload-file-count" class="upload-file-count"></span>
+        <button id="upload-start-btn" class="admin-action-btn" disabled>Upload</button>
+      </div>
+    </div>
+  </div>
 
   <script type="module" src="pages/admin.js"></script>
 </body>

@@ -27,6 +27,19 @@ const locationEl  = document.getElementById('photo-location');
 const viewsEl     = document.getElementById('photo-views');
 const likeBtn     = document.getElementById('like-btn');
 const likeCountEl = document.getElementById('like-count');
+const deleteBtn   = document.getElementById('delete-btn');
+const photoInfoEl = document.getElementById('photo-info');
+const emptyEl     = document.getElementById('empty-state');
+
+// ── Admin check ───────────────────────────────────────────────────────────────
+let isAdmin = false;
+fetch('/api/auth/me')
+  .then(r => r.json())
+  .then(data => {
+    isAdmin = data.user?.role === 'admin';
+    if (isAdmin) deleteBtn.removeAttribute('hidden');
+  })
+  .catch(() => {});
 
 // ── Geocoding (lazy, cached on photo objects) ─────────────────────────────────
 async function showLocation(photo) {
@@ -142,6 +155,14 @@ async function selectAlbum(name, targetFilename = null) {
 
   albumMapBtn.disabled = !state.photos.some(p => p.gps);
 
+  if (state.photos.length === 0) {
+    emptyEl.removeAttribute('hidden');
+    photoInfoEl.setAttribute('hidden', '');
+    return;
+  }
+  emptyEl.setAttribute('hidden', '');
+  photoInfoEl.removeAttribute('hidden');
+
   if (state.photos.length > 0) {
     const target = targetFilename
       ? (state.photos.findIndex(p => p.filename === targetFilename) || 0)
@@ -178,6 +199,30 @@ likeBtn.addEventListener('click', e => {
       updateLikeBtn(photo);
     })
     .catch(() => {});
+});
+
+deleteBtn.addEventListener('click', async e => {
+  e.stopPropagation();
+  const photo = state.photos[state.index];
+  if (!photo) return;
+  if (!confirm(`Supprimer « ${photo.filename} » ?`)) return;
+  try {
+    const res = await fetch(
+      `/api/admin/albums/${encodeURIComponent(state.current)}/photos/${encodeURIComponent(photo.filename)}`,
+      { method: 'DELETE' },
+    );
+    if (!res.ok) throw new Error((await res.json()).error ?? 'Erreur');
+    const idx = state.index;
+    state.photos.splice(idx, 1);
+    thumbs.render(state.photos);
+    if (state.photos.length === 0) {
+      state.index = -1;
+    } else {
+      showPhoto(Math.min(idx, state.photos.length - 1));
+    }
+  } catch (err) {
+    alert(`Erreur lors de la suppression : ${err.message}`);
+  }
 });
 
 // ── Photo display ─────────────────────────────────────────────────────────────
