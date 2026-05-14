@@ -1,6 +1,8 @@
-import { vi, describe, it, expect, beforeEach } from 'vitest';
-import { ensurePreview, photoMeta, preGenerateAll, PREVIEWS_DIR } from '../../services/image.js';
+import { vi, describe, it, expect, afterEach } from 'vitest';
+import { ensurePreview, ensureMedium, photoMeta, preGenerateAll, PREVIEWS_DIR, MEDIUM_DIR } from '../../services/image.js';
 import path from 'path';
+
+afterEach(() => vi.restoreAllMocks());
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -266,5 +268,196 @@ describe('preGenerateAll', () => {
     await preGenerateAll(deps);
 
     expect(sharpFn).not.toHaveBeenCalled();
+  });
+
+  it('filtre les dossiers cachés (commençant par un point)', async () => {
+    const dir = name => ({ isDirectory: () => true, name });
+    const { fn: sharpFn } = makeSharp();
+
+    const mockFs = {
+      existsSync:  vi.fn().mockReturnValue(true),
+      mkdirSync:   vi.fn(),
+      readdirSync: vi.fn()
+        .mockReturnValueOnce([dir('.hidden'), dir('Paris')])
+        .mockReturnValueOnce([]), // Paris → aucun fichier
+    };
+    await preGenerateAll({ fs: mockFs, sharp: sharpFn, exifr: makeExifr() });
+
+    // Seulement 2 appels : PHOTOS_DIR + Paris (.hidden ignoré)
+    expect(mockFs.readdirSync).toHaveBeenCalledTimes(2);
+  });
+
+  it('log le nombre de thumbnails générés', async () => {
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const dir = name => ({ isDirectory: () => true, name });
+    const { fn: sharpFn } = makeSharp();
+
+    const mockFs = {
+      existsSync: vi.fn()
+        .mockReturnValueOnce(true)  // PHOTOS_DIR
+        .mockReturnValue(false),    // previews absentes
+      mkdirSync:   vi.fn(),
+      readdirSync: vi.fn()
+        .mockReturnValueOnce([dir('Paris')])
+        .mockReturnValue(['photo.jpg']),
+    };
+    await preGenerateAll({ fs: mockFs, sharp: sharpFn, exifr: makeExifr() });
+
+    expect(logSpy).toHaveBeenCalledWith(expect.stringContaining('1 thumbnail'));
+  });
+
+  it("n'affiche pas de log si aucun thumbnail n'est généré", async () => {
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const dir = name => ({ isDirectory: () => true, name });
+
+    const mockFs = {
+      existsSync:  vi.fn().mockReturnValue(true),
+      readdirSync: vi.fn()
+        .mockReturnValueOnce([dir('Paris')])
+        .mockReturnValue([]),
+    };
+    await preGenerateAll({ fs: mockFs, exifr: makeExifr() });
+
+    expect(logSpy).not.toHaveBeenCalledWith(expect.stringContaining('thumbnail'));
+  });
+});
+
+// ── ensureMedium ──────────────────────────────────────────────────────────────
+
+describe('ensureMedium', () => {
+  it("retourne l'URL sans appeler sharp si le medium existe déjà", async () => {
+    const { fn: sharpFn } = makeSharp();
+    const mockFs = makeFs({ exists: true });
+
+    const url = await ensureMedium('Paris', 'photo.jpg', '/photos/Paris/photo.jpg', {
+      fs: mockFs, sharp: sharpFn,
+    });
+
+    expect(sharpFn).not.toHaveBeenCalled();
+    expect(url).toBe('/medium/Paris/photo.jpg');
+  });
+
+  it('crée le dossier et génère le medium si absent', async () => {
+    const { fn: sharpFn, chain } = makeSharp();
+    const mockFs = makeFs({ exists: false });
+
+    await ensureMedium('Paris', 'photo.jpg', '/photos/Paris/photo.jpg', {
+      fs: mockFs, sharp: sharpFn,
+    });
+
+    const expectedDir = path.join(MEDIUM_DIR, 'Paris');
+    expect(mockFs.mkdirSync).toHaveBeenCalledWith(expectedDir, { recursive: true });
+    expect(sharpFn).toHaveBeenCalledWith('/photos/Paris/photo.jpg');
+    expect(chain.rotate).toHaveBeenCalled();
+    expect(chain.toFile).toHaveBeenCalled();
+  });
+
+  it('utilise toujours la largeur 1280', async () => {
+    const { fn: sharpFn, chain } = makeSharp();
+
+    await ensureMedium('Paris', 'photo.jpg', '/src/photo.jpg', {
+      fs: makeFs({ exists: false }), sharp: sharpFn,
+    });
+
+    expect(chain.resize).toHaveBeenCalledWith(1280, null, { withoutEnlargement: true });
+  });
+
+  it('convertit le nom du fichier en .jpg pour le medium', async () => {
+    const { fn: sharpFn } = makeSharp();
+
+    const url = await ensureMedium('Paris', 'image.png', '/src/image.png', {
+      fs: makeFs({ exists: true }), sharp: sharpFn,
+    });
+
+    expect(url).toBe('/medium/Paris/image.jpg');
+  });
+
+  it("encode les caractères spéciaux dans l'URL", async () => {
+    const { fn: sharpFn } = makeSharp();
+
+    const url = await ensureMedium('Été 2024', 'ma photo.jpg', '/src', {
+      fs: makeFs({ exists: true }), sharp: sharpFn,
+    });
+
+    expect(url).toBe('/medium/%C3%89t%C3%A9%202024/ma%20photo.jpg');
+  });
+});
+
+// ── photoMeta — cas supplémentaires ──────────────────────────────────────────
+
+describe('photoMeta (cas supplémentaires)', () => {
+  it('utilise Headline comme nom si Title est absent', async () => {
+    const deps = { exifr: makeExifr({ Headline: 'Mon titre' }), fs: makeFs({ exists: true }), sharp: makeSharp().fn };
+    const meta = await photoMeta('Paris', 'photo.jpg', '/albums/Paris', deps);
+    expect(meta.name).toBe('Mon titre');
+  });
+
+  it('utilise ObjectName comme nom si Title et Headline sont absents', async () => {
+    const deps = { exifr: makeExifr({ ObjectName: 'ID-42' }), fs: makeFs({ exists: true }), sharp: makeSharp().fn };
+    const meta = await photoMeta('Paris', 'photo.jpg', '/albums/Paris', deps);
+    expect(meta.name).toBe('ID-42');
+  });
+
+  it('utilise ImageDescription courte comme nom si les champs titre sont vides', async () => {
+    const deps = { exifr: makeExifr({ ImageDescription: 'Coucher de soleil' }), fs: makeFs({ exists: true }), sharp: makeSharp().fn };
+    const meta = await photoMeta('Paris', 'photo.jpg', '/albums/Paris', deps);
+    expect(meta.name).toBe('Coucher de soleil');
+  });
+
+  it('détecte is360 via UsePanoramaViewer=true', async () => {
+    const deps = { exifr: makeExifr({ UsePanoramaViewer: true }), fs: makeFs({ exists: true }), sharp: makeSharp().fn };
+    const meta = await photoMeta('Paris', 'pano.jpg', '/albums/Paris', deps);
+    expect(meta.is360).toBe(true);
+  });
+
+  it('extrait la description depuis Caption-Abstract si Description est absent', async () => {
+    const deps = { exifr: makeExifr({ 'Caption-Abstract': 'Légende IPTC' }), fs: makeFs({ exists: true }), sharp: makeSharp().fn };
+    const meta = await photoMeta('Paris', 'photo.jpg', '/albums/Paris', deps);
+    expect(meta.description).toBe('Légende IPTC');
+  });
+
+  it('extrait la localisation IPTC avec Province-State', async () => {
+    const deps = {
+      exifr: makeExifr({ City: 'Nice', 'Province-State': "Côte d'Azur", 'Country-PrimaryLocationName': 'France' }),
+      fs: makeFs({ exists: true }),
+      sharp: makeSharp().fn,
+    };
+    const meta = await photoMeta('Paris', 'photo.jpg', '/albums/Paris', deps);
+    expect(meta.location).toBe("Nice, Côte d'Azur, France");
+  });
+
+  it('retourne gps: null si exifr.gps lève une exception', async () => {
+    const deps = {
+      exifr: { parse: vi.fn().mockResolvedValue({}), gps: vi.fn().mockRejectedValue(new Error('no GPS')) },
+      fs:    makeFs({ exists: true }),
+      sharp: makeSharp().fn,
+    };
+    const meta = await photoMeta('Paris', 'photo.jpg', '/albums/Paris', deps);
+    expect(meta.gps).toBeNull();
+  });
+
+  it('gère une erreur de parse EXIF sans planter et retourne les valeurs par défaut', async () => {
+    const deps = {
+      exifr: { parse: vi.fn().mockRejectedValue(new Error('corrupt EXIF')), gps: vi.fn().mockResolvedValue(null) },
+      fs:    makeFs({ exists: true }),
+      sharp: makeSharp().fn,
+    };
+    const meta = await photoMeta('Paris', 'photo.jpg', '/albums/Paris', deps);
+    expect(meta.filename).toBe('photo.jpg');
+    expect(meta.name).toBe('photo');
+    expect(meta.is360).toBe(false);
+  });
+
+  it('retourne mediumUrl dans le résultat', async () => {
+    const deps = { exifr: makeExifr(), fs: makeFs({ exists: true }), sharp: makeSharp().fn };
+    const meta = await photoMeta('Paris', 'photo.jpg', '/albums/Paris', deps);
+    expect(meta.mediumUrl).toBe('/medium/Paris/photo.jpg');
+  });
+
+  it('retourne mediumUrl: null si ensureMedium échoue', async () => {
+    const sharpFn = vi.fn(() => { throw new Error('sharp crash'); });
+    const deps = { exifr: makeExifr(), fs: makeFs({ exists: false }), sharp: sharpFn };
+    const meta = await photoMeta('Paris', 'photo.jpg', '/albums/Paris', deps);
+    expect(meta.mediumUrl).toBeNull();
   });
 });

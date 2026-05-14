@@ -1,0 +1,258 @@
+import { createRequire } from 'module';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+
+// Load auth.js — it requires database.js (same CJS cache).
+// We inject a mock DB via database._setState() to control query results.
+const auth     = await import('../../services/auth.js');
+const _require = createRequire(import.meta.url);
+const database = _require('../../services/database.js');
+const bcrypt   = _require('bcryptjs');
+
+const mockQuery = vi.fn();
+
+beforeEach(() => {
+  mockQuery.mockReset();
+  database._reset();
+  auth._setBypass(false);
+});
+
+afterEach(() => vi.restoreAllMocks());
+
+// ── ensureAdmin ───────────────────────────────────────────────────────────────
+
+describe('ensureAdmin', () => {
+  it('ne fait rien si l\'admin existe déjà', async () => {
+    mockQuery.mockResolvedValue({ rows: [{ id: 1 }] });
+    database._setState({ query: mockQuery }, true);
+    await auth.ensureAdmin();
+    expect(mockQuery).toHaveBeenCalledTimes(1);
+    expect(mockQuery.mock.calls[0][0]).toContain('SELECT id FROM users');
+  });
+
+  it('crée l\'admin avec un mot de passe haché si absent', async () => {
+    vi.spyOn(bcrypt, 'hash').mockResolvedValue('$hashed');
+    mockQuery
+      .mockResolvedValueOnce({ rows: [] })  // SELECT → no admin
+      .mockResolvedValueOnce({ rows: [] }); // INSERT
+    database._setState({ query: mockQuery }, true);
+    await auth.ensureAdmin();
+    expect(mockQuery).toHaveBeenCalledTimes(2);
+    const [insertSql, insertParams] = mockQuery.mock.calls[1];
+    expect(insertSql).toContain('INSERT INTO users');
+    expect(insertSql).toContain('admin');   // username hardcodé dans le SQL
+    expect(insertParams).toContain('$hashed');
+  });
+});
+
+// ── login ─────────────────────────────────────────────────────────────────────
+
+describe('login', () => {
+  it('retourne null si l\'utilisateur n\'existe pas', async () => {
+    mockQuery.mockResolvedValue({ rows: [] });
+    database._setState({ query: mockQuery }, true);
+    const result = await auth.login('nobody', 'pass');
+    expect(result).toBeNull();
+  });
+
+  it('retourne null si le mot de passe est incorrect', async () => {
+    mockQuery.mockResolvedValue({ rows: [{ id: 1, password_hash: '$2a$12$hash' }] });
+    vi.spyOn(bcrypt, 'compare').mockResolvedValue(false);
+    database._setState({ query: mockQuery }, true);
+    const result = await auth.login('admin', 'wrong');
+    expect(result).toBeNull();
+  });
+
+  it('retourne un token hex 64 chars si les credentials sont corrects', async () => {
+    mockQuery
+      .mockResolvedValueOnce({ rows: [{ id: 1, password_hash: '$2a$12$hash' }] }) // SELECT user
+      .mockResolvedValueOnce({ rows: [] }); // INSERT session
+    vi.spyOn(bcrypt, 'compare').mockResolvedValue(true);
+    database._setState({ query: mockQuery }, true);
+    const token = await auth.login('admin', 'correct');
+    expect(token).toBeTypeOf('string');
+    expect(token).toHaveLength(64);
+    expect(token).toMatch(/^[0-9a-f]{64}$/);
+  });
+
+  it('insère la session avec la bonne expiration (30 jours)', async () => {
+    mockQuery
+      .mockResolvedValueOnce({ rows: [{ id: 42, password_hash: '$hash' }] })
+      .mockResolvedValueOnce({ rows: [] });
+    vi.spyOn(bcrypt, 'compare').mockResolvedValue(true);
+    database._setState({ query: mockQuery }, true);
+    const before = Date.now();
+    await auth.login('admin', 'pass');
+    const [, userId, expiresAt] = mockQuery.mock.calls[1][1];
+    expect(userId).toBe(42);
+    const diff = expiresAt.getTime() - before;
+    const thirtyDays = 30 * 24 * 60 * 60 * 1000;
+    expect(diff).toBeGreaterThanOrEqual(thirtyDays - 1000);
+    expect(diff).toBeLessThanOrEqual(thirtyDays + 1000);
+  });
+});
+
+// ── getSessionUser ────────────────────────────────────────────────────────────
+
+describe('getSessionUser', () => {
+  it('retourne null si le token est null', async () => {
+    expect(await auth.getSessionUser(null)).toBeNull();
+  });
+
+  it('retourne null si le token est trop court (< 64 chars)', async () => {
+    expect(await auth.getSessionUser('abc')).toBeNull();
+  });
+
+  it('retourne null si aucune session trouvée en DB', async () => {
+    mockQuery.mockResolvedValue({ rows: [] });
+    database._setState({ query: mockQuery }, true);
+    expect(await auth.getSessionUser('a'.repeat(64))).toBeNull();
+  });
+
+  it('retourne l\'utilisateur si la session est valide', async () => {
+    const user = { id: 1, username: 'admin', role: 'admin' };
+    mockQuery.mockResolvedValue({ rows: [user] });
+    database._setState({ query: mockQuery }, true);
+    const result = await auth.getSessionUser('a'.repeat(64));
+    expect(result).toEqual(user);
+  });
+
+  it('passe le token dans la requête SQL', async () => {
+    const token = 'b'.repeat(64);
+    mockQuery.mockResolvedValue({ rows: [] });
+    database._setState({ query: mockQuery }, true);
+    await auth.getSessionUser(token);
+    expect(mockQuery.mock.calls[0][1]).toContain(token);
+  });
+});
+
+// ── logout ────────────────────────────────────────────────────────────────────
+
+describe('logout', () => {
+  it('supprime le token de user_sessions', async () => {
+    mockQuery.mockResolvedValue({ rowCount: 1 });
+    database._setState({ query: mockQuery }, true);
+    await auth.logout('mytoken');
+    expect(mockQuery).toHaveBeenCalledWith(
+      'DELETE FROM user_sessions WHERE token = $1',
+      ['mytoken'],
+    );
+  });
+});
+
+// ── requireAuth ───────────────────────────────────────────────────────────────
+
+describe('requireAuth', () => {
+  const makeRes = () => {
+    const res = { status: vi.fn(), json: vi.fn() };
+    res.status.mockReturnValue(res);
+    return res;
+  };
+
+  it('appelle next() directement si bypass activé', async () => {
+    auth._setBypass(true);
+    const next = vi.fn();
+    await auth.requireAuth({}, makeRes(), next);
+    expect(next).toHaveBeenCalledOnce();
+  });
+
+  it('retourne 401 si aucun cookie pb_session', async () => {
+    const res  = makeRes();
+    const next = vi.fn();
+    await auth.requireAuth({ cookies: {} }, res, next);
+    expect(res.status).toHaveBeenCalledWith(401);
+    expect(res.json).toHaveBeenCalledWith({ error: 'Authentication required' });
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it('retourne 401 si la session est expirée ou introuvable', async () => {
+    mockQuery.mockResolvedValue({ rows: [] });
+    database._setState({ query: mockQuery }, true);
+    const req  = { cookies: { pb_session: 'a'.repeat(64) } };
+    const res  = makeRes();
+    const next = vi.fn();
+    await auth.requireAuth(req, res, next);
+    expect(res.status).toHaveBeenCalledWith(401);
+    expect(res.json).toHaveBeenCalledWith({ error: 'Session expired' });
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it('appelle next() et expose req.user si session valide', async () => {
+    const user = { id: 1, username: 'admin', role: 'admin' };
+    mockQuery.mockResolvedValue({ rows: [user] });
+    database._setState({ query: mockQuery }, true);
+    const req  = { cookies: { pb_session: 'a'.repeat(64) } };
+    const res  = makeRes();
+    const next = vi.fn();
+    await auth.requireAuth(req, res, next);
+    expect(next).toHaveBeenCalledOnce();
+    expect(req.user).toEqual(user);
+  });
+
+  it('retourne 401 si getSessionUser lève une exception', async () => {
+    mockQuery.mockRejectedValue(new Error('DB crash'));
+    database._setState({ query: mockQuery }, true);
+    const req  = { cookies: { pb_session: 'a'.repeat(64) } };
+    const res  = makeRes();
+    const next = vi.fn();
+    await auth.requireAuth(req, res, next);
+    expect(res.status).toHaveBeenCalledWith(401);
+  });
+});
+
+// ── authStaticGuard ───────────────────────────────────────────────────────────
+
+describe('authStaticGuard', () => {
+  const makeRes = () => ({ redirect: vi.fn() });
+  const flush   = () => new Promise(r => setTimeout(r, 0));
+
+  it('appelle next() directement si bypass activé', () => {
+    auth._setBypass(true);
+    const next = vi.fn();
+    auth.authStaticGuard({}, makeRes(), next);
+    expect(next).toHaveBeenCalledOnce();
+  });
+
+  it('redirige vers /login.html si aucun cookie', () => {
+    const res  = makeRes();
+    const next = vi.fn();
+    auth.authStaticGuard({ cookies: {} }, res, next);
+    expect(res.redirect).toHaveBeenCalledWith('/login.html');
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it('appelle next() si la session est valide', async () => {
+    const user = { id: 1, username: 'admin', role: 'admin' };
+    mockQuery.mockResolvedValue({ rows: [user] });
+    database._setState({ query: mockQuery }, true);
+    const req  = { cookies: { pb_session: 'a'.repeat(64) } };
+    const res  = makeRes();
+    const next = vi.fn();
+    auth.authStaticGuard(req, res, next);
+    await flush();
+    expect(next).toHaveBeenCalledOnce();
+    expect(res.redirect).not.toHaveBeenCalled();
+  });
+
+  it('redirige si la session est invalide', async () => {
+    mockQuery.mockResolvedValue({ rows: [] });
+    database._setState({ query: mockQuery }, true);
+    const req  = { cookies: { pb_session: 'a'.repeat(64) } };
+    const res  = makeRes();
+    const next = vi.fn();
+    auth.authStaticGuard(req, res, next);
+    await flush();
+    expect(res.redirect).toHaveBeenCalledWith('/login.html');
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it('redirige si getSessionUser lève une exception', async () => {
+    mockQuery.mockRejectedValue(new Error('DB crash'));
+    database._setState({ query: mockQuery }, true);
+    const req  = { cookies: { pb_session: 'a'.repeat(64) } };
+    const res  = makeRes();
+    const next = vi.fn();
+    auth.authStaticGuard(req, res, next);
+    await flush();
+    expect(res.redirect).toHaveBeenCalledWith('/login.html');
+  });
+});
