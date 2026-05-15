@@ -1,3 +1,5 @@
+'use strict';
+
 const path  = require('path');
 const fs    = require('fs');
 const { Pool } = require('pg');
@@ -5,6 +7,77 @@ const { PHOTOS_DIR, isImage, isAlbumDir } = require('./image');
 
 let db      = null;
 let dbReady = false;
+
+// Schema is managed with CREATE TABLE IF NOT EXISTS + ALTER TABLE IF NOT EXISTS.
+// New columns are always nullable or have a DEFAULT so existing rows are unaffected.
+// No migration framework is needed as long as schema changes follow this pattern.
+async function initSchema() {
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS photo_views (
+      id       SERIAL PRIMARY KEY,
+      album    VARCHAR(255) NOT NULL,
+      filename VARCHAR(255) NOT NULL,
+      views    BIGINT       NOT NULL DEFAULT 0,
+      UNIQUE (album, filename)
+    )
+  `);
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS photo_view_log (
+      album      VARCHAR(255) NOT NULL,
+      filename   VARCHAR(255) NOT NULL,
+      user_token VARCHAR(36)  NOT NULL,
+      viewed_at  TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (album, filename, user_token)
+    )
+  `);
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS photo_likes (
+      album      VARCHAR(255) NOT NULL,
+      filename   VARCHAR(255) NOT NULL,
+      user_token VARCHAR(36)  NOT NULL,
+      created_at TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (album, filename, user_token)
+    )
+  `);
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS users (
+      id            SERIAL PRIMARY KEY,
+      username      VARCHAR(64)  NOT NULL UNIQUE,
+      password_hash VARCHAR(255) NOT NULL,
+      role          VARCHAR(32)  NOT NULL DEFAULT 'viewer',
+      created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS user_sessions (
+      token      CHAR(64)  PRIMARY KEY,
+      user_id    INTEGER   NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      expires_at TIMESTAMP NOT NULL
+    )
+  `);
+  await db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMP`);
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS album_settings (
+      album      VARCHAR(255) PRIMARY KEY,
+      visibility VARCHAR(32)  NOT NULL DEFAULT 'public'
+    )
+  `);
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS album_users (
+      album   VARCHAR(255) NOT NULL,
+      user_id INTEGER      NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      PRIMARY KEY (album, user_id)
+    )
+  `);
+}
+
+async function tryConnect() {
+  await db.query('SELECT 1');
+  await initSchema();
+  dbReady = true;
+  console.log('  ✓ PostgreSQL connected.');
+}
 
 async function connectDb(dbInstance = null) {
   db = dbInstance ?? new Pool({
@@ -15,74 +88,36 @@ async function connectDb(dbInstance = null) {
     password: process.env.POSTGRES_PASSWORD,
   });
 
-  for (let attempt = 1; attempt <= 12; attempt++) {
+  // Log unexpected idle-client errors so they don't crash the process silently.
+  if (!dbInstance) {
+    db.on('error', err => console.error('  ✗ PostgreSQL pool error:', err.message));
+  }
+
+  // Exponential backoff: 1 s → 2 s → 4 s → … capped at 32 s, then background retry every 32 s.
+  let delay = 1_000;
+  for (let attempt = 1; ; attempt++) {
     try {
-      await db.query('SELECT 1');
-      await db.query(`
-        CREATE TABLE IF NOT EXISTS photo_views (
-          id       SERIAL PRIMARY KEY,
-          album    VARCHAR(255) NOT NULL,
-          filename VARCHAR(255) NOT NULL,
-          views    BIGINT       NOT NULL DEFAULT 0,
-          UNIQUE (album, filename)
-        )
-      `);
-      await db.query(`
-        CREATE TABLE IF NOT EXISTS photo_view_log (
-          album      VARCHAR(255) NOT NULL,
-          filename   VARCHAR(255) NOT NULL,
-          user_token VARCHAR(36)  NOT NULL,
-          viewed_at  TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
-          PRIMARY KEY (album, filename, user_token)
-        )
-      `);
-      await db.query(`
-        CREATE TABLE IF NOT EXISTS photo_likes (
-          album      VARCHAR(255) NOT NULL,
-          filename   VARCHAR(255) NOT NULL,
-          user_token VARCHAR(36)  NOT NULL,
-          created_at TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
-          PRIMARY KEY (album, filename, user_token)
-        )
-      `);
-      await db.query(`
-        CREATE TABLE IF NOT EXISTS users (
-          id            SERIAL PRIMARY KEY,
-          username      VARCHAR(64)  NOT NULL UNIQUE,
-          password_hash VARCHAR(255) NOT NULL,
-          role          VARCHAR(32)  NOT NULL DEFAULT 'viewer',
-          created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-      `);
-      await db.query(`
-        CREATE TABLE IF NOT EXISTS user_sessions (
-          token      CHAR(64)  PRIMARY KEY,
-          user_id    INTEGER   NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-          created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-          expires_at TIMESTAMP NOT NULL
-        )
-      `);
-      await db.query(`
-        CREATE TABLE IF NOT EXISTS album_settings (
-          album      VARCHAR(255) PRIMARY KEY,
-          visibility VARCHAR(32)  NOT NULL DEFAULT 'public'
-        )
-      `);
-      await db.query(`
-        CREATE TABLE IF NOT EXISTS album_users (
-          album   VARCHAR(255) NOT NULL,
-          user_id INTEGER      NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-          PRIMARY KEY (album, user_id)
-        )
-      `);
-      dbReady = true;
-      console.log('  ✓ PostgreSQL connected.');
+      await tryConnect();
       return;
     } catch (err) {
-      if (attempt < 12) {
-        await new Promise(r => setTimeout(r, 5_000));
-      } else {
-        console.error('  ✗ PostgreSQL unavailable:', err.message);
+      dbReady = false;
+      if (attempt === 1) {
+        console.error('  ✗ PostgreSQL unavailable, retrying…');
+      }
+      await new Promise(r => setTimeout(r, delay));
+      delay = Math.min(delay * 2, 32_000);
+
+      // After 8 fast attempts (~60 s total), keep retrying silently in background
+      // so the caller is not blocked indefinitely.
+      if (attempt === 8) {
+        console.error('  ✗ PostgreSQL still unavailable after 8 attempts — retrying in background.');
+        (async () => {
+          while (!dbReady) {
+            await new Promise(r => setTimeout(r, 32_000));
+            try { await tryConnect(); } catch (_) {}
+          }
+        })();
+        return;
       }
     }
   }
@@ -105,7 +140,7 @@ async function syncPhotosToDb() {
   console.log(`  ✓ ${total} photo(s) registered in photo_views.`);
 }
 
-// Test-only functions — allow controlling internal state
+// Test-only helpers — allow controlling internal state
 // without going through connectDb() (which requires a real PostgreSQL connection).
 function _reset() {
   db      = null;
@@ -117,7 +152,6 @@ function _setState(newDb, ready) {
   dbReady = ready;
 }
 
-// Getters to expose current values after async initialization
 module.exports = {
   get db()      { return db; },
   get dbReady() { return dbReady; },

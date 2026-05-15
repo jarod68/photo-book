@@ -30,11 +30,15 @@ async function login(username, password) {
   const match = await bcrypt.compare(password, rows[0].password_hash);
   if (!match) return null;
 
-  const token    = crypto.randomBytes(32).toString('hex');
+  const token     = crypto.randomBytes(32).toString('hex');
   const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
   await database.db.query(
     'INSERT INTO user_sessions (token, user_id, expires_at) VALUES ($1, $2, $3)',
     [token, rows[0].id, expiresAt],
+  );
+  await database.db.query(
+    'UPDATE users SET last_login_at = NOW() WHERE id = $1',
+    [rows[0].id],
   );
   return token;
 }
@@ -86,8 +90,12 @@ function authStaticGuard(req, res, next) {
     .catch(() => res.redirect('/login.html'));
 }
 
-// Test-only helpers
+// Test-only helpers — not exported in production
 function _setBypass(val)  { _testBypass = val; }
 function _setTestUser(u)  { _testUser = u; }
 
-module.exports = { ensureAdmin, login, getSessionUser, logout, requireAuth, requireAdmin, authStaticGuard, _setBypass, _setTestUser };
+const testExports = process.env.NODE_ENV !== 'production'
+  ? { _setBypass, _setTestUser }
+  : {};
+
+module.exports = { ensureAdmin, login, getSessionUser, logout, requireAuth, requireAdmin, authStaticGuard, ...testExports };

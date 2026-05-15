@@ -401,21 +401,27 @@ describe('PATCH /api/admin/albums/:album', () => {
     expect(res.status).toBe(409);
   });
 
-  it('renomme le dossier et met à jour la DB', async () => {
+  it('renomme le dossier et met à jour la DB dans une transaction', async () => {
     vi.spyOn(fsMod, 'existsSync')
       .mockReturnValueOnce(true)   // old path exists
       .mockReturnValueOnce(false)  // new path free
       .mockReturnValue(false);     // previews/medium dirs don't exist
     const renameSpy = vi.spyOn(fsMod, 'renameSync').mockImplementation(() => {});
-    mockQuery.mockResolvedValue({ rowCount: 1 });
-    database._setState({ query: mockQuery }, true);
+    const clientQuery = vi.fn().mockResolvedValue({ rowCount: 1 });
+    const clientRelease = vi.fn();
+    database._setState({
+      query: mockQuery,
+      connect: vi.fn().mockResolvedValue({ query: clientQuery, release: clientRelease }),
+    }, true);
     const res = await request(app)
       .patch('/api/admin/albums/Paris')
       .send({ name: 'London' });
     expect(res.status).toBe(200);
     expect(res.body.ok).toBe(true);
     expect(renameSpy).toHaveBeenCalledTimes(1);
-    expect(mockQuery).toHaveBeenCalledTimes(5); // 5 UPDATE queries (views, view_log, likes, album_settings, album_users)
+    // BEGIN + 5 UPDATEs + COMMIT = 7
+    expect(clientQuery).toHaveBeenCalledTimes(7);
+    expect(clientRelease).toHaveBeenCalledTimes(1);
   });
 
   it('renomme sans erreur si DB non prête', async () => {
@@ -1051,6 +1057,24 @@ describe('PUT /api/admin/albums/:album/settings', () => {
       .send({ visibility: 'private' });
     expect(res.status).toBe(400);
     expect(res.body.error).toBe('visibility must be public or restricted');
+  });
+
+  it('retourne 400 si userIds contient une valeur non entière', async () => {
+    database._setState({ query: mockQuery }, true);
+    const res = await request(app)
+      .put('/api/admin/albums/Paris/settings')
+      .send({ visibility: 'restricted', userIds: [1, 'abc'] });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('Invalid userIds');
+  });
+
+  it('retourne 400 si userIds n\'est pas un tableau', async () => {
+    database._setState({ query: mockQuery }, true);
+    const res = await request(app)
+      .put('/api/admin/albums/Paris/settings')
+      .send({ visibility: 'restricted', userIds: 42 });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('Invalid userIds');
   });
 
   it('retourne 503 si DB non prête', async () => {

@@ -4,6 +4,8 @@ const fs           = require('fs');
 const exifr        = require('exifr');
 const bcrypt       = require('bcryptjs');
 const cookieParser = require('cookie-parser');
+const rateLimit    = require('express-rate-limit');
+const helmet       = require('helmet');
 
 const multer     = require('multer');
 const { PHOTOS_DIR, PREVIEWS_DIR, MEDIUM_DIR, isImage, isAlbumDir, ensurePreview, photoMeta, preGenerateAll } = require('./services/image');
@@ -12,16 +14,51 @@ const auth       = require('./services/auth');
 const dockerInfo = require('./services/docker-info');
 const { generatePassword, validatePassword } = require('./services/password');
 
+if (process.env.NODE_ENV !== 'test' && !process.env.POSTGRES_PASSWORD) {
+  console.error('Missing required environment variable: POSTGRES_PASSWORD');
+  process.exit(1);
+}
+
 const app  = express();
 const PORT = process.env.PORT || 3000;
 
+app.use(helmet({ contentSecurityPolicy: false }));
 app.use(cookieParser());
+
+const IS_TEST = process.env.NODE_ENV === 'test';
+
+app.use('/api/', rateLimit({
+  windowMs:         15 * 60 * 1000,
+  limit:            600,
+  standardHeaders: 'draft-8',
+  legacyHeaders:    false,
+  skip:             () => IS_TEST,
+}));
+
+app.use('/api/auth/login', rateLimit({
+  windowMs:         15 * 60 * 1000,
+  limit:            10,
+  standardHeaders: 'draft-8',
+  legacyHeaders:    false,
+  skip:             () => IS_TEST,
+}));
+
+// Nominatim ToS: max 1 req/s per user. 30/min per IP stays safely under that limit.
+app.use('/api/geocode', rateLimit({
+  windowMs:         60 * 1000,
+  limit:            30,
+  standardHeaders: 'draft-8',
+  legacyHeaders:    false,
+  skip:             () => IS_TEST,
+}));
 
 const { requireAuth, requireAdmin, authStaticGuard } = auth;
 
 // ─── Reverse geocoding cache (in-memory) ─────────────────────────────────────
-const geoCache = new Map(); // key: "lat,lng" → location string | null
-const GEO_MAX  = 2000;
+// Entries: key → { value, expiresAt }
+const geoCache  = new Map();
+const GEO_MAX   = 2000;
+const GEO_TTL   = 24 * 60 * 60 * 1000; // 24 h
 
 // ─── Static files ─────────────────────────────────────────────────────────────
 
@@ -56,7 +93,7 @@ app.use(express.static(path.join(__dirname, 'public'), {
 
 // Original photos: immutable 1 year (files are never overwritten on disk)
 app.use('/photos', albumAccessGuard(), (req, res, next) => {
-  const target = path.resolve(path.join(PHOTOS_DIR, decodeURIComponent(req.path)));
+  const target = path.resolve(path.join(PHOTOS_DIR, req.path));
   if (!target.startsWith(PHOTOS_DIR)) return res.status(403).end();
   next();
 }, express.static(PHOTOS_DIR, {
@@ -153,6 +190,11 @@ app.get('/api/auth/me', async (req, res) => {
   res.json({ user: user ? { username: user.username, role: user.role } : null });
 });
 
+app.get('/api/health', (_req, res) => {
+  const status = database.dbReady ? 'ok' : 'degraded';
+  res.status(database.dbReady ? 200 : 503).json({ status, db: database.dbReady, uptime: process.uptime() });
+});
+
 // Admin routes require authentication
 app.use('/api/admin', requireAuth);
 
@@ -160,7 +202,9 @@ app.use('/api/admin', requireAuth);
 
 app.get('/api/admin/stats', requireAdmin, async (req, res) => {
   try {
-    // Filesystem is the source of truth for album existence
+    // Filesystem is the source of truth for album existence.
+    // readdirSync is acceptable here: the event loop is rarely contended on a
+    // personal single-user instance, and the directory rarely exceeds ~100 entries.
     const entries = fs.existsSync(PHOTOS_DIR)
       ? fs.readdirSync(PHOTOS_DIR, { withFileTypes: true }).filter(isAlbumDir)
       : [];
@@ -268,13 +312,21 @@ app.patch('/api/admin/albums/:album', requireAdmin, express.json(), async (req, 
       if (fs.existsSync(o)) fs.renameSync(o, n);
     }
     if (database.dbReady) {
-      await Promise.all([
-        database.db.query('UPDATE photo_views    SET album=$1 WHERE album=$2', [newName, oldName]),
-        database.db.query('UPDATE photo_view_log SET album=$1 WHERE album=$2', [newName, oldName]),
-        database.db.query('UPDATE photo_likes    SET album=$1 WHERE album=$2', [newName, oldName]),
-        database.db.query('UPDATE album_settings SET album=$1 WHERE album=$2', [newName, oldName]),
-        database.db.query('UPDATE album_users    SET album=$1 WHERE album=$2', [newName, oldName]),
-      ]);
+      const client = await database.db.connect();
+      try {
+        await client.query('BEGIN');
+        await client.query('UPDATE photo_views    SET album=$1 WHERE album=$2', [newName, oldName]);
+        await client.query('UPDATE photo_view_log SET album=$1 WHERE album=$2', [newName, oldName]);
+        await client.query('UPDATE photo_likes    SET album=$1 WHERE album=$2', [newName, oldName]);
+        await client.query('UPDATE album_settings SET album=$1 WHERE album=$2', [newName, oldName]);
+        await client.query('UPDATE album_users    SET album=$1 WHERE album=$2', [newName, oldName]);
+        await client.query('COMMIT');
+      } catch (err) {
+        await client.query('ROLLBACK');
+        throw err;
+      } finally {
+        client.release();
+      }
     }
     res.json({ ok: true });
   } catch (err) {
@@ -377,7 +429,7 @@ const VALID_ROLES = new Set(['admin', 'basic']);
 app.get('/api/admin/users', requireAdmin, async (req, res) => {
   try {
     const { rows } = await database.db.query(
-      'SELECT id, username, role, created_at FROM users ORDER BY id',
+      'SELECT id, username, role, created_at, last_login_at FROM users ORDER BY id',
     );
     res.json({ users: rows });
   } catch (err) {
@@ -483,6 +535,10 @@ app.put('/api/admin/albums/:album/settings', requireAdmin, express.json(), async
   const { visibility, userIds = [] } = req.body ?? {};
   if (!['public', 'restricted'].includes(visibility)) {
     return res.status(400).json({ error: 'visibility must be public or restricted' });
+  }
+  if (!Array.isArray(userIds) || userIds.length > 500 ||
+      userIds.some(id => !Number.isInteger(id) || id <= 0)) {
+    return res.status(400).json({ error: 'Invalid userIds' });
   }
   if (!database.dbReady) return res.status(503).json({ error: 'Service unavailable' });
   try {
@@ -782,8 +838,9 @@ app.get('/api/geocode', async (req, res) => {
     return res.status(400).json({ error: 'Invalid coordinates' });
   }
 
-  const key = `${lat.toFixed(3)},${lng.toFixed(3)}`;
-  if (geoCache.has(key)) return res.json({ location: geoCache.get(key) });
+  const key    = `${lat.toFixed(3)},${lng.toFixed(3)}`;
+  const cached = geoCache.get(key);
+  if (cached && cached.expiresAt > Date.now()) return res.json({ location: cached.value });
 
   try {
     const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=10&accept-language=fr`;
@@ -795,8 +852,14 @@ app.get('/api/geocode', async (req, res) => {
     const place    = a.village || a.suburb || a.town || a.city_district || a.city || a.municipality || a.county || '';
     const country  = a.country || '';
     const location = [place, country].filter(Boolean).join(', ') || null;
-    if (geoCache.size >= GEO_MAX) geoCache.delete(geoCache.keys().next().value);
-    geoCache.set(key, location);
+    // Evict: remove oldest entry or any stale entry to stay within cap
+    if (geoCache.size >= GEO_MAX) {
+      const now = Date.now();
+      const staleKey = [...geoCache.entries()].find(([, v]) => v.expiresAt <= now)?.[0]
+        ?? geoCache.keys().next().value;
+      geoCache.delete(staleKey);
+    }
+    geoCache.set(key, { value: location, expiresAt: Date.now() + GEO_TTL });
     res.json({ location });
   } catch (err) {
     console.error('Geocode error:', err.message);
@@ -884,7 +947,7 @@ function watchPhotosDir() {
 // ─── Start ────────────────────────────────────────────────────────────────────
 
 if (require.main === module) {
-  app.listen(PORT, () => {
+  const server = app.listen(PORT, () => {
     console.log(`\n  360° Photo Viewer`);
     console.log(`  ➜  http://localhost:${PORT}`);
     console.log(`  Photos:   ${PHOTOS_DIR}`);
@@ -896,6 +959,20 @@ if (require.main === module) {
     preGenerateAll().catch(console.error);
     watchPhotosDir();
   });
+
+  const shutdown = () => {
+    console.log('  ⏹  Shutting down gracefully…');
+    server.close(() => {
+      (database.db?.end() ?? Promise.resolve())
+        .catch(() => {})
+        .finally(() => process.exit(0));
+    });
+    // Force exit if connections don't drain within 10 s
+    setTimeout(() => process.exit(1), 10_000).unref();
+  };
+
+  process.on('SIGTERM', shutdown);
+  process.on('SIGINT',  shutdown);
 }
 
 module.exports = { app, watchPhotosDir, deletePhotoFromDb, deleteAlbumFromDb };

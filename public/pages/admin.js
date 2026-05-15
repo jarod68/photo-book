@@ -427,7 +427,7 @@ async function loadUsers() {
 }
 
 function renderUserRow(u) {
-  const date = new Date(u.created_at).toLocaleDateString('fr-FR', { year: 'numeric', month: 'short', day: 'numeric' });
+  const fmt = d => d ? new Date(d).toLocaleDateString('fr-FR', { year: 'numeric', month: 'short', day: 'numeric' }) : '—';
   const isProtected = u.username === 'admin';
   return `
     <tr data-user-id="${u.id}">
@@ -438,7 +438,8 @@ function renderUserRow(u) {
           <option value="admin"${u.role === 'admin' ? ' selected' : ''}>admin</option>
         </select>
       </td>
-      <td style="color:var(--text-dim);font-size:12.5px">${esc(date)}</td>
+      <td class="admin-date">${esc(fmt(u.created_at))}</td>
+      <td class="admin-date">${esc(fmt(u.last_login_at))}</td>
       <td class="admin-row-actions">
         <button class="admin-icon-btn" data-pwd="${u.id}" data-username="${esc(u.username)}" title="Change password">${iconKey()}</button>
         <button class="admin-icon-btn admin-icon-btn--danger" data-del="${u.id}" data-username="${esc(u.username)}"

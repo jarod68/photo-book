@@ -56,13 +56,13 @@ describe('connectDb', () => {
     expect(sqls.some(s => s.includes('photo_likes'))).toBe(true);
   });
 
-  it('laisse dbReady à false si toutes les tentatives échouent', async () => {
+  it('laisse dbReady à false si toutes les tentatives initiales échouent', async () => {
     vi.useFakeTimers();
     mockQuery.mockRejectedValue(new Error('ECONNREFUSED'));
 
     const connectPromise = database.connectDb(mockPool);
-
-    for (let i = 0; i < 12; i++) await vi.advanceTimersByTimeAsync(5_000);
+    // Advance past all 8 initial attempt delays (1+2+4+8+16+32+32+32 = 127 s)
+    for (let i = 0; i < 8; i++) await vi.advanceTimersByTimeAsync(32_000);
     await connectPromise;
 
     expect(database.dbReady).toBe(false);
@@ -80,25 +80,28 @@ describe('connectDb', () => {
 
     const connectPromise = database.connectDb(mockPool);
 
-    await vi.advanceTimersByTimeAsync(5_000); // failure 1
-    await vi.advanceTimersByTimeAsync(5_000); // failure 2
+    await vi.advanceTimersByTimeAsync(1_000); // failure 1 (delay 1 s)
+    await vi.advanceTimersByTimeAsync(2_000); // failure 2 (delay 2 s)
     await connectPromise;                      // succeeds on 3rd attempt
 
     expect(database.dbReady).toBe(true);
     vi.useRealTimers();
   }, 10_000);
 
-  it('effectue exactement 12 tentatives et ne dort pas après la dernière', async () => {
+  it('effectue exactement 8 tentatives initiales puis passe en arrière-plan', async () => {
     vi.useFakeTimers();
     mockQuery.mockRejectedValue(new Error('fail'));
 
     const p = database.connectDb(mockPool);
-    // 11 sleeps of 5 s (attempts 1–11); no sleep after attempt 12
-    for (let i = 0; i < 11; i++) await vi.advanceTimersByTimeAsync(5_000);
+    // Advance exactly through the 8 exponential delays (1+2+4+8+16+32+32+32 = 127 s)
+    // stopping before the first background retry (32 s later) can fire.
+    for (const d of [1_000, 2_000, 4_000, 8_000, 16_000, 32_000, 32_000, 32_000]) {
+      await vi.advanceTimersByTimeAsync(d);
+    }
     await p;
 
-    // Une query SELECT 1 par tentative = 12 appels au total
-    expect(mockQuery).toHaveBeenCalledTimes(12);
+    // Une query SELECT 1 par tentative = 8 appels au total
+    expect(mockQuery).toHaveBeenCalledTimes(8);
     expect(database.dbReady).toBe(false);
     vi.useRealTimers();
   }, 10_000);
