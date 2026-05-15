@@ -1,21 +1,8 @@
 const bcrypt   = require('bcryptjs');
 const crypto   = require('crypto');
 const database = require('./database');
+const { generatePassword } = require('./password');
 const IS_PROD  = process.env.NODE_ENV === 'production';
-
-const WORDS = [
-  'ash','bay','bolt','crow','dusk','echo','elm','fog','gem','glen',
-  'glow','hawk','iris','jade','jay','kite','lake','lark','leaf','luna',
-  'lynx','mist','moor','moss','oak','owl','peak','pine','rain','reed',
-  'rose','rune','sage','sand','snow','star','stem','swan','teal','tide',
-  'wolf','wren',
-];
-
-function generatePassword() {
-  const pick = () => WORDS[Math.floor(Math.random() * WORDS.length)];
-  const n    = String(10 + Math.floor(Math.random() * 90));
-  return `${pick()}-${pick()}${n}`;  // e.g. "oak-wolf42" (9-11 chars)
-}
 
 async function ensureAdmin() {
   const { rows } = await database.db.query(

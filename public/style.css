@@ -1371,6 +1371,39 @@ body {
   margin-bottom: 14px;
 }
 
+.admin-new-user-form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+.admin-new-user-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.admin-pwd-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.admin-pwd-group .admin-inline-input {
+  flex: 1;
+  min-width: 0;
+}
+.admin-gen-btn {
+  font-size: 12px;
+  padding: 4px 8px;
+  white-space: nowrap;
+}
+.admin-pwd-policy-error {
+  color: #f87171;
+  font-size: 12.5px;
+  min-height: 16px;
+  margin: 0;
+}
+
 .admin-inline-input {
   background: rgba(255,255,255,0.05);
   border: 1px solid var(--border);
@@ -1718,6 +1751,9 @@ body {
 
 .pwd-modal-body {
   padding: 20px 20px 12px;
+}
+.pwd-modal-body .admin-pwd-group {
+  width: 100%;
 }
 .pwd-modal-body .admin-inline-input {
   width: 100%;

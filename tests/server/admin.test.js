@@ -791,13 +791,22 @@ describe('POST /api/admin/users', () => {
     expect(res.body.error).toBe('Role must be admin or basic');
   });
 
+  it('retourne 400 si le mot de passe ne respecte pas la politique', async () => {
+    database._setState({ query: mockQuery }, true);
+    const res = await request(app)
+      .post('/api/admin/users')
+      .send({ username: 'alice', password: 'weak', role: 'basic' });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/uppercase|lowercase|digit|special|characters/i);
+  });
+
   it('retourne 409 si le username est déjà pris', async () => {
     const dupErr = Object.assign(new Error('duplicate key'), { code: '23505' });
     mockQuery.mockRejectedValueOnce(dupErr);
     database._setState({ query: mockQuery }, true);
     const res = await request(app)
       .post('/api/admin/users')
-      .send({ username: 'admin', password: 'pass', role: 'basic' });
+      .send({ username: 'admin', password: 'Valid1@pass', role: 'basic' });
     expect(res.status).toBe(409);
     expect(res.body.error).toBe('Username already taken');
   });
@@ -809,7 +818,7 @@ describe('POST /api/admin/users', () => {
     database._setState({ query: mockQuery }, true);
     const res = await request(app)
       .post('/api/admin/users')
-      .send({ username: 'alice', password: 'secure', role: 'basic' });
+      .send({ username: 'alice', password: 'Valid1@pass', role: 'basic' });
     expect(res.status).toBe(201);
     expect(res.body.user.username).toBe('alice');
     expect(res.body.user.role).toBe('basic');
@@ -821,7 +830,7 @@ describe('POST /api/admin/users', () => {
     vi.spyOn(console, 'error').mockImplementation(() => {});
     const res = await request(app)
       .post('/api/admin/users')
-      .send({ username: 'alice', password: 'pass', role: 'basic' });
+      .send({ username: 'alice', password: 'Valid1@pass', role: 'basic' });
     expect(res.status).toBe(500);
   });
 });
@@ -880,6 +889,16 @@ describe('PATCH /api/admin/users/:id', () => {
     expect(res.body.error).toBe('Nothing to update');
   });
 
+  it('retourne 400 si le nouveau mot de passe est trop faible', async () => {
+    mockQuery.mockResolvedValueOnce({ rows: [{ username: 'alice' }] });
+    database._setState({ query: mockQuery }, true);
+    const res = await request(app)
+      .patch('/api/admin/users/2')
+      .send({ password: 'weak' });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/uppercase|lowercase|digit|special|characters/i);
+  });
+
   it('met à jour le mot de passe si fourni (ligne 417)', async () => {
     mockQuery
       .mockResolvedValueOnce({ rows: [{ username: 'alice' }] }) // SELECT username
@@ -887,7 +906,7 @@ describe('PATCH /api/admin/users/:id', () => {
     database._setState({ query: mockQuery }, true);
     const res = await request(app)
       .patch('/api/admin/users/2')
-      .send({ password: 'newpass123' });
+      .send({ password: 'NewPass1@test' });
     expect(res.status).toBe(200);
     expect(res.body.ok).toBe(true);
     const updateCall = mockQuery.mock.calls[1][0];

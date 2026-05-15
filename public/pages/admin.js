@@ -2,6 +2,28 @@ import { requireLogin } from '../utils/auth-check.js';
 
 await requireLogin();
 
+// ── Password utilities ────────────────────────────────────────────────────────
+
+function validatePwd(password) {
+  if (!password || password.length < 8)      return 'At least 8 characters required';
+  if (!/[A-Z]/.test(password))               return 'At least one uppercase letter required';
+  if (!/[a-z]/.test(password))               return 'At least one lowercase letter required';
+  if (!/[0-9]/.test(password))               return 'At least one digit required';
+  if (!/[^A-Za-z0-9]/.test(password))        return 'At least one special character required';
+  return null;
+}
+
+async function genPassword() {
+  const res = await fetch('/api/admin/generate-password');
+  if (!res.ok) return null;
+  const { password } = await res.json().catch(() => ({}));
+  return password ?? null;
+}
+
+function toggleReveal(input) {
+  input.type = input.type === 'password' ? 'text' : 'password';
+}
+
 // ── User info + logout ────────────────────────────────────────────────────────
 
 const { user } = await fetch('/api/auth/me').then(r => r.json());
@@ -454,15 +476,32 @@ async function deleteUser(id, username) {
 // ── New user form ─────────────────────────────────────────────────────────────
 
 document.getElementById('new-user-btn').addEventListener('click', () => {
-  const form = document.getElementById('new-user-form');
-  form.hidden = false;
+  document.getElementById('new-user-form').hidden = false;
   document.getElementById('new-user-username').focus();
 });
 
-document.getElementById('new-user-cancel').addEventListener('click', () => {
+function resetNewUserForm() {
   document.getElementById('new-user-form').hidden = true;
   document.getElementById('new-user-username').value = '';
-  document.getElementById('new-user-password').value = '';
+  const pwInput = document.getElementById('new-user-password');
+  pwInput.value = '';
+  pwInput.type = 'password';
+  document.getElementById('new-user-pwd-error').textContent = '';
+}
+
+document.getElementById('new-user-cancel').addEventListener('click', resetNewUserForm);
+
+document.getElementById('new-user-gen-btn').addEventListener('click', async () => {
+  const pwd = await genPassword();
+  if (!pwd) return;
+  const input = document.getElementById('new-user-password');
+  input.value = pwd;
+  input.type = 'text';
+  document.getElementById('new-user-pwd-error').textContent = '';
+});
+
+document.getElementById('new-user-reveal-btn').addEventListener('click', () => {
+  toggleReveal(document.getElementById('new-user-password'));
 });
 
 document.getElementById('new-user-form').addEventListener('submit', async e => {
@@ -470,20 +509,22 @@ document.getElementById('new-user-form').addEventListener('submit', async e => {
   const username = document.getElementById('new-user-username').value.trim();
   const password = document.getElementById('new-user-password').value;
   const role     = document.getElementById('new-user-role').value;
-  if (!username || !password) return;
+  const errEl    = document.getElementById('new-user-pwd-error');
+  if (!username) return;
+  const pwErr = validatePwd(password);
+  if (pwErr) { errEl.textContent = pwErr; return; }
+  errEl.textContent = '';
   const res = await fetch('/api/admin/users', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ username, password, role }),
   });
   if (res.ok) {
-    document.getElementById('new-user-form').hidden = true;
-    document.getElementById('new-user-username').value = '';
-    document.getElementById('new-user-password').value = '';
+    resetNewUserForm();
     await loadUsers();
   } else {
     const { error } = await res.json().catch(() => ({}));
-    alert(error ?? 'Create failed');
+    errEl.textContent = error ?? 'Create failed';
   }
 });
 
@@ -498,6 +539,7 @@ function openPwdModal(id, username) {
   pwdUserId = id;
   document.getElementById('pwd-username').textContent = username;
   pwdNewInput.value = '';
+  pwdNewInput.type = 'password';
   pwdErrorEl.textContent = '';
   pwdOverlay.hidden = false;
   pwdNewInput.focus();
@@ -506,11 +548,25 @@ function openPwdModal(id, username) {
 function closePwdModal() {
   pwdOverlay.hidden = true;
   pwdUserId = null;
+  pwdNewInput.type = 'password';
 }
+
+document.getElementById('pwd-gen-btn').addEventListener('click', async () => {
+  const pwd = await genPassword();
+  if (!pwd) return;
+  pwdNewInput.value = pwd;
+  pwdNewInput.type = 'text';
+  pwdErrorEl.textContent = '';
+});
+
+document.getElementById('pwd-reveal-btn').addEventListener('click', () => {
+  toggleReveal(pwdNewInput);
+});
 
 document.getElementById('pwd-save-btn').addEventListener('click', async () => {
   const password = pwdNewInput.value;
-  if (!password) { pwdErrorEl.textContent = 'Password cannot be empty'; return; }
+  const pwErr = validatePwd(password);
+  if (pwErr) { pwdErrorEl.textContent = pwErr; return; }
   pwdErrorEl.textContent = '';
   const res = await fetch(`/api/admin/users/${pwdUserId}`, {
     method: 'PATCH',

@@ -65,17 +65,28 @@
         <h2 class="admin-section-title">Users</h2>
         <button id="new-user-btn" class="admin-action-btn">+ New user</button>
       </div>
-      <form id="new-user-form" class="admin-new-album-form" hidden>
-        <input id="new-user-username" class="admin-inline-input" type="text"
-               placeholder="Username" autocomplete="off" spellcheck="false" style="min-width:140px">
-        <input id="new-user-password" class="admin-inline-input" type="password"
-               placeholder="Password" autocomplete="new-password" style="min-width:140px">
-        <select id="new-user-role" class="admin-role-select">
-          <option value="basic">basic</option>
-          <option value="admin">admin</option>
-        </select>
-        <button type="submit" class="admin-action-btn">Create</button>
-        <button type="button" id="new-user-cancel" class="admin-action-btn admin-action-btn--ghost">Cancel</button>
+      <form id="new-user-form" class="admin-new-user-form" hidden>
+        <div class="admin-new-user-row">
+          <input id="new-user-username" class="admin-inline-input" type="text"
+                 placeholder="Username" autocomplete="off" spellcheck="false" style="min-width:130px">
+          <div class="admin-pwd-group">
+            <input id="new-user-password" class="admin-inline-input" type="password"
+                   placeholder="Password" autocomplete="new-password" style="min-width:130px">
+            <button type="button" id="new-user-gen-btn" class="admin-action-btn admin-action-btn--ghost admin-gen-btn">Generate</button>
+            <button type="button" id="new-user-reveal-btn" class="admin-icon-btn" title="Show / hide password">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+              </svg>
+            </button>
+          </div>
+          <select id="new-user-role" class="admin-role-select">
+            <option value="basic">basic</option>
+            <option value="admin">admin</option>
+          </select>
+          <button type="submit" class="admin-action-btn">Create</button>
+          <button type="button" id="new-user-cancel" class="admin-action-btn admin-action-btn--ghost">Cancel</button>
+        </div>
+        <p id="new-user-pwd-error" class="admin-pwd-policy-error"></p>
       </form>
       <div class="admin-table-wrap">
         <table class="admin-table" id="users-table">
@@ -209,8 +220,16 @@
         <button id="pwd-close-btn" class="upload-close-btn" aria-label="Close">✕</button>
       </div>
       <div class="pwd-modal-body">
-        <input id="pwd-new" class="admin-inline-input" type="password"
-               placeholder="New password" autocomplete="new-password">
+        <div class="admin-pwd-group">
+          <input id="pwd-new" class="admin-inline-input" type="password"
+                 placeholder="New password" autocomplete="new-password">
+          <button type="button" id="pwd-gen-btn" class="admin-action-btn admin-action-btn--ghost admin-gen-btn">Generate</button>
+          <button type="button" id="pwd-reveal-btn" class="admin-icon-btn" title="Show / hide password">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+            </svg>
+          </button>
+        </div>
       </div>
       <div class="upload-modal-footer">
         <span id="pwd-error" class="admin-error pwd-error-text"></span>

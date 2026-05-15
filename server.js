@@ -10,6 +10,7 @@ const { PHOTOS_DIR, PREVIEWS_DIR, MEDIUM_DIR, isImage, isAlbumDir, ensurePreview
 const database   = require('./services/database'); // database.db, database.dbReady (getters)
 const auth       = require('./services/auth');
 const dockerInfo = require('./services/docker-info');
+const { generatePassword, validatePassword } = require('./services/password');
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
@@ -390,6 +391,8 @@ app.post('/api/admin/users', requireAdmin, express.json(), async (req, res) => {
     const { username, password, role } = req.body ?? {};
     if (!username || !password) return res.status(400).json({ error: 'Username and password are required' });
     if (!VALID_ROLES.has(role))  return res.status(400).json({ error: 'Role must be admin or basic' });
+    const pwErr = validatePassword(password);
+    if (pwErr) return res.status(400).json({ error: pwErr });
     const hash = await bcrypt.hash(password, 12);
     const { rows } = await database.db.query(
       'INSERT INTO users (username, password_hash, role) VALUES ($1, $2, $3) RETURNING id, username, role, created_at',
@@ -412,6 +415,10 @@ app.patch('/api/admin/users/:id', requireAdmin, express.json(), async (req, res)
     const { rows: found } = await database.db.query('SELECT username FROM users WHERE id = $1', [id]);
     if (!found.length) return res.status(404).json({ error: 'User not found' });
     if (role !== undefined && found[0].username === 'admin') return res.status(403).json({ error: 'The admin user role cannot be changed' });
+    if (password) {
+      const pwErr = validatePassword(password);
+      if (pwErr) return res.status(400).json({ error: pwErr });
+    }
     const sets = []; const params = [];
     if (role !== undefined) { params.push(role);                          sets.push(`role = $${params.length}`); }
     if (password)           { params.push(await bcrypt.hash(password, 12)); sets.push(`password_hash = $${params.length}`); }
@@ -441,6 +448,10 @@ app.delete('/api/admin/users/:id', requireAdmin, async (req, res) => {
     console.error(err);
     res.status(500).json({ error: 'Internal server error' });
   }
+});
+
+app.get('/api/admin/generate-password', requireAdmin, (_req, res) => {
+  res.json({ password: generatePassword() });
 });
 
 // ─── Album access settings ────────────────────────────────────────────────────
