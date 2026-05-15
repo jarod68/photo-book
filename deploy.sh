@@ -183,6 +183,11 @@ DYNAMIC
 # ── Write .env ────────────────────────────────────────────────────────────────
 write_env() {
   info "Writing $INSTALL_DIR/.env …"
+  # Detect the host docker group GID so the container can access the Docker socket
+  # via group membership (group_add) without chmod 666.
+  DOCKER_GID=$(getent group docker 2>/dev/null | cut -d: -f3 \
+    || stat -c '%g' /var/run/docker.sock 2>/dev/null \
+    || echo "999")
   cat > "$INSTALL_DIR/.env" <<ENV
 DOMAIN=${DOMAIN}
 ACME_EMAIL=${ACME_EMAIL}
@@ -191,9 +196,10 @@ PHOTOS_DIR=${PHOTOS_DIR}
 IMAGE=${IMAGE}
 TRAEFIK_IMAGE=${TRAEFIK_IMAGE}
 POSTGRES_IMAGE=${POSTGRES_IMAGE}
+DOCKER_GID=${DOCKER_GID}
 ENV
   chmod 600 "$INSTALL_DIR/.env"
-  success ".env written."
+  success ".env written (DOCKER_GID=${DOCKER_GID})."
 }
 
 # ── Update-only shortcut ──────────────────────────────────────────────────────
@@ -203,6 +209,9 @@ if $UPDATE_ONLY; then
   sync_project_files
   write_traefik_dynamic
   write_env
+  info "Ensuring writable directories …"
+  mkdir -p "$PREVIEWS_DIR" "$MEDIUM_DIR"
+  chmod 777 "$PREVIEWS_DIR" "$MEDIUM_DIR"
   info "Pulling latest images …"
   cd "$INSTALL_DIR"
   $DC pull

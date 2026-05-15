@@ -1,14 +1,15 @@
-FROM node:22-alpine
+FROM node:24-alpine
 
 WORKDIR /app
 
 # Copy manifests first — layer is cached unless dependencies change
 COPY package.json package-lock.json ./
 
-# Install production dependencies only
-# sharp ships a prebuilt musl binary for Alpine — no system libvips needed
-# Remove npm after install: not needed at runtime, eliminates bundled CVEs
-RUN npm ci --omit=dev \
+# Apply latest OS security patches, install production dependencies only.
+# sharp ships a prebuilt musl binary for Alpine — no system libvips needed.
+# Remove npm after install: not needed at runtime, eliminates bundled CVEs.
+RUN apk upgrade --no-cache \
+  && npm ci --omit=dev \
   && rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx \
   && apk add --no-cache su-exec
 
@@ -25,8 +26,12 @@ RUN mkdir -p photos public/previews public/medium \
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
+# Declare non-root user so Docker Scout / image scanners see a safe default.
+# docker-compose overrides this to root so the entrypoint can chown bind-mount
+# volumes and fix the Docker socket, then su-exec drops back to node (uid 1000).
+USER node
+
 EXPOSE 3000
 
-# Entrypoint runs as root to fix bind-mount permissions, then drops to node via su-exec
 ENTRYPOINT ["docker-entrypoint.sh"]
 CMD ["node", "server.js"]
