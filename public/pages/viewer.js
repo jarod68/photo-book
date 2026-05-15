@@ -31,16 +31,6 @@ const deleteBtn   = document.getElementById('delete-btn');
 const photoInfoEl = document.getElementById('photo-info');
 const emptyEl     = document.getElementById('empty-state');
 
-// ── Admin check ───────────────────────────────────────────────────────────────
-let isAdmin = false;
-fetch('/api/auth/me')
-  .then(r => r.json())
-  .then(data => {
-    isAdmin = data.user?.role === 'admin';
-    if (isAdmin) deleteBtn.removeAttribute('hidden');
-  })
-  .catch(() => {});
-
 // ── Geocoding (lazy, cached on photo objects) ─────────────────────────────────
 async function showLocation(photo) {
   // Priority 1: IPTC location already in metadata
@@ -147,13 +137,20 @@ async function selectAlbum(name, targetFilename = null) {
     getAlbum(name),
     getLiked(name, userToken),
   ]);
-  state.photos = data.photos;
+  const isRestricted = state.albums.find(a => a.name === name)?.visibility === 'restricted';
+  state.photos = data.photos.map(p => ({ ...p, isRestricted }));
   state.liked  = new Set(likedData.filenames);
   state.index  = -1;
   viewsEl.textContent = '';
   thumbs.render(state.photos);
 
   albumMapBtn.disabled = !state.photos.some(p => p.gps);
+
+  if (data.canDelete && state.photos.length > 0) {
+    deleteBtn.removeAttribute('hidden');
+  } else {
+    deleteBtn.setAttribute('hidden', '');
+  }
 
   if (state.photos.length === 0) {
     emptyEl.removeAttribute('hidden');
@@ -208,7 +205,7 @@ deleteBtn.addEventListener('click', async e => {
   if (!confirm(`Supprimer « ${photo.filename} » ?`)) return;
   try {
     const res = await fetch(
-      `/api/admin/albums/${encodeURIComponent(state.current)}/photos/${encodeURIComponent(photo.filename)}`,
+      `/api/albums/${encodeURIComponent(state.current)}/photos/${encodeURIComponent(photo.filename)}`,
       { method: 'DELETE' },
     );
     if (!res.ok) throw new Error((await res.json()).error ?? 'Erreur');

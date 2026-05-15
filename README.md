@@ -17,7 +17,7 @@ Key features:
 - **Reverse geocoding** — GPS coordinates are resolved to human-readable place names via Nominatim (OpenStreetMap), cached in memory
 - **Preview generation** — sharp generates JPEG previews on first access and caches them to disk; subsequent server restarts are near-instant
 
-No login, no cloud dependency, no tracking.
+Role-based access control — albums can be public or restricted to selected users. No cloud dependency, no tracking.
 
 ---
 
@@ -40,6 +40,9 @@ Browser
 ┌────────────────────────────────────────────────┐
 │  photo-book  (Node.js / Express)               │
 │                                                │
+│  POST /api/auth/login      authenticate        │
+│  POST /api/auth/logout     invalidate session  │
+│  GET  /api/auth/me         current user        │
 │  GET  /api/albums          album list          │
 │  GET  /api/albums/:name    photos + metadata   │
 │  GET  /api/map             all GPS photos      │
@@ -47,6 +50,8 @@ Browser
 │  POST /api/view            record a view       │
 │  POST /api/like            toggle a like       │
 │  GET  /api/liked           liked filenames     │
+│  DELETE /api/albums/:a/photos/:f  delete photo │
+│  /api/admin/*              admin panel API     │
 │                                                │
 │  Static: public/  (HTML, CSS, JS)              │
 │  Static: /photos  (original images)            │
@@ -58,11 +63,13 @@ Browser
 │   PostgreSQL    │   │  Volumes                 │
 │                 │   │  ./photos/               │
 │  photo_views    │   │    └── Album Name/       │
-│  photo_likes    │   │         └── img.jpg      │
-│  photo_view_log │   │  ./public/previews/      │
-└─────────────────┘   │    └── Album Name/       │
-                       │         └── img.jpg      │
-                       └──────────────────────────┘
+│  photo_view_log │   │         └── img.jpg      │
+│  photo_likes    │   │  ./public/previews/      │
+│  users          │   │    └── Album Name/       │
+│  user_sessions  │   │         └── img.jpg      │
+│  album_settings │   └──────────────────────────┘
+│  album_users    │
+└─────────────────┘
 ```
 
 ### Containers
@@ -71,7 +78,8 @@ Browser
 |---|---|---|
 | `traefik` | `traefik:v3.3` | Reverse proxy, TLS termination, HTTP→HTTPS redirect, HSTS |
 | `photo-book` | `jarod68/photo-book:latest` | Node.js application server |
-| `postgres` | `postgres:16-alpine` | Persistent storage for views and likes |
+| `postgres` | `postgres:16-alpine` | Persistent storage (views, likes, users, sessions, album settings) |
+| `adminer` | `adminer:latest` | Optional database UI, exposed via Traefik |
 
 All three containers share a `proxy` bridge network. Traefik and photo-book communicate over this network; the Docker socket is not mounted (routing is configured via a static file provider).
 
@@ -82,11 +90,12 @@ All three containers share a `proxy` bridge network. Traefik and photo-book comm
 | `docker-compose.yml` | ✓ | Full stack definition with `${VAR}` references |
 | `traefik/static.yml` | ✓ | Traefik entrypoints, ACME, file provider |
 | `traefik/dynamic.yml` | generated | Router rule (domain), service URL, middlewares |
-| `postgres-init/01-init.sql` | ✓ | Database schema |
 | `.env` | generated | Secrets and server-specific values |
 | `letsencrypt/acme.json` | generated | TLS certificate store (chmod 600) |
 
 `deploy.sh` generates the three files marked *generated*; everything else lives in the repository.
+
+The database schema is managed entirely by `services/database.js`, which runs `CREATE TABLE IF NOT EXISTS` on every startup. There is no external SQL init file — this ensures schema consistency across fresh installs, container restarts, and upgrades.
 
 ### Preview pipeline
 
@@ -101,6 +110,127 @@ Original JPEG/PNG/WEBP
 ```
 
 Previews are served as static files by Express and persist across container restarts via a bind-mounted volume.
+
+---
+
+## Authentication & access control
+
+### How sessions work
+
+Authentication is cookie-based. On a successful `POST /api/auth/login`, the server generates a 64-character hex token (`crypto.randomBytes(32).toString('hex')`), stores it in the `user_sessions` table with a 30-day expiry, and sets an `HttpOnly`, `SameSite=Strict` cookie named `pb_session`.
+
+Every protected request reads that cookie and verifies the token against the database. There are no JWTs, no refresh tokens — just a server-side session that can be invalidated instantly via logout or by deleting the row.
+
+```
+POST /api/auth/login  { username, password }
+  │
+  ├─ bcrypt.compare(password, stored_hash)
+  │
+  └─ INSERT INTO user_sessions (token, user_id, expires_at)
+     SET-COOKIE pb_session=<64-hex>; HttpOnly; SameSite=Strict
+```
+
+The `admin` account is created automatically on first startup with a randomly generated password (`word-word##` format). The password is printed once to the container logs and can be changed via the admin panel.
+
+---
+
+### Roles & permissions
+
+There are three access levels. A user has exactly one role stored in the `users` table.
+
+#### Anonymous — no session
+
+Visits the site without logging in. Can browse and interact with all **public** content.
+
+- View the album grid and open any public album
+- Browse the global GPS map (public albums only)
+- Record views and toggle likes (tracked by an anonymous UUID stored in `localStorage`)
+- Restricted albums are invisible — they do not appear in lists and return `401` if accessed directly
+
+#### Basic — authenticated, `role = 'basic'`
+
+A named user who has been granted access to specific restricted albums by an admin.
+
+- Everything an anonymous visitor can do
+- Sees restricted albums they have been explicitly authorized for (via `album_users`)
+- Can delete photos from albums they have access to (`canDelete = true`)
+- Cannot access the admin panel or any `/api/admin/*` route
+
+#### Admin — authenticated, `role = 'admin'`
+
+Full control over the application.
+
+- Everything a basic user can do, across **all** albums regardless of visibility
+- Access to the admin panel (`/admin.html`)
+- Create, rename, and delete albums
+- Upload and delete photos
+- Manage users (create, change role, change password, delete) — except the built-in `admin` account cannot be deleted or have its role changed
+- Configure per-album visibility (`public` / `restricted`) and the list of authorized users
+
+---
+
+### RBAC route matrix
+
+`✓` = access granted · `401` = not authenticated · `403` = authenticated but insufficient role
+
+#### Public routes — no authentication required
+
+| Route | Anonymous | Basic | Admin | Notes |
+|---|---|---|---|---|
+| `POST /api/auth/login` | ✓ | ✓ | ✓ | |
+| `POST /api/auth/logout` | ✓ | ✓ | ✓ | no-op if no session |
+| `GET /api/auth/me` | ✓ `null` | ✓ user | ✓ user | returns `{ user: null }` when not logged in |
+| `POST /api/view` | ✓ | ✓ | ✓ | deduplicated by anonymous token |
+| `POST /api/like` | ✓ | ✓ | ✓ | toggle, deduplicated by anonymous token |
+| `GET /api/liked` | ✓ | ✓ | ✓ | |
+| `GET /api/geocode` | ✓ | ✓ | ✓ | |
+
+#### Visibility-filtered routes
+
+Content varies depending on the authenticated user. Anonymous visitors and basic users without authorization only see public albums.
+
+| Route | Anonymous | Basic | Admin |
+|---|---|---|---|
+| `GET /photos/*` (public album) | ✓ | ✓ | ✓ |
+| `GET /photos/*` (restricted album) | `401` | ✓ if authorized | ✓ |
+| `GET /previews/*`, `GET /medium/*` | same as `/photos/*` | same | ✓ |
+| `GET /api/albums` | public only | public + authorized restricted | all |
+| `GET /api/albums/:album` (public) | ✓ | ✓ | ✓ |
+| `GET /api/albums/:album` (restricted) | `401` | ✓ if authorized | ✓ |
+| `GET /api/map` | public albums | + authorized restricted | all |
+
+`canDelete` (returned by `/api/albums` and `/api/albums/:album`) is `true` for admins and for basic users authorized on that album. It controls whether the delete button appears in the viewer.
+
+#### User route — requires authentication
+
+| Route | Anonymous | Basic | Admin | Notes |
+|---|---|---|---|---|
+| `DELETE /api/albums/:album/photos/:filename` | `401` | ✓ if `canDelete` | ✓ | `403` if `canDelete = false` |
+
+#### Admin routes — requires `role = 'admin'`
+
+All `/api/admin/*` routes first pass through `requireAuth` (→ `401` if no session), then `requireAdmin` (→ `403` if `role ≠ 'admin'`).
+
+| Route | Anonymous | Basic | Admin |
+|---|---|---|---|
+| `GET /api/admin/stats` | `401` | `403` | ✓ |
+| `GET /api/admin/system` | `401` | `403` | ✓ |
+| `GET /api/admin/top-photos` | `401` | ✓ ⚠️ | ✓ |
+| `POST /api/admin/albums` | `401` | `403` | ✓ |
+| `PATCH /api/admin/albums/:album` | `401` | `403` | ✓ |
+| `DELETE /api/admin/albums/:album` | `401` | `403` | ✓ |
+| `POST /api/admin/albums/:album/photos` | `401` | `403` | ✓ |
+| `DELETE /api/admin/albums/:album/photos/:filename` | `401` | `403` | ✓ |
+| `GET /api/admin/albums/:album/settings` | `401` | `403` | ✓ |
+| `PUT /api/admin/albums/:album/settings` | `401` | `403` | ✓ |
+| `GET /api/admin/users` | `401` | `403` | ✓ |
+| `POST /api/admin/users` | `401` | `403` | ✓ |
+| `PATCH /api/admin/users/:id` | `401` | `403` | ✓ † |
+| `DELETE /api/admin/users/:id` | `401` | `403` | ✓ † |
+
+> ⚠️ `GET /api/admin/top-photos` only carries `requireAuth`, not `requireAdmin` — an authenticated basic user can access it.
+>
+> † The built-in `admin` account is protected: its role cannot be changed and it cannot be deleted (`403`).
 
 ---
 
@@ -131,16 +261,21 @@ public/
 ├── index.html          home page (album grid)
 ├── viewer.html         photo viewer + 360° (Pannellum)
 ├── map.html            global GPS map (Leaflet)
+├── login.html          login form
+├── admin.html          admin panel (albums, users, system, top photos)
 ├── api/
 │   └── client.js       fetch wrappers for all API endpoints
 ├── utils/
+│   ├── auth-check.js   redirect to /login.html if not authenticated
 │   ├── format.js       date/number formatting helpers
 │   ├── map-math.js     GPS clustering and route segmentation
 │   └── user-token.js   anonymous UUID session management
 ├── pages/
-│   ├── home.js         album listing page logic
+│   ├── home.js         album listing page logic + auth controls
 │   ├── viewer.js       photo viewer page logic
-│   └── map.js          map page logic
+│   ├── map.js          map page logic
+│   ├── login.js        login form submit + redirect
+│   └── admin.js        admin panel: albums, users, system stats, upload
 └── components/
     ├── album-card.js   album grid card
     ├── album-map.js    per-album mini map
@@ -179,9 +314,36 @@ CREATE TABLE photo_likes (
   user_token  UUID,
   PRIMARY KEY (album, filename, user_token)
 );
+
+-- Authentication
+CREATE TABLE users (
+  id            SERIAL PRIMARY KEY,
+  username      VARCHAR(255) NOT NULL UNIQUE,
+  password_hash VARCHAR(255) NOT NULL,
+  role          VARCHAR(50)  NOT NULL DEFAULT 'basic'
+);
+
+CREATE TABLE user_sessions (
+  token      CHAR(64)    PRIMARY KEY,
+  user_id    INTEGER     NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  expires_at TIMESTAMPTZ NOT NULL
+);
+
+-- Per-album access control
+CREATE TABLE album_settings (
+  album       VARCHAR(255) PRIMARY KEY,
+  visibility  VARCHAR(50)  NOT NULL DEFAULT 'public'
+);
+
+CREATE TABLE album_users (
+  album   VARCHAR(255) NOT NULL,
+  user_id INTEGER      NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  PRIMARY KEY (album, user_id)
+);
 ```
 
-Views are deduplicated: a user token can only increment the counter once per photo. Likes are toggleable.
+Views are deduplicated: a user token can only increment the counter once per photo. Likes are toggleable. The schema is managed entirely in `services/database.js` via `CREATE TABLE IF NOT EXISTS` on every startup — there is no external SQL init file.
 
 ---
 
@@ -197,7 +359,9 @@ tests/
 │   ├── map-math.test.js      GPS clustering, route segmentation
 │   └── user-token.test.js    UUID session persistence
 ├── server/
-│   └── routes.test.js        Express routes (supertest)
+│   ├── routes.test.js        Express routes (supertest) — auth bypassed
+│   ├── admin.test.js         Admin API routes (supertest) — auth bypassed
+│   └── rbac.test.js          RBAC enforcement — real auth gates, DB-mocked sessions
 └── services/
     ├── database.test.js      connectDb, syncPhotosToDb
     ├── image.test.js         isImage, isAlbumDir, EXIF extension handling

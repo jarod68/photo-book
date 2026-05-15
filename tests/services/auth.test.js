@@ -199,6 +199,49 @@ describe('requireAuth', () => {
   });
 });
 
+// ── requireAdmin ─────────────────────────────────────────────────────────────
+
+describe('requireAdmin', () => {
+  const makeRes = () => {
+    const res = { status: vi.fn(), json: vi.fn() };
+    res.status.mockReturnValue(res);
+    return res;
+  };
+
+  it('appelle next() si bypass activé (quel que soit le rôle)', () => {
+    auth._setBypass(true);
+    const next = vi.fn();
+    auth.requireAdmin({ user: { role: 'basic' } }, makeRes(), next);
+    expect(next).toHaveBeenCalledOnce();
+  });
+
+  it('appelle next() si req.user.role === admin', () => {
+    auth._setBypass(false);
+    const next = vi.fn();
+    auth.requireAdmin({ user: { role: 'admin' } }, makeRes(), next);
+    expect(next).toHaveBeenCalledOnce();
+  });
+
+  it('retourne 403 si req.user.role !== admin', () => {
+    auth._setBypass(false);
+    const res  = makeRes();
+    const next = vi.fn();
+    auth.requireAdmin({ user: { role: 'basic' } }, res, next);
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(res.json).toHaveBeenCalledWith({ error: 'Forbidden' });
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it('retourne 403 si req.user est absent', () => {
+    auth._setBypass(false);
+    const res  = makeRes();
+    const next = vi.fn();
+    auth.requireAdmin({}, res, next);
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(next).not.toHaveBeenCalled();
+  });
+});
+
 // ── authStaticGuard ───────────────────────────────────────────────────────────
 
 describe('authStaticGuard', () => {

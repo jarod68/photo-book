@@ -14,8 +14,18 @@
       <h1 class="admin-title">Admin</h1>
     </div>
     <div class="admin-header-right">
-      <span id="admin-user" class="admin-username"></span>
-      <button id="logout-btn" class="admin-logout-btn">Sign out</button>
+      <span id="admin-user" class="admin-username">
+        <span class="admin-auth-dot"></span>
+        <span id="admin-user-label"></span>
+      </span>
+      <button id="logout-btn" class="admin-logout-btn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/>
+          <polyline points="16 17 21 12 16 7"/>
+          <line x1="21" y1="12" x2="9" y2="12"/>
+        </svg>
+        Sign out
+      </button>
     </div>
   </header>
 
@@ -124,6 +134,36 @@
     </section>
 
   </main>
+
+  <!-- Album settings modal -->
+  <div id="album-settings-overlay" class="upload-overlay" hidden>
+    <div class="upload-modal album-settings-modal">
+      <div class="upload-modal-header">
+        <h3 class="upload-modal-title">Access — <strong id="album-settings-name"></strong></h3>
+        <button id="album-settings-close-btn" class="upload-close-btn" aria-label="Close">✕</button>
+      </div>
+      <div class="album-settings-body">
+        <div class="album-settings-visibility">
+          <label class="album-settings-radio">
+            <input type="radio" name="album-visibility" value="public" id="vis-public">
+            <span>Public <span class="vis-hint">— accessible without login</span></span>
+          </label>
+          <label class="album-settings-radio">
+            <input type="radio" name="album-visibility" value="restricted" id="vis-restricted">
+            <span>Restricted <span class="vis-hint">— selected users only</span></span>
+          </label>
+        </div>
+        <div id="album-settings-users" class="album-settings-users" hidden>
+          <p class="album-settings-users-label">Authorized users</p>
+          <div id="album-users-checkboxes" class="album-users-checkboxes"></div>
+        </div>
+      </div>
+      <div class="upload-modal-footer">
+        <span id="album-settings-error" class="admin-error pwd-error-text"></span>
+        <button id="album-settings-save-btn" class="admin-action-btn">Save</button>
+      </div>
+    </div>
+  </div>
 
   <!-- Upload modal -->
   <div id="upload-overlay" class="upload-overlay" hidden>

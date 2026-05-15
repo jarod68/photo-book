@@ -62,6 +62,19 @@ async function connectDb(dbInstance = null) {
           expires_at TIMESTAMP NOT NULL
         )
       `);
+      await db.query(`
+        CREATE TABLE IF NOT EXISTS album_settings (
+          album      VARCHAR(255) PRIMARY KEY,
+          visibility VARCHAR(32)  NOT NULL DEFAULT 'public'
+        )
+      `);
+      await db.query(`
+        CREATE TABLE IF NOT EXISTS album_users (
+          album   VARCHAR(255) NOT NULL,
+          user_id INTEGER      NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          PRIMARY KEY (album, user_id)
+        )
+      `);
       dbReady = true;
       console.log('  ✓ PostgreSQL connected.');
       return;

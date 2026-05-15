@@ -1,3 +1,7 @@
+const LOCK_SVG = `<svg class="album-tab-lock" viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-label="Restreint">
+  <path d="M8 1a2 2 0 0 1 2 2v4H6V3a2 2 0 0 1 2-2zm3 6V3a3 3 0 0 0-6 0v4a2 2 0 0 0-2 2v5a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z"/>
+</svg>`;
+
 /**
  * Horizontal tab bar for album navigation inside the viewer.
  */
@@ -39,6 +43,11 @@ export class AlbumTabs {
       btn.setAttribute('role', 'tab');
       btn.setAttribute('aria-selected', String(album.name === activeName));
       btn.textContent = album.name;
+
+      if (album.visibility === 'restricted') {
+        btn.insertAdjacentHTML('beforeend', LOCK_SVG);
+      }
+
       const countEl = document.createElement('span');
       countEl.className = 'count';
       countEl.textContent = album.count;

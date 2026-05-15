@@ -320,6 +320,26 @@ describe('preGenerateAll', () => {
 
     expect(logSpy).not.toHaveBeenCalledWith(expect.stringContaining('thumbnail'));
   });
+
+  it('continue si sharp échoue (erreur absorbée par photoMeta)', async () => {
+    const dir = name => ({ isDirectory: () => true, name });
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    const mockFs = {
+      existsSync: vi.fn()
+        .mockReturnValueOnce(true)  // PHOTOS_DIR
+        .mockReturnValue(false),    // previews absentes
+      mkdirSync:   vi.fn(),
+      readdirSync: vi.fn()
+        .mockReturnValueOnce([dir('Paris')])
+        .mockReturnValue(['a.jpg', 'b.jpg']),
+    };
+    const failingSharp = vi.fn(() => { throw new Error('sharp failed'); });
+    const deps = { fs: mockFs, sharp: failingSharp, exifr: makeExifr() };
+
+    await preGenerateAll(deps);
+    // preGenerateAll completes without throwing — photoMeta swallows errors
+  });
 });
 
 // ── ensureMedium ──────────────────────────────────────────────────────────────

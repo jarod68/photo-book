@@ -119,6 +119,18 @@ describe('buildSegments', () => {
     expect(segments).toHaveLength(1);
     expect(segments[0]).toHaveLength(3);
   });
+
+  it('pousse le segment courant (≥2 photos) quand une coupure survient', () => {
+    const photos = [
+      photo(48.8566, 2.3522, '2024-01-01'), // A — Paris
+      photo(48.8600, 2.3600, '2024-01-02'), // B — proche de A → même segment
+      photo(41.9028, 12.4964, '2024-01-03'), // C — Rome, > MAX_KM → coupure, [A,B] poussé
+    ];
+    const segments = buildSegments(photos);
+    expect(segments).toHaveLength(1);
+    expect(segments[0]).toHaveLength(2);
+    expect(segments[0][0].gps.lat).toBeCloseTo(48.8566);
+  });
 });
 
 // ── clusterSegment ────────────────────────────────────────────────────────────
@@ -182,6 +194,21 @@ describe('catmullRom', () => {
     const { cp1, P0, P1 } = catmullRom([A, B, C], 0);
     expect(cp1.lat).toBeGreaterThanOrEqual(Math.min(P0.lat, P1.lat));
     expect(cp1.lat).toBeLessThanOrEqual(Math.max(P0.lat, P1.lat));
+  });
+
+  it('utilise centroids[i-1] comme prev quand i > 0', () => {
+    const D = { lat: 3, lng: 0 };
+    // i=1 → prev = centroids[0] = A, next = centroids[3] = D
+    const { P0, P1 } = catmullRom([A, B, C, D], 1);
+    expect(P0).toEqual(B);
+    expect(P1).toEqual(C);
+  });
+
+  it('gère des centroïdes identiques sans produire NaN (fallback || 1e-9)', () => {
+    const same = { lat: 0, lng: 0 };
+    // Tous identiques → segLen=0, len0=0, len1=0 → || 1e-9 évite la division par zéro
+    const { pts } = catmullRom([same, same, same, same], 1);
+    expect(pts.every(([lat, lng]) => Number.isFinite(lat) && Number.isFinite(lng))).toBe(true);
   });
 });
 

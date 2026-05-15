@@ -5,7 +5,7 @@ const btn      = form.querySelector('button[type="submit"]');
 async function checkAlreadyLoggedIn() {
   try {
     const { user } = await fetch('/api/auth/me').then(r => r.json());
-    if (user) window.location.replace('/admin.html');
+    if (user) window.location.replace('/');
   } catch (_) {}
 }
 
@@ -15,7 +15,7 @@ form.addEventListener('submit', async e => {
   e.preventDefault();
   errorEl.hidden = true;
   btn.disabled   = true;
-  btn.textContent = 'Signing in…';
+  btn.querySelector('.login-btn-text').textContent = 'Signing in…';
 
   const username = document.getElementById('username').value.trim();
   const password = document.getElementById('password').value;
@@ -36,12 +36,12 @@ form.addEventListener('submit', async e => {
       return;
     }
 
-    window.location.replace('/admin.html');
+    window.location.replace('/');
   } catch (_) {
     errorEl.textContent = 'Network error. Please try again.';
     errorEl.hidden = false;
   } finally {
     btn.disabled    = false;
-    btn.textContent = 'Sign in';
+    btn.querySelector('.login-btn-text').textContent = 'Sign in';
   }
 });

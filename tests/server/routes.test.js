@@ -52,6 +52,43 @@ beforeEach(() => {
   mockQuery.mockReset();
 });
 
+// ── albumAccessGuard ──────────────────────────────────────────────────────────
+
+describe('albumAccessGuard (via /previews)', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it('appelle next() directement si DB non prête (dbReady=false)', async () => {
+    // database._reset() in beforeEach → dbReady=false → line 106 next()
+    const res = await request(app).get('/previews/Paris/photo.jpg');
+    expect(res.status).not.toBe(401);
+  });
+
+  it('appelle next() si le chemin n\'a pas de segment d\'album', async () => {
+    // dbReady=true, req.path='/' → parts=[] → line 108 next()
+    mockQuery.mockResolvedValue({ rows: [] });
+    database._setState({ query: mockQuery }, true);
+    const res = await request(app).get('/previews/');
+    expect(res.status).not.toBe(401);
+  });
+
+  it('appelle next() si l\'album est public (ligne 114)', async () => {
+    // DB ready, no album_settings row → visibility='public' → allowed=true → next()
+    mockQuery.mockResolvedValue({ rows: [] });
+    database._setState({ query: mockQuery }, true);
+    const res = await request(app).get('/previews/Paris/photo.jpg');
+    // Static file absent → 404 is fine; pas de 401
+    expect(res.status).not.toBe(401);
+  });
+
+  it('retourne 401 si album restreint et pas d\'utilisateur connecté', async () => {
+    // DB ready, visibility='restricted', no token → user=null → not allowed → 401
+    mockQuery.mockResolvedValue({ rows: [{ visibility: 'restricted' }] });
+    database._setState({ query: mockQuery }, true);
+    const res = await request(app).get('/previews/Paris/photo.jpg');
+    expect(res.status).toBe(401);
+  });
+});
+
 // ── /api/geocode ──────────────────────────────────────────────────────────────
 
 describe('GET /api/geocode', () => {
@@ -82,6 +119,25 @@ describe('GET /api/geocode', () => {
     const res = await request(app).get('/api/geocode?lat=48.85&lng=2.35');
     expect(res.status).toBe(200);
     expect(res.body).toHaveProperty('location');
+  });
+
+  it('retourne { location: null } si fetch lève une exception', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('network error')));
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const res = await request(app).get('/api/geocode?lat=48.86&lng=2.36');
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ location: null });
+    errSpy.mockRestore();
+  });
+
+  it('utilise le cache pour des coordonnées déjà demandées', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      json: () => Promise.resolve({ address: { city: 'Lyon', country: 'France' } }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    await request(app).get('/api/geocode?lat=45.75&lng=4.83');
+    await request(app).get('/api/geocode?lat=45.75&lng=4.83');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -131,6 +187,16 @@ describe('POST /api/view', () => {
     expect(res.body.views).toBe(5);
     expect(res.body.likes).toBe(2);
     expect(res.body.liked).toBe(false);
+  });
+
+  it('retourne 500 si la requête DB échoue', async () => {
+    mockQuery.mockRejectedValueOnce(new Error('db crash'));
+    database._setState({ query: mockQuery }, true);
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const res = await request(app)
+      .post('/api/view')
+      .send({ album: 'Paris', filename: 'photo.jpg', token: VALID_TOKEN });
+    expect(res.status).toBe(500);
   });
 });
 
@@ -191,6 +257,16 @@ describe('POST /api/like', () => {
     expect(res.body.liked).toBe(false);
     expect(res.body.count).toBe(0);
   });
+
+  it('retourne 500 si la requête DB échoue', async () => {
+    mockQuery.mockRejectedValueOnce(new Error('db error'));
+    database._setState({ query: mockQuery }, true);
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const res = await request(app)
+      .post('/api/like')
+      .send({ album: 'Paris', filename: 'photo.jpg', token: VALID_TOKEN });
+    expect(res.status).toBe(500);
+  });
 });
 
 // ── /api/liked ────────────────────────────────────────────────────────────────
@@ -218,15 +294,109 @@ describe('GET /api/liked', () => {
     const res = await request(app).get(`/api/liked?album=Paris&token=${VALID_TOKEN}`);
     expect(res.body.filenames).toEqual(['a.jpg', 'b.jpg']);
   });
+
+  it('retourne { filenames: [] } si la requête DB échoue', async () => {
+    mockQuery.mockRejectedValueOnce(new Error('db error'));
+    database._setState({ query: mockQuery }, true);
+    const res = await request(app).get(`/api/liked?album=Paris&token=${VALID_TOKEN}`);
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ filenames: [] });
+  });
 });
 
 // ── /api/albums ───────────────────────────────────────────────────────────────
 
 describe('GET /api/albums', () => {
+  afterEach(() => vi.restoreAllMocks());
+
   it('retourne 200 avec un tableau', async () => {
     const res = await request(app).get('/api/albums');
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body)).toBe(true);
+  });
+
+  it('retourne visibility public et canDelete false quand DB prête et aucun cookie', async () => {
+    const albumDir = { name: 'Paris', isDirectory: () => true };
+    vi.spyOn(fsMod, 'existsSync').mockReturnValue(true);
+    vi.spyOn(fsMod, 'readdirSync')
+      .mockReturnValueOnce([albumDir]) // PHOTOS_DIR listing
+      .mockReturnValueOnce([]);        // Paris album contents
+    mockQuery
+      .mockResolvedValueOnce({ rows: [] })  // album_settings (no entries)
+      .mockResolvedValueOnce({ rows: [] }); // album_users (no basic user)
+    database._setState({ query: mockQuery }, true);
+    const res = await request(app).get('/api/albums');
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body)).toBe(true);
+    expect(res.body).toHaveLength(1);
+    expect(res.body[0].visibility).toBe('public');
+    expect(res.body[0].canDelete).toBe(false);
+  });
+
+  it('exclut un album restricted quand aucun utilisateur authentifié', async () => {
+    const dirs = [
+      { name: 'Public', isDirectory: () => true },
+      { name: 'Secret', isDirectory: () => true },
+    ];
+    vi.spyOn(fsMod, 'existsSync').mockReturnValue(true);
+    vi.spyOn(fsMod, 'readdirSync')
+      .mockReturnValueOnce(dirs)   // PHOTOS_DIR listing
+      .mockReturnValueOnce([]);    // Public album contents
+    // Secret is filtered before readdirSync is called for it
+    mockQuery
+      .mockResolvedValueOnce({ rows: [{ album: 'Secret', visibility: 'restricted' }] }) // album_settings
+      .mockResolvedValueOnce({ rows: [] }); // album_users
+    database._setState({ query: mockQuery }, true);
+    const res = await request(app).get('/api/albums');
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(1);
+    expect(res.body[0].name).toBe('Public');
+  });
+
+  it('retourne 500 si readdirSync lève une exception', async () => {
+    vi.spyOn(fsMod, 'existsSync').mockReturnValue(true);
+    vi.spyOn(fsMod, 'readdirSync').mockImplementation(() => { throw new Error('disk error'); });
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const res = await request(app).get('/api/albums');
+    expect(res.status).toBe(500);
+  });
+
+  it('inclut les albums restricted pour un utilisateur admin (ligne 526)', async () => {
+    const dirs = [{ name: 'VIP', isDirectory: () => true }];
+    vi.spyOn(fsMod, 'existsSync').mockReturnValue(true);
+    vi.spyOn(fsMod, 'readdirSync')
+      .mockReturnValueOnce(dirs)  // PHOTOS_DIR listing
+      .mockReturnValueOnce([]);   // VIP album contents
+    mockQuery
+      .mockResolvedValueOnce({ rows: [{ album: 'VIP', visibility: 'restricted' }] }) // album_settings
+      .mockResolvedValueOnce({ rows: [] }); // album_users (admin: no user_id query)
+    database._setState({ query: mockQuery }, true);
+    vi.spyOn(authMod, 'getSessionUser').mockResolvedValue({ id: 1, role: 'admin' });
+    const res = await request(app)
+      .get('/api/albums')
+      .set('Cookie', 'pb_session=' + 'a'.repeat(64));
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(1);
+    expect(res.body[0].name).toBe('VIP');
+  });
+
+  it('inclut les albums restricted pour un utilisateur basic autorisé (ligne 527)', async () => {
+    const dirs = [{ name: 'VIP', isDirectory: () => true }];
+    vi.spyOn(fsMod, 'existsSync').mockReturnValue(true);
+    vi.spyOn(fsMod, 'readdirSync')
+      .mockReturnValueOnce(dirs)  // PHOTOS_DIR listing
+      .mockReturnValueOnce([]);   // VIP album contents
+    mockQuery
+      .mockResolvedValueOnce({ rows: [{ album: 'VIP', visibility: 'restricted' }] }) // album_settings
+      .mockResolvedValueOnce({ rows: [{ album: 'VIP' }] }); // album_users: user authorized
+    database._setState({ query: mockQuery }, true);
+    vi.spyOn(authMod, 'getSessionUser').mockResolvedValue({ id: 5, role: 'basic' });
+    const res = await request(app)
+      .get('/api/albums')
+      .set('Cookie', 'pb_session=' + 'a'.repeat(64));
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(1);
+    expect(res.body[0].name).toBe('VIP');
   });
 });
 
@@ -261,6 +431,7 @@ describe('GET /api/albums/:album', () => {
     fsMod.existsSync.mockReturnValue(true);
     fsMod.readdirSync.mockReturnValue(['photo.jpg']);
     mockQuery
+      .mockResolvedValueOnce({ rows: [] })  // getAlbumVisibility (album_settings)
       .mockResolvedValueOnce({ rows: [{ filename: 'photo.jpg', views: '7' }] })
       .mockResolvedValueOnce({ rows: [{ filename: 'photo.jpg', likes: '3' }] });
     database._setState({ query: mockQuery }, true);
@@ -277,6 +448,38 @@ describe('GET /api/albums/:album', () => {
 
     const res = await request(app).get('/api/albums/Paris');
     expect(res.status).toBe(500);
+  });
+
+  it('retourne canDelete false quand DB prête et aucun utilisateur (album public)', async () => {
+    fsMod.existsSync.mockReturnValue(true);
+    fsMod.readdirSync.mockReturnValue(['photo.jpg']);
+    mockQuery
+      .mockResolvedValueOnce({ rows: [] })  // getAlbumVisibility → public
+      .mockResolvedValueOnce({ rows: [] })  // photo_views
+      .mockResolvedValueOnce({ rows: [] }); // photo_likes
+    database._setState({ query: mockQuery }, true);
+    const res = await request(app).get('/api/albums/Paris');
+    expect(res.status).toBe(200);
+    expect(res.body.canDelete).toBe(false);
+  });
+
+  it('retourne 401 si album restricted et aucun utilisateur', async () => {
+    fsMod.existsSync.mockReturnValue(true);
+    fsMod.readdirSync.mockReturnValue(['photo.jpg']);
+    mockQuery.mockResolvedValueOnce({ rows: [{ visibility: 'restricted' }] }); // getAlbumVisibility
+    database._setState({ query: mockQuery }, true);
+    const res = await request(app).get('/api/albums/Paris');
+    expect(res.status).toBe(401);
+  });
+
+  it('traite comme public si getAlbumAccess lève une exception (catch ligne 561)', async () => {
+    fsMod.existsSync.mockReturnValue(true);
+    fsMod.readdirSync.mockReturnValue(['photo.jpg']);
+    mockQuery.mockRejectedValueOnce(new Error('db error'));
+    database._setState({ query: mockQuery }, true);
+    const res = await request(app).get('/api/albums/Paris');
+    expect(res.status).toBe(200);
+    expect(res.body.canDelete).toBe(false);
   });
 });
 
@@ -362,5 +565,77 @@ describe('GET /api/map', () => {
     const res = await request(app).get('/api/map');
     expect(res.body).toHaveLength(1);
     expect(res.body[0].filename).toBe('avec-gps.jpg');
+  });
+
+  it('filtre un album restricted quand DB prête et aucun utilisateur authentifié', async () => {
+    const restrictedDir = { name: 'Secret', isDirectory: () => true };
+    fsMod.existsSync.mockReturnValue(true);
+    fsMod.readdirSync.mockReturnValueOnce([restrictedDir]);
+    mockQuery
+      .mockResolvedValueOnce({ rows: [{ album: 'Secret', visibility: 'restricted' }] }) // album_settings
+      .mockResolvedValueOnce({ rows: [] }); // album_users (no basic user)
+    database._setState({ query: mockQuery }, true);
+    const res = await request(app).get('/api/map');
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual([]);
+  });
+
+  it('retourne 500 si readdirSync lève une exception', async () => {
+    fsMod.existsSync.mockReturnValue(true);
+    fsMod.readdirSync.mockImplementation(() => { throw new Error('disk error'); });
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const res = await request(app).get('/api/map');
+    expect(res.status).toBe(500);
+  });
+
+  it('inclut les albums restricted pour un utilisateur admin (ligne 613)', async () => {
+    const restrictedDir = { name: 'VIP', isDirectory: () => true };
+    fsMod.existsSync.mockReturnValue(true);
+    fsMod.readdirSync
+      .mockReturnValueOnce([restrictedDir])
+      .mockReturnValueOnce([]); // album has no photos
+    mockQuery
+      .mockResolvedValueOnce({ rows: [{ album: 'VIP', visibility: 'restricted' }] }) // album_settings
+      .mockResolvedValueOnce({ rows: [] }); // album_users (admin: role check only, no user_id query)
+    database._setState({ query: mockQuery }, true);
+    vi.spyOn(authMod, 'getSessionUser').mockResolvedValue({ id: 1, role: 'admin' });
+    const res = await request(app)
+      .get('/api/map')
+      .set('Cookie', 'pb_session=' + 'a'.repeat(64));
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual([]); // album included but no GPS photos → empty flat
+  });
+
+  it('inclut les albums restricted pour un utilisateur basic autorisé (ligne 614)', async () => {
+    const restrictedDir = { name: 'VIP', isDirectory: () => true };
+    fsMod.existsSync.mockReturnValue(true);
+    fsMod.readdirSync
+      .mockReturnValueOnce([restrictedDir])
+      .mockReturnValueOnce([]); // album has no photos
+    mockQuery
+      .mockResolvedValueOnce({ rows: [{ album: 'VIP', visibility: 'restricted' }] }) // album_settings
+      .mockResolvedValueOnce({ rows: [{ album: 'VIP' }] }); // album_users: user 5 authorized
+    database._setState({ query: mockQuery }, true);
+    vi.spyOn(authMod, 'getSessionUser').mockResolvedValue({ id: 5, role: 'basic' });
+    const res = await request(app)
+      .get('/api/map')
+      .set('Cookie', 'pb_session=' + 'a'.repeat(64));
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual([]); // authorized but no GPS photos
+  });
+
+  it('date est null si exifr.parse lève une exception (catch ligne 628)', async () => {
+    fsMod.existsSync
+      .mockReturnValueOnce(true)   // PHOTOS_DIR exists
+      .mockReturnValue(false);     // preview absent
+    fsMod.readdirSync
+      .mockReturnValueOnce([albumDir])
+      .mockReturnValueOnce(['img.jpg']);
+    exifrMod.gps.mockResolvedValue({ latitude: 48.8566, longitude: 2.3522 });
+    exifrMod.parse.mockRejectedValue(new Error('parse failed')); // triggers catch → null
+    const res = await request(app).get('/api/map');
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(1);
+    expect(res.body[0].date).toBeNull();
   });
 });

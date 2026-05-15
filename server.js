@@ -25,7 +25,7 @@ const GEO_MAX  = 2000;
 // ─── Static files ─────────────────────────────────────────────────────────────
 
 // Medium (720p): generated once, never mutated → immutable 1 year
-app.use('/medium', express.static(path.join(__dirname, 'public', 'medium'), {
+app.use('/medium', albumAccessGuard(), express.static(path.join(__dirname, 'public', 'medium'), {
   maxAge: '1y',
   immutable: true,
   etag: false,
@@ -33,7 +33,7 @@ app.use('/medium', express.static(path.join(__dirname, 'public', 'medium'), {
 }));
 
 // Previews: generated once, never mutated → immutable 1 year
-app.use('/previews', express.static(path.join(__dirname, 'public', 'previews'), {
+app.use('/previews', albumAccessGuard(), express.static(path.join(__dirname, 'public', 'previews'), {
   maxAge: '1y',
   immutable: true,
   etag: false,
@@ -54,7 +54,7 @@ app.use(express.static(path.join(__dirname, 'public'), {
 }));
 
 // Original photos: immutable 1 year (files are never overwritten on disk)
-app.use('/photos', (req, res, next) => {
+app.use('/photos', albumAccessGuard(), (req, res, next) => {
   const target = path.resolve(path.join(PHOTOS_DIR, decodeURIComponent(req.path)));
   if (!target.startsWith(PHOTOS_DIR)) return res.status(403).end();
   next();
@@ -72,6 +72,47 @@ function safeAlbumPath(name) {
   const base = PHOTOS_DIR + path.sep;
   if (!full.startsWith(base) && full !== PHOTOS_DIR) throw new Error('Invalid album');
   return full;
+}
+
+async function getAlbumVisibility(album) {
+  if (!database.dbReady) return 'public';
+  const { rows } = await database.db.query(
+    'SELECT visibility FROM album_settings WHERE album = $1', [album],
+  );
+  return rows[0]?.visibility ?? 'public';
+}
+
+async function isUserAuthorizedForAlbum(album, userId) {
+  const { rows } = await database.db.query(
+    'SELECT 1 FROM album_users WHERE album = $1 AND user_id = $2', [album, userId],
+  );
+  return rows.length > 0;
+}
+
+// Returns { allowed, canDelete }
+async function getAlbumAccess(album, user) {
+  const visibility = await getAlbumVisibility(album);
+  if (visibility === 'public') {
+    return { allowed: true, canDelete: user?.role === 'admin' };
+  }
+  if (!user) return { allowed: false, canDelete: false };
+  if (user.role === 'admin') return { allowed: true, canDelete: true };
+  const authorized = await isUserAuthorizedForAlbum(album, user.id);
+  return { allowed: authorized, canDelete: authorized };
+}
+
+function albumAccessGuard() {
+  return async (req, res, next) => {
+    if (!database.dbReady) return next();
+    const parts = req.path.split('/').filter(Boolean);
+    if (!parts.length) return next();
+    const album = decodeURIComponent(parts[0]);
+    const token = req.cookies?.pb_session;
+    const user  = token ? await auth.getSessionUser(token).catch(() => null) : null;
+    const { allowed } = await getAlbumAccess(album, user).catch(() => ({ allowed: true }));
+    if (!allowed) return res.status(401).end();
+    next();
+  };
 }
 
 // ─── Auth routes (public) ─────────────────────────────────────────────────────
@@ -129,20 +170,24 @@ app.get('/api/admin/stats', requireAdmin, async (req, res) => {
 
     let viewMap = new Map();
     let likeMap = new Map();
+    let visibilityMap = new Map();
     if (database.dbReady) {
-      const [{ rows: viewRows }, { rows: likeRows }] = await Promise.all([
+      const [{ rows: viewRows }, { rows: likeRows }, { rows: settingsRows }] = await Promise.all([
         database.db.query('SELECT album, SUM(views) AS views FROM photo_views GROUP BY album'),
         database.db.query('SELECT album, COUNT(*) AS likes FROM photo_likes GROUP BY album'),
+        database.db.query('SELECT album, visibility FROM album_settings'),
       ]);
-      viewMap = new Map(viewRows.map(r => [r.album, Number(r.views)]));
-      likeMap = new Map(likeRows.map(r => [r.album, Number(r.likes)]));
+      viewMap       = new Map(viewRows.map(r => [r.album, Number(r.views)]));
+      likeMap       = new Map(likeRows.map(r => [r.album, Number(r.likes)]));
+      visibilityMap = new Map(settingsRows.map(r => [r.album, r.visibility]));
     }
 
     const albums = [...fsMap.entries()].map(([album, photos]) => ({
       album,
       photos,
-      views: viewMap.get(album) ?? 0,
-      likes: likeMap.get(album) ?? 0,
+      views:      viewMap.get(album) ?? 0,
+      likes:      likeMap.get(album) ?? 0,
+      visibility: visibilityMap.get(album) ?? 'public',
     })).sort((a, b) => b.views - a.views || a.album.localeCompare(b.album));
 
     res.json({ albums });
@@ -226,6 +271,8 @@ app.patch('/api/admin/albums/:album', requireAdmin, express.json(), async (req, 
         database.db.query('UPDATE photo_views    SET album=$1 WHERE album=$2', [newName, oldName]),
         database.db.query('UPDATE photo_view_log SET album=$1 WHERE album=$2', [newName, oldName]),
         database.db.query('UPDATE photo_likes    SET album=$1 WHERE album=$2', [newName, oldName]),
+        database.db.query('UPDATE album_settings SET album=$1 WHERE album=$2', [newName, oldName]),
+        database.db.query('UPDATE album_users    SET album=$1 WHERE album=$2', [newName, oldName]),
       ]);
     }
     res.json({ ok: true });
@@ -245,6 +292,31 @@ app.delete('/api/admin/albums/:album', requireAdmin, async (req, res) => {
       if (fs.existsSync(d)) fs.rmSync(d, { recursive: true, force: true });
     }
     await deleteAlbumFromDb(req.params.album);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.delete('/api/albums/:album/photos/:filename', requireAuth, async (req, res) => {
+  try {
+    const { album, filename } = req.params;
+    const { canDelete } = await getAlbumAccess(album, req.user).catch(() => ({ canDelete: false }));
+    if (!canDelete) return res.status(403).json({ error: 'Forbidden' });
+
+    const albumPath = safeAlbumPath(album);
+    if (!isImage(filename)) return res.status(400).json({ error: 'Not an image' });
+    const filePath = path.resolve(path.join(albumPath, filename));
+    if (!filePath.startsWith(albumPath + path.sep)) return res.status(400).json({ error: 'Invalid filename' });
+    if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'Photo not found' });
+    fs.unlinkSync(filePath);
+    const previewName = path.parse(filename).name + '.jpg';
+    for (const base of [PREVIEWS_DIR, MEDIUM_DIR]) {
+      const p = path.join(base, album, previewName);
+      if (fs.existsSync(p)) fs.unlinkSync(p);
+    }
+    await deletePhotoFromDb(album, filename);
     res.json({ ok: true });
   } catch (err) {
     console.error(err);
@@ -371,6 +443,58 @@ app.delete('/api/admin/users/:id', requireAdmin, async (req, res) => {
   }
 });
 
+// ─── Album access settings ────────────────────────────────────────────────────
+
+app.get('/api/admin/albums/:album/settings', requireAdmin, async (req, res) => {
+  if (!database.dbReady) return res.json({ visibility: 'public', users: [] });
+  try {
+    const [{ rows: settingRows }, { rows: userRows }] = await Promise.all([
+      database.db.query('SELECT visibility FROM album_settings WHERE album = $1', [req.params.album]),
+      database.db.query(
+        `SELECT u.id, u.username FROM album_users au
+         JOIN users u ON u.id = au.user_id
+         WHERE au.album = $1`,
+        [req.params.album],
+      ),
+    ]);
+    res.json({
+      visibility: settingRows[0]?.visibility ?? 'public',
+      users: userRows,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.put('/api/admin/albums/:album/settings', requireAdmin, express.json(), async (req, res) => {
+  const { album } = req.params;
+  const { visibility, userIds = [] } = req.body ?? {};
+  if (!['public', 'restricted'].includes(visibility)) {
+    return res.status(400).json({ error: 'visibility must be public or restricted' });
+  }
+  if (!database.dbReady) return res.status(503).json({ error: 'Service unavailable' });
+  try {
+    await database.db.query(
+      `INSERT INTO album_settings (album, visibility) VALUES ($1, $2)
+       ON CONFLICT (album) DO UPDATE SET visibility = $2`,
+      [album, visibility],
+    );
+    await database.db.query('DELETE FROM album_users WHERE album = $1', [album]);
+    if (userIds.length > 0) {
+      const placeholders = userIds.map((_, i) => `($1, $${i + 2})`).join(', ');
+      await database.db.query(
+        `INSERT INTO album_users (album, user_id) VALUES ${placeholders} ON CONFLICT DO NOTHING`,
+        [album, ...userIds],
+      );
+    }
+    res.json({ ok: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // ─── Routes ───────────────────────────────────────────────────────────────────
 
 app.get('/api/albums', async (req, res) => {
@@ -379,7 +503,31 @@ app.get('/api/albums', async (req, res) => {
 
     const entries = fs.readdirSync(PHOTOS_DIR, { withFileTypes: true }).filter(isAlbumDir);
 
-    const albums = await Promise.all(entries.map(async e => {
+    const token = req.cookies?.pb_session;
+    const user  = token ? await auth.getSessionUser(token).catch(() => null) : null;
+
+    let visibilityMap = new Map();
+    let authorizedSet = new Set();
+    if (database.dbReady) {
+      const [{ rows: settingsRows }, authorizedResult] = await Promise.all([
+        database.db.query('SELECT album, visibility FROM album_settings'),
+        user?.role === 'basic'
+          ? database.db.query('SELECT album FROM album_users WHERE user_id = $1', [user.id])
+          : Promise.resolve({ rows: [] }),
+      ]);
+      visibilityMap = new Map(settingsRows.map(r => [r.album, r.visibility]));
+      authorizedSet = new Set(authorizedResult.rows.map(r => r.album));
+    }
+
+    const filtered = entries.filter(e => {
+      const visibility = visibilityMap.get(e.name) ?? 'public';
+      if (visibility === 'public') return true;
+      if (!user) return false;
+      if (user.role === 'admin') return true;
+      return authorizedSet.has(e.name);
+    });
+
+    const albums = await Promise.all(filtered.map(async e => {
       const files = fs.readdirSync(path.join(PHOTOS_DIR, e.name)).filter(isImage).sort();
       const firstFile = files[0];
       let cover = null;
@@ -389,7 +537,9 @@ app.get('/api/albums', async (req, res) => {
         const coverPath = path.join(PHOTOS_DIR, e.name, firstFile);
         coverPreview = await ensurePreview(e.name, firstFile, coverPath, false).catch(() => null);
       }
-      return { name: e.name, count: files.length, cover, coverPreview };
+      const visibility = visibilityMap.get(e.name) ?? 'public';
+      const canDelete  = user?.role === 'admin' || (user?.role === 'basic' && authorizedSet.has(e.name));
+      return { name: e.name, count: files.length, cover, coverPreview, visibility, canDelete };
     }));
 
     res.json(albums);
@@ -403,6 +553,13 @@ app.get('/api/albums/:album', async (req, res) => {
   try {
     const albumPath = safeAlbumPath(req.params.album);
     if (!fs.existsSync(albumPath)) return res.status(404).json({ error: 'Not found' });
+
+    const token = req.cookies?.pb_session;
+    const user  = token ? await auth.getSessionUser(token).catch(() => null) : null;
+
+    const { allowed, canDelete } = await getAlbumAccess(req.params.album, user)
+      .catch(() => ({ allowed: true, canDelete: false }));
+    if (!allowed) return res.status(401).json({ error: 'Unauthorized' });
 
     const files  = fs.readdirSync(albumPath).filter(isImage).sort();
     const photos = await Promise.all(files.map(f => photoMeta(req.params.album, f, albumPath)));
@@ -422,7 +579,7 @@ app.get('/api/albums/:album', async (req, res) => {
       } catch (_) {}
     }
 
-    res.json({ name: req.params.album, photos });
+    res.json({ name: req.params.album, photos, canDelete });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Internal server error' });
@@ -436,7 +593,29 @@ app.get('/api/map', async (req, res) => {
   try {
     const albumDirs = fs.readdirSync(PHOTOS_DIR, { withFileTypes: true }).filter(isAlbumDir);
 
-    const buckets = await Promise.all(albumDirs.map(async dir => {
+    const token = req.cookies?.pb_session;
+    const user  = token ? await auth.getSessionUser(token).catch(() => null) : null;
+
+    let allowedDirs = albumDirs;
+    if (database.dbReady) {
+      const [{ rows: settingsRows }, authorizedResult] = await Promise.all([
+        database.db.query('SELECT album, visibility FROM album_settings'),
+        user?.role === 'basic'
+          ? database.db.query('SELECT album FROM album_users WHERE user_id = $1', [user.id])
+          : Promise.resolve({ rows: [] }),
+      ]);
+      const visibilityMap = new Map(settingsRows.map(r => [r.album, r.visibility]));
+      const authorizedSet = new Set(authorizedResult.rows.map(r => r.album));
+      allowedDirs = albumDirs.filter(dir => {
+        const visibility = visibilityMap.get(dir.name) ?? 'public';
+        if (visibility === 'public') return true;
+        if (!user) return false;
+        if (user.role === 'admin') return true;
+        return authorizedSet.has(dir.name);
+      });
+    }
+
+    const buckets = await Promise.all(allowedDirs.map(async dir => {
       const albumPath = path.join(PHOTOS_DIR, dir.name);
       const files     = fs.readdirSync(albumPath).filter(isImage).sort();
       const photos    = [];
@@ -632,6 +811,8 @@ async function deleteAlbumFromDb(album) {
   await q('DELETE FROM photo_view_log WHERE album = $1');
   await q('DELETE FROM photo_likes    WHERE album = $1');
   await q('DELETE FROM photo_views    WHERE album = $1');
+  await q('DELETE FROM album_users    WHERE album = $1');
+  await q('DELETE FROM album_settings WHERE album = $1');
 }
 
 function watchPhotosDir() {

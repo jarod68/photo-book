@@ -218,7 +218,8 @@ describe('GET /api/admin/stats', () => {
       .mockReturnValueOnce(['x.jpg']);
     mockQuery
       .mockResolvedValueOnce({ rows: [{ album: 'Rome', views: '10' }] })
-      .mockResolvedValueOnce({ rows: [{ album: 'Rome', likes: '3' }] });
+      .mockResolvedValueOnce({ rows: [{ album: 'Rome', likes: '3' }] })
+      .mockResolvedValueOnce({ rows: [] });  // album_settings
     database._setState({ query: mockQuery }, true);
     const res = await request(app).get('/api/admin/stats');
     expect(res.body.albums[0]).toMatchObject({ album: 'Rome', photos: 1, views: 10, likes: 3 });
@@ -236,11 +237,20 @@ describe('GET /api/admin/stats', () => {
       .mockReturnValueOnce([]);   // B: 0 photos
     mockQuery
       .mockResolvedValueOnce({ rows: [{ album: 'A', views: '5' }, { album: 'B', views: '20' }] })
-      .mockResolvedValueOnce({ rows: [] });
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] });  // album_settings
     database._setState({ query: mockQuery }, true);
     const res = await request(app).get('/api/admin/stats');
     expect(res.body.albums[0].album).toBe('B');
     expect(res.body.albums[1].album).toBe('A');
+  });
+
+  it('retourne 500 si readdirSync lève une exception', async () => {
+    vi.spyOn(fsMod, 'existsSync').mockReturnValue(true);
+    vi.spyOn(fsMod, 'readdirSync').mockImplementation(() => { throw new Error('disk error'); });
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const res = await request(app).get('/api/admin/stats');
+    expect(res.status).toBe(500);
   });
 });
 
@@ -314,6 +324,14 @@ describe('GET /api/admin/top-photos', () => {
     const [[sql, [limit]]] = mockQuery.mock.calls;
     expect(limit).toBe(10);
   });
+
+  it('retourne 500 si la requête DB échoue', async () => {
+    mockQuery.mockRejectedValueOnce(new Error('db crash'));
+    database._setState({ query: mockQuery }, true);
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const res = await request(app).get('/api/admin/top-photos');
+    expect(res.status).toBe(500);
+  });
 });
 
 // ── POST /api/admin/albums ────────────────────────────────────────────────────
@@ -344,6 +362,14 @@ describe('POST /api/admin/albums', () => {
     expect(res.status).toBe(200);
     expect(res.body.ok).toBe(true);
     expect(mkdirSpy).toHaveBeenCalled();
+  });
+
+  it('retourne 500 si mkdirSync lève une exception', async () => {
+    vi.spyOn(fsMod, 'existsSync').mockReturnValue(false);
+    vi.spyOn(fsMod, 'mkdirSync').mockImplementation(() => { throw new Error('disk full'); });
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const res = await request(app).post('/api/admin/albums').send({ name: 'Nouveau' });
+    expect(res.status).toBe(500);
   });
 });
 
@@ -389,7 +415,7 @@ describe('PATCH /api/admin/albums/:album', () => {
     expect(res.status).toBe(200);
     expect(res.body.ok).toBe(true);
     expect(renameSpy).toHaveBeenCalledTimes(1);
-    expect(mockQuery).toHaveBeenCalledTimes(3); // 3 UPDATE queries
+    expect(mockQuery).toHaveBeenCalledTimes(5); // 5 UPDATE queries (views, view_log, likes, album_settings, album_users)
   });
 
   it('renomme sans erreur si DB non prête', async () => {
@@ -402,6 +428,31 @@ describe('PATCH /api/admin/albums/:album', () => {
       .patch('/api/admin/albums/Paris')
       .send({ name: 'London' });
     expect(res.status).toBe(200);
+  });
+
+  it('renomme également les dossiers previews/medium si existants (ligne 267)', async () => {
+    vi.spyOn(fsMod, 'existsSync')
+      .mockReturnValueOnce(true)   // old path exists
+      .mockReturnValueOnce(false)  // new path free
+      .mockReturnValue(true);      // previews + medium dirs exist → renameSync appelé pour eux
+    const renameSpy = vi.spyOn(fsMod, 'renameSync').mockImplementation(() => {});
+    const res = await request(app)
+      .patch('/api/admin/albums/Paris')
+      .send({ name: 'London' });
+    expect(res.status).toBe(200);
+    expect(renameSpy).toHaveBeenCalledTimes(3); // album + previews + medium
+  });
+
+  it('retourne 500 si renameSync lève une exception', async () => {
+    vi.spyOn(fsMod, 'existsSync')
+      .mockReturnValueOnce(true)
+      .mockReturnValueOnce(false);
+    vi.spyOn(fsMod, 'renameSync').mockImplementation(() => { throw new Error('disk error'); });
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const res = await request(app)
+      .patch('/api/admin/albums/Paris')
+      .send({ name: 'London' });
+    expect(res.status).toBe(500);
   });
 });
 
@@ -427,8 +478,8 @@ describe('DELETE /api/admin/albums/:album', () => {
     expect(res.body.ok).toBe(true);
     // album dir + previews + medium
     expect(rmSpy).toHaveBeenCalledTimes(3);
-    // 3 DELETE queries (view_log, likes, views)
-    expect(mockQuery).toHaveBeenCalledTimes(3);
+    // 5 DELETE queries (view_log, likes, views, album_users, album_settings)
+    expect(mockQuery).toHaveBeenCalledTimes(5);
   });
 
   it('supprime sans erreur si DB non prête', async () => {
@@ -436,6 +487,25 @@ describe('DELETE /api/admin/albums/:album', () => {
     vi.spyOn(fsMod, 'rmSync');
     const res = await request(app).delete('/api/admin/albums/Paris');
     expect(res.status).toBe(200);
+  });
+
+  it('supprime également les dossiers previews/medium si existants (ligne 292)', async () => {
+    // First existsSync: album dir (true), then previews (true), medium (true)
+    vi.spyOn(fsMod, 'existsSync').mockReturnValue(true);
+    const rmSpy = vi.spyOn(fsMod, 'rmSync').mockImplementation(() => {});
+    mockQuery.mockResolvedValue({ rowCount: 1 });
+    database._setState({ query: mockQuery }, true);
+    const res = await request(app).delete('/api/admin/albums/Paris');
+    expect(res.status).toBe(200);
+    expect(rmSpy).toHaveBeenCalledTimes(3); // album + previews + medium
+  });
+
+  it('retourne 500 si rmSync lève une exception', async () => {
+    vi.spyOn(fsMod, 'existsSync').mockReturnValue(true);
+    vi.spyOn(fsMod, 'rmSync').mockImplementation(() => { throw new Error('disk error'); });
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const res = await request(app).delete('/api/admin/albums/Paris');
+    expect(res.status).toBe(500);
   });
 });
 
@@ -482,6 +552,14 @@ describe('DELETE /api/admin/albums/:album/photos/:filename', () => {
     expect(res.status).toBe(200);
     expect(unlinkSpy).toHaveBeenCalledTimes(1); // only original
   });
+
+  it('retourne 500 si unlinkSync lève une exception', async () => {
+    vi.spyOn(fsMod, 'existsSync').mockReturnValue(true);
+    vi.spyOn(fsMod, 'unlinkSync').mockImplementation(() => { throw new Error('disk error'); });
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const res = await request(app).delete('/api/admin/albums/Paris/photos/shot.jpg');
+    expect(res.status).toBe(500);
+  });
 });
 
 // ── POST /api/admin/albums/:album/photos (upload) ────────────────────────────
@@ -496,6 +574,17 @@ describe('POST /api/admin/albums/:album/photos', () => {
       .attach('photos', Buffer.from('fake'), 'test.jpg');
     expect(res.status).toBe(404);
     expect(res.body.error).toBe('Album not found');
+  });
+
+  it('retourne 400 si multer ne peut pas écrire dans le répertoire', async () => {
+    // existsSync=true → dépasse le check 404; multer tente d'écrire dans /test/photos/Paris
+    // qui n'existe pas sur le vrai disque → multer appelle le callback avec une erreur ENOENT
+    vi.spyOn(fsMod, 'existsSync').mockReturnValue(true);
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const res = await request(app)
+      .post('/api/admin/albums/Paris/photos')
+      .attach('photos', Buffer.from('fake jpeg'), 'test.jpg');
+    expect(res.status).toBe(400);
   });
 });
 
@@ -648,5 +737,417 @@ describe('watchAlbum — callback photo', () => {
     const allParams = mockQuery.mock.calls.flatMap(c => c[1] ?? []);
     expect(allParams).toContain('Paris');
     expect(allParams).toContain('old.jpg');
+  });
+});
+
+// ── GET /api/admin/users ──────────────────────────────────────────────────────
+
+describe('GET /api/admin/users', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it('retourne la liste des utilisateurs', async () => {
+    mockQuery.mockResolvedValueOnce({
+      rows: [
+        { id: 1, username: 'admin', role: 'admin', created_at: '2024-01-01' },
+        { id: 2, username: 'alice', role: 'basic', created_at: '2024-01-02' },
+      ],
+    });
+    database._setState({ query: mockQuery }, true);
+    const res = await request(app).get('/api/admin/users');
+    expect(res.status).toBe(200);
+    expect(res.body.users).toHaveLength(2);
+    expect(res.body.users[0].username).toBe('admin');
+    expect(res.body.users[1].username).toBe('alice');
+  });
+
+  it('retourne 500 si la requête DB échoue', async () => {
+    mockQuery.mockRejectedValueOnce(new Error('db crash'));
+    database._setState({ query: mockQuery }, true);
+    const res = await request(app).get('/api/admin/users');
+    expect(res.status).toBe(500);
+  });
+});
+
+// ── POST /api/admin/users ─────────────────────────────────────────────────────
+
+describe('POST /api/admin/users', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it('retourne 400 si username ou password manquant', async () => {
+    database._setState({ query: mockQuery }, true);
+    const res = await request(app)
+      .post('/api/admin/users')
+      .send({ username: 'alice' });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('Username and password are required');
+  });
+
+  it('retourne 400 si le rôle est invalide', async () => {
+    database._setState({ query: mockQuery }, true);
+    const res = await request(app)
+      .post('/api/admin/users')
+      .send({ username: 'alice', password: 'pass', role: 'superuser' });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('Role must be admin or basic');
+  });
+
+  it('retourne 409 si le username est déjà pris', async () => {
+    const dupErr = Object.assign(new Error('duplicate key'), { code: '23505' });
+    mockQuery.mockRejectedValueOnce(dupErr);
+    database._setState({ query: mockQuery }, true);
+    const res = await request(app)
+      .post('/api/admin/users')
+      .send({ username: 'admin', password: 'pass', role: 'basic' });
+    expect(res.status).toBe(409);
+    expect(res.body.error).toBe('Username already taken');
+  });
+
+  it('retourne 201 avec l\'utilisateur créé', async () => {
+    mockQuery.mockResolvedValueOnce({
+      rows: [{ id: 3, username: 'alice', role: 'basic', created_at: '2024-01-03' }],
+    });
+    database._setState({ query: mockQuery }, true);
+    const res = await request(app)
+      .post('/api/admin/users')
+      .send({ username: 'alice', password: 'secure', role: 'basic' });
+    expect(res.status).toBe(201);
+    expect(res.body.user.username).toBe('alice');
+    expect(res.body.user.role).toBe('basic');
+  });
+
+  it('retourne 500 si la requête DB échoue avec une erreur autre que doublon', async () => {
+    mockQuery.mockRejectedValueOnce(new Error('generic db error'));
+    database._setState({ query: mockQuery }, true);
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const res = await request(app)
+      .post('/api/admin/users')
+      .send({ username: 'alice', password: 'pass', role: 'basic' });
+    expect(res.status).toBe(500);
+  });
+});
+
+// ── PATCH /api/admin/users/:id ────────────────────────────────────────────────
+
+describe('PATCH /api/admin/users/:id', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it('retourne 400 si l\'id est invalide', async () => {
+    database._setState({ query: mockQuery }, true);
+    const res = await request(app)
+      .patch('/api/admin/users/abc')
+      .send({ role: 'basic' });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('Invalid user id');
+  });
+
+  it('retourne 404 si l\'utilisateur n\'existe pas', async () => {
+    mockQuery.mockResolvedValueOnce({ rows: [] }); // SELECT username
+    database._setState({ query: mockQuery }, true);
+    const res = await request(app)
+      .patch('/api/admin/users/99')
+      .send({ role: 'basic' });
+    expect(res.status).toBe(404);
+    expect(res.body.error).toBe('User not found');
+  });
+
+  it('retourne 403 si on tente de changer le rôle de admin', async () => {
+    mockQuery.mockResolvedValueOnce({ rows: [{ username: 'admin' }] }); // SELECT username
+    database._setState({ query: mockQuery }, true);
+    const res = await request(app)
+      .patch('/api/admin/users/1')
+      .send({ role: 'basic' });
+    expect(res.status).toBe(403);
+    expect(res.body.error).toBe('The admin user role cannot be changed');
+  });
+
+  it('retourne 400 si le rôle fourni est invalide (ligne 411)', async () => {
+    mockQuery.mockResolvedValueOnce({ rows: [{ username: 'alice' }] }); // SELECT username
+    database._setState({ query: mockQuery }, true);
+    const res = await request(app)
+      .patch('/api/admin/users/2')
+      .send({ role: 'superuser' });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('Role must be admin or basic');
+  });
+
+  it('retourne 400 si rien à mettre à jour', async () => {
+    mockQuery.mockResolvedValueOnce({ rows: [{ username: 'alice' }] }); // SELECT username
+    database._setState({ query: mockQuery }, true);
+    const res = await request(app)
+      .patch('/api/admin/users/2')
+      .send({});
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('Nothing to update');
+  });
+
+  it('met à jour le mot de passe si fourni (ligne 417)', async () => {
+    mockQuery
+      .mockResolvedValueOnce({ rows: [{ username: 'alice' }] }) // SELECT username
+      .mockResolvedValueOnce({ rowCount: 1 });                  // UPDATE
+    database._setState({ query: mockQuery }, true);
+    const res = await request(app)
+      .patch('/api/admin/users/2')
+      .send({ password: 'newpass123' });
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
+    const updateCall = mockQuery.mock.calls[1][0];
+    expect(updateCall).toContain('password_hash');
+  });
+
+  it('retourne 404 si l\'UPDATE ne trouve aucune ligne (ligne 423)', async () => {
+    mockQuery
+      .mockResolvedValueOnce({ rows: [{ username: 'alice' }] }) // SELECT username
+      .mockResolvedValueOnce({ rowCount: 0 });                  // UPDATE → no row updated
+    database._setState({ query: mockQuery }, true);
+    const res = await request(app)
+      .patch('/api/admin/users/2')
+      .send({ role: 'admin' });
+    expect(res.status).toBe(404);
+    expect(res.body.error).toBe('User not found');
+  });
+
+  it('retourne 200 ok si la mise à jour réussit', async () => {
+    mockQuery
+      .mockResolvedValueOnce({ rows: [{ username: 'alice' }] }) // SELECT username
+      .mockResolvedValueOnce({ rowCount: 1 });                  // UPDATE
+    database._setState({ query: mockQuery }, true);
+    const res = await request(app)
+      .patch('/api/admin/users/2')
+      .send({ role: 'admin' });
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
+  });
+
+  it('retourne 500 si la requête DB échoue', async () => {
+    mockQuery.mockRejectedValueOnce(new Error('db crash'));
+    database._setState({ query: mockQuery }, true);
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const res = await request(app)
+      .patch('/api/admin/users/2')
+      .send({ role: 'admin' });
+    expect(res.status).toBe(500);
+  });
+});
+
+// ── DELETE /api/admin/users/:id ───────────────────────────────────────────────
+
+describe('DELETE /api/admin/users/:id', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it('retourne 400 si l\'id est invalide', async () => {
+    database._setState({ query: mockQuery }, true);
+    const res = await request(app).delete('/api/admin/users/xyz');
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('Invalid user id');
+  });
+
+  it('retourne 404 si l\'utilisateur n\'existe pas', async () => {
+    mockQuery.mockResolvedValueOnce({ rows: [] }); // SELECT username
+    database._setState({ query: mockQuery }, true);
+    const res = await request(app).delete('/api/admin/users/99');
+    expect(res.status).toBe(404);
+    expect(res.body.error).toBe('User not found');
+  });
+
+  it('retourne 403 si on tente de supprimer admin', async () => {
+    mockQuery.mockResolvedValueOnce({ rows: [{ username: 'admin' }] }); // SELECT username
+    database._setState({ query: mockQuery }, true);
+    const res = await request(app).delete('/api/admin/users/1');
+    expect(res.status).toBe(403);
+    expect(res.body.error).toBe('The admin user cannot be deleted');
+  });
+
+  it('retourne 200 ok si la suppression réussit', async () => {
+    mockQuery
+      .mockResolvedValueOnce({ rows: [{ username: 'alice' }] }) // SELECT username
+      .mockResolvedValueOnce({ rowCount: 1 });                  // DELETE
+    database._setState({ query: mockQuery }, true);
+    const res = await request(app).delete('/api/admin/users/2');
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
+  });
+
+  it('retourne 500 si la requête DB échoue', async () => {
+    mockQuery.mockRejectedValueOnce(new Error('db crash'));
+    database._setState({ query: mockQuery }, true);
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const res = await request(app).delete('/api/admin/users/2');
+    expect(res.status).toBe(500);
+  });
+});
+
+// ── GET /api/admin/albums/:album/settings ─────────────────────────────────────
+
+describe('GET /api/admin/albums/:album/settings', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it('retourne les valeurs par défaut si DB non prête', async () => {
+    // database._reset() in beforeEach → dbReady = false
+    const res = await request(app).get('/api/admin/albums/Paris/settings');
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ visibility: 'public', users: [] });
+  });
+
+  it('retourne visibility public et users vides si aucune entrée en DB', async () => {
+    mockQuery
+      .mockResolvedValueOnce({ rows: [] })  // album_settings
+      .mockResolvedValueOnce({ rows: [] }); // album_users
+    database._setState({ query: mockQuery }, true);
+    const res = await request(app).get('/api/admin/albums/Paris/settings');
+    expect(res.status).toBe(200);
+    expect(res.body.visibility).toBe('public');
+    expect(res.body.users).toEqual([]);
+  });
+
+  it('retourne visibility et liste d\'utilisateurs depuis la DB', async () => {
+    mockQuery
+      .mockResolvedValueOnce({ rows: [{ visibility: 'restricted' }] })   // album_settings
+      .mockResolvedValueOnce({ rows: [{ id: 2, username: 'alice' }] });   // album_users
+    database._setState({ query: mockQuery }, true);
+    const res = await request(app).get('/api/admin/albums/Paris/settings');
+    expect(res.status).toBe(200);
+    expect(res.body.visibility).toBe('restricted');
+    expect(res.body.users).toHaveLength(1);
+    expect(res.body.users[0].username).toBe('alice');
+  });
+
+  it('retourne 500 si la requête DB échoue', async () => {
+    mockQuery.mockRejectedValueOnce(new Error('db crash'));
+    database._setState({ query: mockQuery }, true);
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const res = await request(app).get('/api/admin/albums/Paris/settings');
+    expect(res.status).toBe(500);
+  });
+});
+
+// ── PUT /api/admin/albums/:album/settings ─────────────────────────────────────
+
+describe('PUT /api/admin/albums/:album/settings', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it('retourne 400 si visibility est invalide', async () => {
+    database._setState({ query: mockQuery }, true);
+    const res = await request(app)
+      .put('/api/admin/albums/Paris/settings')
+      .send({ visibility: 'private' });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('visibility must be public or restricted');
+  });
+
+  it('retourne 503 si DB non prête', async () => {
+    // database._reset() in beforeEach → dbReady = false
+    const res = await request(app)
+      .put('/api/admin/albums/Paris/settings')
+      .send({ visibility: 'public' });
+    expect(res.status).toBe(503);
+  });
+
+  it('retourne 200 ok avec visibility public et sans userIds', async () => {
+    mockQuery
+      .mockResolvedValueOnce({ rowCount: 1 }) // UPSERT album_settings
+      .mockResolvedValueOnce({ rowCount: 0 }); // DELETE album_users
+    database._setState({ query: mockQuery }, true);
+    const res = await request(app)
+      .put('/api/admin/albums/Paris/settings')
+      .send({ visibility: 'public' });
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
+    expect(mockQuery).toHaveBeenCalledTimes(2);
+  });
+
+  it('retourne 200 ok avec restricted et userIds', async () => {
+    mockQuery
+      .mockResolvedValueOnce({ rowCount: 1 }) // UPSERT album_settings
+      .mockResolvedValueOnce({ rowCount: 2 }) // DELETE album_users
+      .mockResolvedValueOnce({ rowCount: 2 }); // INSERT album_users
+    database._setState({ query: mockQuery }, true);
+    const res = await request(app)
+      .put('/api/admin/albums/Paris/settings')
+      .send({ visibility: 'restricted', userIds: [2, 3] });
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
+    expect(mockQuery).toHaveBeenCalledTimes(3);
+  });
+
+  it('retourne 500 si la requête DB échoue', async () => {
+    mockQuery.mockRejectedValueOnce(new Error('db crash'));
+    database._setState({ query: mockQuery }, true);
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const res = await request(app)
+      .put('/api/admin/albums/Paris/settings')
+      .send({ visibility: 'public' });
+    expect(res.status).toBe(500);
+  });
+});
+
+// ── DELETE /api/albums/:album/photos/:filename ────────────────────────────────
+
+describe('DELETE /api/albums/:album/photos/:filename', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    authMod._setTestUser(null);
+  });
+
+  it('retourne 403 si req.user est undefined (album public, canDelete=false)', async () => {
+    // bypass=true but no test user → req.user=undefined
+    // getAlbumAccess: DB not ready → visibility='public', canDelete = undefined?.role==='admin' = false
+    const res = await request(app).delete('/api/albums/Paris/photos/photo.jpg');
+    expect(res.status).toBe(403);
+    expect(res.body.error).toBe('Forbidden');
+  });
+
+  it('retourne 403 si album restricted et utilisateur non autorisé', async () => {
+    authMod._setTestUser({ id: 5, role: 'basic' });
+    // DB ready: album_settings → restricted; album_users → user 5 not in list
+    mockQuery
+      .mockResolvedValueOnce({ rows: [{ visibility: 'restricted' }] }) // getAlbumVisibility
+      .mockResolvedValueOnce({ rows: [] });                             // isUserAuthorizedForAlbum
+    database._setState({ query: mockQuery }, true);
+    const res = await request(app).delete('/api/albums/Paris/photos/photo.jpg');
+    expect(res.status).toBe(403);
+    expect(res.body.error).toBe('Forbidden');
+  });
+
+  it('retourne 200 ok quand admin supprime une photo existante', async () => {
+    authMod._setTestUser({ id: 1, role: 'admin' });
+    // getAlbumAccess: visibility='public' → canDelete = 'admin'==='admin' = true
+    mockQuery.mockResolvedValueOnce({ rows: [] }); // getAlbumVisibility (public by default)
+    database._setState({ query: mockQuery }, true);
+    vi.spyOn(fsMod, 'existsSync').mockReturnValue(true);
+    vi.spyOn(fsMod, 'unlinkSync').mockImplementation(() => {});
+    mockQuery.mockResolvedValue({ rowCount: 1 }); // deletePhotoFromDb queries
+    const res = await request(app).delete('/api/albums/Paris/photos/photo.jpg');
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
+  });
+
+  it('retourne 404 si le fichier n\'existe pas (admin)', async () => {
+    authMod._setTestUser({ id: 1, role: 'admin' });
+    mockQuery.mockResolvedValueOnce({ rows: [] }); // getAlbumVisibility (public)
+    database._setState({ query: mockQuery }, true);
+    vi.spyOn(fsMod, 'existsSync').mockReturnValue(false);
+    const res = await request(app).delete('/api/albums/Paris/photos/missing.jpg');
+    expect(res.status).toBe(404);
+    expect(res.body.error).toBe('Photo not found');
+  });
+
+  it('retourne 400 si le fichier n\'est pas une image (route utilisateur)', async () => {
+    authMod._setTestUser({ id: 1, role: 'admin' });
+    mockQuery.mockResolvedValueOnce({ rows: [] }); // getAlbumVisibility (public)
+    database._setState({ query: mockQuery }, true);
+    const res = await request(app).delete('/api/albums/Paris/photos/script.sh');
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('Not an image');
+  });
+
+  it('retourne 500 si une exception est levée (route utilisateur, catch ligne 322)', async () => {
+    authMod._setTestUser({ id: 1, role: 'admin' });
+    mockQuery.mockResolvedValueOnce({ rows: [] }); // getAlbumVisibility
+    database._setState({ query: mockQuery }, true);
+    vi.spyOn(fsMod, 'existsSync').mockReturnValue(true);
+    vi.spyOn(fsMod, 'unlinkSync').mockImplementation(() => { throw new Error('disk error'); });
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const res = await request(app).delete('/api/albums/Paris/photos/photo.jpg');
+    expect(res.status).toBe(500);
   });
 });

@@ -156,6 +156,28 @@ describe('getContainers', () => {
     expect(result[0].digest).toBeNull();
   });
 
+  it('utilise [] pour tags et ImageID pour digest si RepoTags/RepoDigests sont undefined', async () => {
+    const containers = [{
+      Id: 'abc123def456', Names: ['/app'], Image: 'img',
+      ImageID: 'sha256:fallback', Status: 'Up', State: 'running',
+    }];
+    // Image response sans RepoTags ni RepoDigests (undefined) → couverture des branches ?? droites
+    mockHttpResponses([containers, {}]);
+    const [c] = await dockerInfo.getContainers();
+    expect(c.tags).toEqual([]);       // img.RepoTags ?? [] → right branch
+    expect(c.digest).toBe('sha256:fallback'); // img.RepoDigests ?? [] → [] → [0]=undefined → c.ImageID
+  });
+
+  it('retourne digest null si c.ImageID est absent', async () => {
+    const containers = [{
+      Id: 'abc123def456', Names: ['/app'], Image: 'img',
+      ImageID: null, Status: 'Up', State: 'running',
+    }];
+    mockHttpResponses([containers, {}]);
+    const [c] = await dockerInfo.getContainers();
+    expect(c.digest).toBeNull(); // c.ImageID ?? null → right branch
+  });
+
   it('rejette si le socket Docker est indisponible', async () => {
     mockHttpError('connect ENOENT /var/run/docker.sock');
     await expect(dockerInfo.getContainers()).rejects.toThrow('connect ENOENT');

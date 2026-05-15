@@ -5,7 +5,7 @@ await requireLogin();
 // ── User info + logout ────────────────────────────────────────────────────────
 
 const { user } = await fetch('/api/auth/me').then(r => r.json());
-if (user) document.getElementById('admin-user').textContent = user.username;
+if (user) document.getElementById('admin-user-label').textContent = user.username;
 
 const isAdmin = user?.role === 'admin';
 if (!isAdmin) {
@@ -30,6 +30,8 @@ async function loadAlbums() {
       return;
     }
     body.innerHTML = albums.map(a => renderAlbumRow(a)).join('');
+    body.querySelectorAll('[data-settings]').forEach(btn =>
+      btn.addEventListener('click', () => openAlbumSettings(btn.dataset.settings)));
     body.querySelectorAll('[data-rename]').forEach(btn =>
       btn.addEventListener('click', () => startRename(btn.dataset.rename)));
     body.querySelectorAll('[data-delete]').forEach(btn =>
@@ -42,13 +44,18 @@ async function loadAlbums() {
 }
 
 function renderAlbumRow(a) {
+  const vis = a.visibility ?? 'public';
   return `
     <tr data-album="${esc(a.album)}">
-      <td><a class="admin-link" href="/viewer.html?album=${encodeURIComponent(a.album)}">${esc(a.album)}</a></td>
+      <td>
+        <a class="admin-link" href="/viewer.html?album=${encodeURIComponent(a.album)}">${esc(a.album)}</a>
+        <span class="admin-visibility-badge admin-visibility-badge--${vis}">${vis}</span>
+      </td>
       <td class="num">${a.photos}</td>
       <td class="num">${a.views.toLocaleString()}</td>
       <td class="num">${a.likes.toLocaleString()}</td>
       <td class="admin-row-actions">
+        <button class="admin-icon-btn" data-settings="${esc(a.album)}" title="Access settings">${iconGear()}</button>
         <button class="admin-icon-btn" data-upload="${esc(a.album)}" title="Upload photos">${iconUpload()}</button>
         <button class="admin-icon-btn" data-rename="${esc(a.album)}" title="Rename">${iconPencil()}</button>
         <button class="admin-icon-btn admin-icon-btn--danger" data-delete="${esc(a.album)}" title="Delete">${iconTrash()}</button>
@@ -521,6 +528,18 @@ document.getElementById('pwd-close-btn').addEventListener('click', closePwdModal
 pwdOverlay.addEventListener('click', e => { if (e.target === pwdOverlay) closePwdModal(); });
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && !pwdOverlay.hidden) closePwdModal(); });
 
+function iconGear() {
+  return `<svg viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+    <path d="M8 4.754a3.246 3.246 0 1 0 0 6.492 3.246 3.246 0 0 0 0-6.492zM5.754 8a2.246 2.246 0 1 1 4.492 0 2.246 2.246 0 0 1-4.492 0z"/>
+    <path d="M9.796 1.343c-.527-1.79-3.065-1.79-3.592 0l-.094.319a.873.873 0 0 1-1.255.52l-.292-.16c-1.64-.892-3.433.902-2.54
+      2.541l.159.292a.873.873 0 0 1-.52 1.255l-.319.094c-1.79.527-1.79 3.065 0 3.592l.319.094a.873.873 0 0 1 .52
+      1.255l-.16.292c-.892 1.64.901 3.434 2.541 2.54l.292-.159a.873.873 0 0 1 1.255.52l.094.319c.527 1.79 3.065 1.79
+      3.592 0l.094-.319a.873.873 0 0 1 1.255-.52l.292.16c1.64.893 3.434-.902 2.54-2.541l-.159-.292a.873.873 0 0 1
+      .52-1.255l.319-.094c1.79-.527 1.79-3.065 0-3.592l-.319-.094a.873.873 0 0 1-.52-1.255l.16-.292c.893-1.64-.902-3.433-2.541-2.54l-.292.159a.873.873
+      0 0 1-1.255-.52l-.094-.319z"/>
+  </svg>`;
+}
+
 function iconKey() {
   return `<svg viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
     <path d="M0 8a4 4 0 0 1 7.465-2H14a.5.5 0 0 1 .354.146l1.5 1.5a.5.5 0
@@ -532,6 +551,77 @@ function iconKey() {
       0 0 1-.45-.285A3 3 0 0 0 4 5zm0 3a1 1 0 1 1 0-2 1 1 0 0 1 0 2z"/>
   </svg>`;
 }
+
+// ── Album settings modal ──────────────────────────────────────────────────────
+
+const albumSettingsOverlay = document.getElementById('album-settings-overlay');
+const albumSettingsError   = document.getElementById('album-settings-error');
+let   albumSettingsName    = null;
+
+async function openAlbumSettings(albumName) {
+  albumSettingsName = albumName;
+  document.getElementById('album-settings-name').textContent = albumName;
+  albumSettingsError.textContent = '';
+  albumSettingsOverlay.hidden = false;
+
+  const [settingsRes, usersRes] = await Promise.all([
+    fetch(`/api/admin/albums/${encodeURIComponent(albumName)}/settings`).then(r => r.json()),
+    fetch('/api/admin/users').then(r => r.json()),
+  ]);
+
+  const basicUsers    = (usersRes.users ?? []).filter(u => u.role === 'basic');
+  const authorizedIds = new Set((settingsRes.users ?? []).map(u => u.id));
+
+  const visRadio = document.querySelector(`input[name="album-visibility"][value="${settingsRes.visibility}"]`);
+  if (visRadio) visRadio.checked = true;
+
+  const checkboxesEl = document.getElementById('album-users-checkboxes');
+  if (basicUsers.length === 0) {
+    checkboxesEl.innerHTML = '<p class="album-settings-no-users">No basic users.</p>';
+  } else {
+    checkboxesEl.innerHTML = basicUsers.map(u => `
+      <label class="album-user-checkbox">
+        <input type="checkbox" value="${u.id}"${authorizedIds.has(u.id) ? ' checked' : ''}>
+        ${esc(u.username)}
+      </label>`).join('');
+  }
+
+  const usersSection = document.getElementById('album-settings-users');
+  usersSection.hidden = settingsRes.visibility !== 'restricted';
+  document.querySelectorAll('input[name="album-visibility"]').forEach(radio => {
+    radio.onchange = () => { usersSection.hidden = radio.value !== 'restricted'; };
+  });
+}
+
+function closeAlbumSettings() {
+  albumSettingsOverlay.hidden = true;
+  albumSettingsName = null;
+}
+
+document.getElementById('album-settings-save-btn').addEventListener('click', async () => {
+  if (!albumSettingsName) return;
+  const visibility = document.querySelector('input[name="album-visibility"]:checked')?.value;
+  if (!visibility) return;
+  const userIds = [...document.querySelectorAll('#album-users-checkboxes input[type=checkbox]:checked')]
+    .map(el => Number(el.value));
+  albumSettingsError.textContent = '';
+  const res = await fetch(`/api/admin/albums/${encodeURIComponent(albumSettingsName)}/settings`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ visibility, userIds }),
+  });
+  if (res.ok) {
+    closeAlbumSettings();
+    await loadAlbums();
+  } else {
+    const { error } = await res.json().catch(() => ({}));
+    albumSettingsError.textContent = error ?? 'Failed to save';
+  }
+});
+
+document.getElementById('album-settings-close-btn').addEventListener('click', closeAlbumSettings);
+albumSettingsOverlay.addEventListener('click', e => { if (e.target === albumSettingsOverlay) closeAlbumSettings(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && !albumSettingsOverlay.hidden) closeAlbumSettings(); });
 
 loadTopPhotos();
 if (isAdmin) {

@@ -69,9 +69,13 @@ async function logout(token) {
 }
 
 let _testBypass = false;
+let _testUser   = null;
 
 async function requireAuth(req, res, next) {
-  if (_testBypass) return next();
+  if (_testBypass) {
+    if (_testUser) req.user = _testUser;
+    return next();
+  }
   const token = req.cookies?.pb_session;
   if (!token) return res.status(401).json({ error: 'Authentication required' });
   const user = await getSessionUser(token).catch(() => null);
@@ -95,7 +99,8 @@ function authStaticGuard(req, res, next) {
     .catch(() => res.redirect('/login.html'));
 }
 
-// Test-only: bypass all auth checks
-function _setBypass(val) { _testBypass = val; }
+// Test-only helpers
+function _setBypass(val)  { _testBypass = val; }
+function _setTestUser(u)  { _testUser = u; }
 
-module.exports = { ensureAdmin, login, getSessionUser, logout, requireAuth, requireAdmin, authStaticGuard, _setBypass };
+module.exports = { ensureAdmin, login, getSessionUser, logout, requireAuth, requireAdmin, authStaticGuard, _setBypass, _setTestUser };
