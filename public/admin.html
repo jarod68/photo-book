@@ -148,7 +148,8 @@
     <section class="admin-section" id="section-logs">
       <div class="admin-section-header">
         <h2 class="admin-section-title">Activity log</h2>
-        <select id="log-filter" class="admin-log-filter">
+        <div class="admin-section-header-actions">
+          <select id="log-filter" class="admin-log-filter">
           <option value="">All actions</option>
           <option value="login">Login</option>
           <option value="logout">Logout</option>
@@ -161,6 +162,8 @@
           <option value="user_create">Create user</option>
           <option value="user_delete">Delete user</option>
         </select>
+          <button id="clear-logs-btn" class="admin-action-btn admin-action-btn--ghost">Clear logs</button>
+        </div>
       </div>
       <div class="admin-table-wrap">
         <table class="admin-table" id="logs-table">

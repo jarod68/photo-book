@@ -484,8 +484,8 @@ describe('DELETE /api/admin/albums/:album', () => {
     expect(res.body.ok).toBe(true);
     // album dir + previews + medium
     expect(rmSpy).toHaveBeenCalledTimes(3);
-    // 5 DELETE queries (view_log, likes, views, album_users, album_settings) + 1 INSERT activity_log
-    expect(mockQuery).toHaveBeenCalledTimes(6);
+    // 5 DELETE queries (view_log, likes, views, album_users, album_settings) + 1 INSERT + 1 purge activity_log
+    expect(mockQuery).toHaveBeenCalledTimes(7);
   });
 
   it('supprime sans erreur si DB non prête', async () => {
@@ -543,8 +543,8 @@ describe('DELETE /api/admin/albums/:album/photos/:filename', () => {
     expect(res.body.ok).toBe(true);
     // original + preview + medium
     expect(unlinkSpy).toHaveBeenCalledTimes(3);
-    // 3 DELETE queries (view_log, likes, views) + 1 INSERT activity_log
-    expect(mockQuery).toHaveBeenCalledTimes(4);
+    // 3 DELETE queries (view_log, likes, views) + 1 INSERT + 1 purge activity_log
+    expect(mockQuery).toHaveBeenCalledTimes(5);
   });
 
   it('supprime sans preview ni medium si absents', async () => {
@@ -1191,6 +1191,35 @@ describe('DELETE /api/albums/:album/photos/:filename', () => {
     vi.spyOn(fsMod, 'unlinkSync').mockImplementation(() => { throw new Error('disk error'); });
     vi.spyOn(console, 'error').mockImplementation(() => {});
     const res = await request(app).delete('/api/albums/Paris/photos/photo.jpg');
+    expect(res.status).toBe(500);
+  });
+});
+
+// ── DELETE /api/admin/logs ────────────────────────────────────────────────────
+
+describe('DELETE /api/admin/logs', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it('retourne 200 ok si DB non prête', async () => {
+    const res = await request(app).delete('/api/admin/logs');
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
+  });
+
+  it('truncate la table et retourne ok', async () => {
+    mockQuery.mockResolvedValueOnce({});
+    database._setState({ query: mockQuery }, true);
+    const res = await request(app).delete('/api/admin/logs');
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
+    expect(mockQuery).toHaveBeenCalledWith('TRUNCATE activity_log RESTART IDENTITY');
+  });
+
+  it('retourne 500 si la requête DB échoue', async () => {
+    mockQuery.mockRejectedValueOnce(new Error('db crash'));
+    database._setState({ query: mockQuery }, true);
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const res = await request(app).delete('/api/admin/logs');
     expect(res.status).toBe(500);
   });
 });

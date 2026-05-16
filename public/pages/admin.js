@@ -758,6 +758,12 @@ async function loadLogs(page = 1, action = '') {
 
 document.getElementById('log-filter').addEventListener('change', e => loadLogs(1, e.target.value));
 
+document.getElementById('clear-logs-btn').addEventListener('click', async () => {
+  if (!confirm('Clear all activity logs?')) return;
+  const res = await fetch('/api/admin/logs', { method: 'DELETE' });
+  if (res.ok) loadLogs(1, logAction);
+});
+
 loadTopPhotos();
 if (isAdmin) {
   loadSystem();

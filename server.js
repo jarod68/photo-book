@@ -553,6 +553,17 @@ app.get('/api/admin/logs', requireAdmin, async (req, res) => {
   }
 });
 
+app.delete('/api/admin/logs', requireAdmin, async (req, res) => {
+  if (!database.dbReady) return res.json({ ok: true });
+  try {
+    await database.db.query('TRUNCATE activity_log RESTART IDENTITY');
+    res.json({ ok: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // ─── Album access settings ────────────────────────────────────────────────────
 
 app.get('/api/admin/albums/:album/settings', requireAdmin, async (req, res) => {
