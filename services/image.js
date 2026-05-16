@@ -3,11 +3,12 @@ const fs    = require('fs');
 const exifr = require('exifr');
 const sharp = require('sharp');
 
+const APP_ROOT     = process.cwd();
 const PHOTOS_DIR   = process.env.PHOTOS_DIR
   ? path.resolve(process.env.PHOTOS_DIR)
-  : path.join(__dirname, '..', 'photos');
-const PREVIEWS_DIR = path.join(__dirname, '..', 'public', 'previews');
-const MEDIUM_DIR   = path.join(__dirname, '..', 'public', 'medium');
+  : path.join(APP_ROOT, 'photos');
+const PREVIEWS_DIR = path.join(APP_ROOT, 'public', 'previews');
+const MEDIUM_DIR   = path.join(APP_ROOT, 'public', 'medium');
 
 const IMAGE_EXT  = new Set(['.jpg', '.jpeg', '.png', '.webp', '.tiff', '.tif']);
 const isImage    = f => IMAGE_EXT.has(path.extname(f).toLowerCase());

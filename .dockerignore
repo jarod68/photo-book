@@ -1,7 +1,19 @@
 node_modules
 .git
 .DS_Store
+scripts
+tests
+coverage
 
 # mounted at runtime — not baked into the image
 photos
 public/previews
+
+# source files — dist/ is the build output copied into the image
+server.js
+services
+public/pages
+public/utils
+public/components
+public/api
+public/app.js

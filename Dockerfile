@@ -13,10 +13,9 @@ RUN apk upgrade --no-cache \
   && rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx \
   && apk add --no-cache su-exec
 
-# Application source
-COPY server.js   ./
-COPY services/   ./services/
-COPY public/     ./public/
+# Bundled application — built by `npm run build` before docker build
+COPY dist/server.js ./server.js
+COPY dist/public/   ./public/
 
 # Create volume mount points and transfer full ownership to the node user (uid 1000)
 # node_modules/ was created by root during npm ci — chown covers it too

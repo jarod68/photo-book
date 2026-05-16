@@ -1434,10 +1434,38 @@ body {
   display: flex;
   align-items: center;
   gap: 4px;
+  position: relative;
 }
 .admin-pwd-group .admin-inline-input {
   flex: 1;
   min-width: 0;
+}
+
+.admin-inline-input.input--copied {
+  border-color: #4ade80;
+  background: rgba(74, 222, 128, 0.08);
+}
+
+.admin-pwd-group[data-copied]::after {
+  content: 'Copié !';
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 0;
+  background: #4ade80;
+  color: #052e16;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 4px;
+  pointer-events: none;
+  white-space: nowrap;
+  animation: pwd-copied 1.5s ease forwards;
+}
+
+@keyframes pwd-copied {
+  0%   { opacity: 1; transform: translateY(0); }
+  60%  { opacity: 1; transform: translateY(-3px); }
+  100% { opacity: 0; transform: translateY(-6px); }
 }
 .admin-gen-btn {
   font-size: 12px;

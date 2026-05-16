@@ -24,6 +24,19 @@ function toggleReveal(input) {
   input.type = input.type === 'password' ? 'text' : 'password';
 }
 
+async function copyPassword(input) {
+  if (!input.value) return;
+  await navigator.clipboard.writeText(input.value).catch(() => {});
+  input.select();
+  input.classList.add('input--copied');
+  const group = input.closest('.admin-pwd-group');
+  if (group) group.dataset.copied = '1';
+  setTimeout(() => {
+    input.classList.remove('input--copied');
+    if (group) delete group.dataset.copied;
+  }, 1500);
+}
+
 // ── User info + logout ────────────────────────────────────────────────────────
 
 const { user } = await fetch('/api/auth/me').then(r => r.json());
@@ -501,6 +514,10 @@ document.getElementById('new-user-gen-btn').addEventListener('click', async () =
   document.getElementById('new-user-pwd-error').textContent = '';
 });
 
+document.getElementById('new-user-password').addEventListener('click', function () {
+  copyPassword(this);
+});
+
 document.getElementById('new-user-reveal-btn').addEventListener('click', () => {
   toggleReveal(document.getElementById('new-user-password'));
 });
@@ -558,6 +575,10 @@ document.getElementById('pwd-gen-btn').addEventListener('click', async () => {
   pwdNewInput.value = pwd;
   pwdNewInput.type = 'text';
   pwdErrorEl.textContent = '';
+});
+
+pwdNewInput.addEventListener('click', function () {
+  copyPassword(this);
 });
 
 document.getElementById('pwd-reveal-btn').addEventListener('click', () => {
