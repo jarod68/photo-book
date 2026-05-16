@@ -16,6 +16,7 @@ Key features:
 - **View counts & likes** — tracked per user session (anonymous UUID) and persisted in PostgreSQL
 - **Reverse geocoding** — GPS coordinates are resolved to human-readable place names via Nominatim (OpenStreetMap), cached in memory
 - **Preview generation** — sharp generates JPEG previews on first access and caches them to disk; subsequent server restarts are near-instant
+- **Internationalisation** — the interface is available in French, English and Spanish; the language is auto-detected from the browser and can be switched at any time via a dropdown in the header
 
 Role-based access control — albums can be public or restricted to selected users. No cloud dependency, no tracking.
 
@@ -265,9 +266,14 @@ public/
 ├── admin.html          admin panel (albums, users, system, top photos)
 ├── api/
 │   └── client.js       fetch wrappers for all API endpoints
+├── locales/
+│   ├── fr.js           French translations
+│   ├── en.js           English translations
+│   └── es.js           Spanish translations
 ├── utils/
 │   ├── auth-check.js   redirect to /login.html if not authenticated
 │   ├── format.js       date/number formatting helpers
+│   ├── i18n.js         internationalisation (t, getLang, setLang, applyTranslations)
 │   ├── map-math.js     GPS clustering and route segmentation
 │   └── user-token.js   anonymous UUID session management
 ├── pages/
@@ -287,6 +293,40 @@ public/
 ```
 
 External libraries loaded from CDN: **Pannellum** (360° viewer), **Leaflet** (maps).
+
+### Internationalisation (i18n)
+
+All UI strings are managed through a lightweight translation system in `public/utils/i18n.js`. There is no runtime dependency — locale files are plain ES modules that export flat key/value objects.
+
+**Language detection order:**
+
+1. `localStorage.getItem('lang')` — previously selected language
+2. `navigator.language` — browser preference (first two characters)
+3. Fallback to `'en'`
+
+**Adding a translation key:**
+
+1. Add the key to all three locale files (`fr.js`, `en.js`, `es.js`)
+2. Use `t('my.key')` in JS, or `data-i18n="my.key"` on a static HTML element
+
+```js
+// JS usage
+import { t } from '../utils/i18n.js';
+el.textContent = t('album.photos', { n: 42, s: 's' });
+
+// HTML usage (translated by applyTranslations() on page load)
+<h2 data-i18n="admin.albums">Albums</h2>
+<input data-i18n-placeholder="admin.albumName" placeholder="Album name">
+<button data-i18n-aria="viewer.close">✕</button>
+```
+
+**Adding a new language:**
+
+1. Create `public/locales/xx.js` mirroring the structure of `en.js`
+2. Add `'xx'` to `SUPPORTED` and an entry to `LABELS` in `i18n.js`
+3. Import the new locale file at the top of `i18n.js`
+
+The language switcher dropdown is rendered automatically by `initLangSwitcher('lang-switcher')` — no HTML changes needed in the page templates.
 
 ### Database schema
 
