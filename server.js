@@ -646,7 +646,7 @@ app.get('/api/albums/:album', async (req, res) => {
       } catch (_) {}
     }
 
-    res.json({ name: req.params.album, photos, canDelete });
+    res.json({ name: req.params.album, photos, canDelete, canDownload: !!user });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Internal server error' });

@@ -1117,28 +1117,75 @@ body {
 .like-btn:active .like-heart        { transform: scale(0.88); }
 
 /* ── Delete button (admin only) ──────────────────────────────────────────── */
-.delete-btn:not([hidden]) { display: inline-flex; }
-.delete-btn {
+/* ── Photo action menu ───────────────────────────────────────────────────────── */
+.photo-actions { position: relative; pointer-events: auto; }
+.photo-actions:not([hidden]) { display: inline-flex; }
+
+.photo-actions-toggle {
+  display: inline-flex;
   align-items: center;
-  gap: 5px;
+  justify-content: center;
   background: rgba(0,0,0,0.28);
   border: 1px solid rgba(255,255,255,0.16);
   border-radius: 20px;
   color: rgba(255,255,255,0.55);
   cursor: pointer;
-  font-size: 11px;
-  letter-spacing: 0.03em;
-  padding: 3px 9px 3px 7px;
+  padding: 4px 10px;
   transition: color 0.16s, background 0.16s, border-color 0.16s;
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
+}
+.photo-actions-toggle:hover,
+.photo-actions-toggle[aria-expanded="true"] {
+  color: #fff;
+  border-color: rgba(255,255,255,0.32);
+}
+
+.photo-actions-menu {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: rgba(18,18,18,0.92);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 10px;
+  padding: 5px;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  white-space: nowrap;
+  transform-origin: bottom right;
+  transform: scale(0.88) translateY(4px);
+  opacity: 0;
+  pointer-events: none;
+  transition: transform 0.15s ease, opacity 0.15s ease;
+  z-index: 10;
+}
+.photo-actions-menu.open {
+  transform: scale(1) translateY(0);
+  opacity: 1;
   pointer-events: auto;
 }
-.delete-btn:hover {
-  color: #ff4d6d;
-  background: rgba(255,77,109,0.12);
-  border-color: rgba(255,77,109,0.38);
+
+.photo-action-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: rgba(255,255,255,0.75);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 7px 12px;
+  text-decoration: none;
+  width: 100%;
+  transition: background 0.12s, color 0.12s;
 }
+.photo-action-item:hover            { background: rgba(255,255,255,0.08); color: #fff; }
+.photo-action-item--danger:hover    { background: rgba(255,77,109,0.15);  color: #ff4d6d; }
+.photo-action-item[hidden]          { display: none; }
 
 /* ── UI toggle (single tap/click on photo) ────────────────────────────────── */
 #album-nav,

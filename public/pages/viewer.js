@@ -27,9 +27,29 @@ const locationEl  = document.getElementById('photo-location');
 const viewsEl     = document.getElementById('photo-views');
 const likeBtn     = document.getElementById('like-btn');
 const likeCountEl = document.getElementById('like-count');
-const deleteBtn   = document.getElementById('delete-btn');
-const photoInfoEl = document.getElementById('photo-info');
-const emptyEl     = document.getElementById('empty-state');
+const actionsEl     = document.getElementById('photo-actions');
+const actionsToggle = document.getElementById('photo-actions-toggle');
+const actionsMenu   = document.getElementById('photo-actions-menu');
+const downloadBtn   = document.getElementById('download-btn');
+const deleteBtn     = document.getElementById('delete-btn');
+const photoInfoEl   = document.getElementById('photo-info');
+const emptyEl       = document.getElementById('empty-state');
+
+// ── Action menu toggle ────────────────────────────────────────────────────────
+function closeActionsMenu() {
+  actionsMenu.classList.remove('open');
+  actionsToggle.setAttribute('aria-expanded', 'false');
+}
+
+actionsToggle.addEventListener('click', e => {
+  e.stopPropagation();
+  const isOpen = actionsMenu.classList.toggle('open');
+  actionsToggle.setAttribute('aria-expanded', String(isOpen));
+});
+
+document.addEventListener('click', closeActionsMenu);
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeActionsMenu(); });
+downloadBtn.addEventListener('click', closeActionsMenu);
 
 // ── Geocoding (lazy, cached on photo objects) ─────────────────────────────────
 async function showLocation(photo) {
@@ -146,7 +166,14 @@ async function selectAlbum(name, targetFilename = null) {
 
   albumMapBtn.disabled = !state.photos.some(p => p.gps);
 
-  if (data.canDelete && state.photos.length > 0) {
+  if ((data.canDownload || data.canDelete) && state.photos.length > 0) {
+    actionsEl.removeAttribute('hidden');
+  } else {
+    actionsEl.setAttribute('hidden', '');
+  }
+  closeActionsMenu();
+
+  if (data.canDelete) {
     deleteBtn.removeAttribute('hidden');
   } else {
     deleteBtn.setAttribute('hidden', '');
@@ -200,6 +227,7 @@ likeBtn.addEventListener('click', e => {
 
 deleteBtn.addEventListener('click', async e => {
   e.stopPropagation();
+  closeActionsMenu();
   const photo = state.photos[state.index];
   if (!photo) return;
   if (!confirm(`Supprimer « ${photo.filename} » ?`)) return;
@@ -232,6 +260,8 @@ function showPhoto(index) {
 
   state.index = index;
   thumbs.activate(index);
+  downloadBtn.href     = photo.url;
+  downloadBtn.download = photo.filename;
   photoMap.update(photo, index, state.photos);
   albumMap.setCurrent(index);
   showLocation(photo);
