@@ -484,8 +484,8 @@ describe('DELETE /api/admin/albums/:album', () => {
     expect(res.body.ok).toBe(true);
     // album dir + previews + medium
     expect(rmSpy).toHaveBeenCalledTimes(3);
-    // 5 DELETE queries (view_log, likes, views, album_users, album_settings)
-    expect(mockQuery).toHaveBeenCalledTimes(5);
+    // 5 DELETE queries (view_log, likes, views, album_users, album_settings) + 1 INSERT activity_log
+    expect(mockQuery).toHaveBeenCalledTimes(6);
   });
 
   it('supprime sans erreur si DB non prête', async () => {
@@ -543,8 +543,8 @@ describe('DELETE /api/admin/albums/:album/photos/:filename', () => {
     expect(res.body.ok).toBe(true);
     // original + preview + medium
     expect(unlinkSpy).toHaveBeenCalledTimes(3);
-    // 3 DELETE queries (view_log, likes, views)
-    expect(mockQuery).toHaveBeenCalledTimes(3);
+    // 3 DELETE queries (view_log, likes, views) + 1 INSERT activity_log
+    expect(mockQuery).toHaveBeenCalledTimes(4);
   });
 
   it('supprime sans preview ni medium si absents', async () => {

@@ -13,6 +13,7 @@ const database   = require('./services/database'); // database.db, database.dbRe
 const auth       = require('./services/auth');
 const dockerInfo = require('./services/docker-info');
 const { generatePassword, validatePassword } = require('./services/password');
+const activity   = require('./services/activity');
 
 if (process.env.NODE_ENV !== 'test' && !process.env.POSTGRES_PASSWORD) {
   console.error('Missing required environment variable: POSTGRES_PASSWORD');
@@ -21,6 +22,9 @@ if (process.env.NODE_ENV !== 'test' && !process.env.POSTGRES_PASSWORD) {
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
+
+// Trust Traefik's X-Forwarded-For so req.ip reflects the real client IP.
+app.set('trust proxy', 1);
 
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(cookieParser());
@@ -169,6 +173,7 @@ app.post('/api/auth/login', express.json(), async (req, res) => {
       maxAge:   30 * 24 * 60 * 60 * 1000,
     });
     res.json({ ok: true });
+    activity.log('login', { username, ip: req.ip });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Internal server error' });
@@ -177,9 +182,15 @@ app.post('/api/auth/login', express.json(), async (req, res) => {
 
 app.post('/api/auth/logout', async (req, res) => {
   const token = req.cookies.pb_session;
-  if (token && database.dbReady) await auth.logout(token).catch(() => {});
+  let username = null;
+  if (token && database.dbReady) {
+    const u = await auth.getSessionUser(token).catch(() => null);
+    username = u?.username ?? null;
+    await auth.logout(token).catch(() => {});
+  }
   res.clearCookie('pb_session');
   res.json({ ok: true });
+  activity.log('logout', { username, ip: req.ip });
 });
 
 app.get('/api/auth/me', async (req, res) => {
@@ -290,6 +301,7 @@ app.post('/api/admin/albums', requireAdmin, express.json(), async (req, res) => 
     if (fs.existsSync(albumPath)) return res.status(409).json({ error: 'Album already exists' });
     fs.mkdirSync(albumPath, { recursive: true });
     res.json({ ok: true });
+    activity.log('album_create', { username: req.user?.username ?? null, ip: req.ip, details: { album: name } });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Internal server error' });
@@ -329,6 +341,7 @@ app.patch('/api/admin/albums/:album', requireAdmin, express.json(), async (req, 
       }
     }
     res.json({ ok: true });
+    activity.log('album_rename', { username: req.user?.username ?? null, ip: req.ip, details: { from: oldName, to: newName } });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Internal server error' });
@@ -346,6 +359,7 @@ app.delete('/api/admin/albums/:album', requireAdmin, async (req, res) => {
     }
     await deleteAlbumFromDb(req.params.album);
     res.json({ ok: true });
+    activity.log('album_delete', { username: req.user?.username ?? null, ip: req.ip, details: { album: req.params.album } });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Internal server error' });
@@ -371,6 +385,7 @@ app.delete('/api/albums/:album/photos/:filename', requireAuth, async (req, res) 
     }
     await deletePhotoFromDb(album, filename);
     res.json({ ok: true });
+    activity.log('photo_delete', { username: req.user?.username ?? null, ip: req.ip, details: { album, filename } });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Internal server error' });
@@ -393,6 +408,7 @@ app.delete('/api/admin/albums/:album/photos/:filename', requireAdmin, async (req
     }
     await deletePhotoFromDb(album, filename);
     res.json({ ok: true });
+    activity.log('photo_delete', { username: req.user?.username ?? null, ip: req.ip, details: { album, filename } });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Internal server error' });
@@ -418,7 +434,9 @@ app.post('/api/admin/albums/:album/photos', requireAdmin, (req, res) => {
   }).array('photos', 500)(req, res, err => {
     if (err) return res.status(400).json({ error: err.message });
     preGenerateAll().catch(console.error);
-    res.json({ ok: true, count: req.files?.length ?? 0 });
+    const uploadedFiles = req.files?.map(f => f.originalname) ?? [];
+    res.json({ ok: true, count: uploadedFiles.length });
+    activity.log('photo_upload', { username: req.user?.username ?? null, ip: req.ip, details: { album: req.params.album, count: uploadedFiles.length, filenames: uploadedFiles } });
   });
 });
 
@@ -451,6 +469,7 @@ app.post('/api/admin/users', requireAdmin, express.json(), async (req, res) => {
       [username.trim(), hash, role],
     );
     res.status(201).json({ user: rows[0] });
+    activity.log('user_create', { username: req.user?.username ?? null, ip: req.ip, details: { created_username: username.trim(), role } });
   } catch (err) {
     if (err.code === '23505') return res.status(409).json({ error: 'Username already taken' });
     console.error(err);
@@ -496,6 +515,7 @@ app.delete('/api/admin/users/:id', requireAdmin, async (req, res) => {
     if (rows[0].username === 'admin')   return res.status(403).json({ error: 'The admin user cannot be deleted' });
     await database.db.query('DELETE FROM users WHERE id = $1', [id]);
     res.json({ ok: true });
+    activity.log('user_delete', { username: req.user?.username ?? null, ip: req.ip, details: { deleted_username: rows[0].username } });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Internal server error' });
@@ -504,6 +524,33 @@ app.delete('/api/admin/users/:id', requireAdmin, async (req, res) => {
 
 app.get('/api/admin/generate-password', requireAdmin, (_req, res) => {
   res.json({ password: generatePassword() });
+});
+
+// ─── Activity log ─────────────────────────────────────────────────────────────
+
+app.get('/api/admin/logs', requireAdmin, async (req, res) => {
+  if (!database.dbReady) return res.json({ logs: [], total: 0, page: 1, pages: 0 });
+  const page   = Math.max(1, parseInt(req.query.page)  || 1);
+  const limit  = Math.min(100, Math.max(1, parseInt(req.query.limit) || 50));
+  const action = req.query.action || null;
+  const offset = (page - 1) * limit;
+  try {
+    const cond  = action ? 'WHERE action = $3' : '';
+    const args  = action ? [limit, offset, action] : [limit, offset];
+    const cArgs = action ? [action] : [];
+    const [{ rows }, { rows: cnt }] = await Promise.all([
+      database.db.query(
+        `SELECT id, action, username, ip, details, created_at FROM activity_log ${cond} ORDER BY created_at DESC LIMIT $1 OFFSET $2`,
+        args,
+      ),
+      database.db.query(`SELECT COUNT(*) FROM activity_log ${cond}`, cArgs),
+    ]);
+    const total = parseInt(cnt[0].count);
+    res.json({ logs: rows, total, page, pages: Math.ceil(total / limit) });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 // ─── Album access settings ────────────────────────────────────────────────────
@@ -807,7 +854,11 @@ app.post('/api/like', express.json(), async (req, res) => {
       'SELECT COUNT(*) AS count FROM photo_likes WHERE album = $1 AND filename = $2',
       [album, filename],
     );
-    res.json({ liked: existing.rowCount === 0, count: Number(rows[0].count) });
+    const liked = existing.rowCount === 0;
+    const sessionToken = req.cookies?.pb_session;
+    const sessionUser  = sessionToken ? await auth.getSessionUser(sessionToken).catch(() => null) : null;
+    res.json({ liked, count: Number(rows[0].count) });
+    activity.log('photo_like', { username: sessionUser?.username ?? null, ip: req.ip, details: { album, filename, liked } });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Internal server error' });

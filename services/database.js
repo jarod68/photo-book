@@ -70,6 +70,19 @@ async function initSchema() {
       PRIMARY KEY (album, user_id)
     )
   `);
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS activity_log (
+      id         SERIAL      PRIMARY KEY,
+      action     VARCHAR(64) NOT NULL,
+      username   VARCHAR(64),
+      ip         VARCHAR(45),
+      details    JSONB       NOT NULL DEFAULT '{}',
+      created_at TIMESTAMP   NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await db.query(`
+    CREATE INDEX IF NOT EXISTS activity_log_created_idx ON activity_log (created_at DESC)
+  `);
 }
 
 async function tryConnect() {

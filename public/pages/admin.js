@@ -680,9 +680,88 @@ document.getElementById('album-settings-close-btn').addEventListener('click', cl
 albumSettingsOverlay.addEventListener('click', e => { if (e.target === albumSettingsOverlay) closeAlbumSettings(); });
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && !albumSettingsOverlay.hidden) closeAlbumSettings(); });
 
+// ── Activity log ──────────────────────────────────────────────────────────────
+
+const LOG_LABELS = {
+  login:        { label: 'Login',         color: 'green'  },
+  logout:       { label: 'Logout',        color: 'gray'   },
+  photo_like:   { label: 'Like',          color: 'pink'   },
+  photo_upload: { label: 'Upload',        color: 'blue'   },
+  photo_delete: { label: 'Delete photo',  color: 'red'    },
+  album_create: { label: 'Create album',  color: 'blue'   },
+  album_rename: { label: 'Rename album',  color: 'blue'   },
+  album_delete: { label: 'Delete album',  color: 'red'    },
+  user_create:  { label: 'Create user',   color: 'green'  },
+  user_delete:  { label: 'Delete user',   color: 'red'    },
+};
+
+function renderLogDetails(action, details) {
+  if (!details) return '—';
+  switch (action) {
+    case 'photo_like':   return `${esc(details.album)}/${esc(details.filename)} (${details.liked ? '♥ liked' : '♡ unliked'})`;
+    case 'photo_upload': return `${details.count} photo(s) → ${esc(details.album)}`;
+    case 'photo_delete': return `${esc(details.album)}/${esc(details.filename)}`;
+    case 'album_create': return esc(details.album);
+    case 'album_rename': return `${esc(details.from)} → ${esc(details.to)}`;
+    case 'album_delete': return esc(details.album);
+    case 'user_create':  return `${esc(details.created_username)} (${esc(details.role)})`;
+    case 'user_delete':  return esc(details.deleted_username);
+    default: return '—';
+  }
+}
+
+function renderLogRow(log) {
+  const meta  = LOG_LABELS[log.action] ?? { label: log.action, color: 'gray' };
+  const date  = new Date(log.created_at);
+  const dateStr = date.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  const timeStr = date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  return `
+    <tr>
+      <td class="admin-date" title="${esc(date.toISOString())}">${dateStr} ${timeStr}</td>
+      <td><span class="log-badge log-badge--${meta.color}">${esc(meta.label)}</span></td>
+      <td>${log.username ? esc(log.username) : '<span class="admin-dim">guest</span>'}</td>
+      <td class="admin-dim admin-mono">${log.ip ? esc(log.ip) : '—'}</td>
+      <td class="admin-dim">${renderLogDetails(log.action, log.details)}</td>
+    </tr>`;
+}
+
+let logPage = 1;
+let logAction = '';
+
+async function loadLogs(page = 1, action = '') {
+  logPage   = page;
+  logAction = action;
+  const body = document.getElementById('logs-body');
+  const pag  = document.getElementById('logs-pagination');
+  body.innerHTML = '<tr><td colspan="5" class="admin-loading">Loading…</td></tr>';
+  try {
+    const params = new URLSearchParams({ page, limit: 50 });
+    if (action) params.set('action', action);
+    const data = await fetch(`/api/admin/logs?${params}`).then(r => r.json());
+    if (!data.logs?.length) {
+      body.innerHTML = '<tr><td colspan="5" class="admin-empty">No entries.</td></tr>';
+      pag.innerHTML = '';
+      return;
+    }
+    body.innerHTML = data.logs.map(renderLogRow).join('');
+    pag.innerHTML = `
+      <button class="admin-action-btn admin-action-btn--ghost" ${page <= 1 ? 'disabled' : ''} id="log-prev">← Prev</button>
+      <span class="admin-pagination-info">Page ${page} / ${data.pages} &nbsp;·&nbsp; ${data.total} entries</span>
+      <button class="admin-action-btn admin-action-btn--ghost" ${page >= data.pages ? 'disabled' : ''} id="log-next">Next →</button>
+    `;
+    document.getElementById('log-prev')?.addEventListener('click', () => loadLogs(logPage - 1, logAction));
+    document.getElementById('log-next')?.addEventListener('click', () => loadLogs(logPage + 1, logAction));
+  } catch (_) {
+    body.innerHTML = '<tr><td colspan="5" class="admin-error">Failed to load.</td></tr>';
+  }
+}
+
+document.getElementById('log-filter').addEventListener('change', e => loadLogs(1, e.target.value));
+
 loadTopPhotos();
 if (isAdmin) {
   loadSystem();
   loadAlbums();
   loadUsers();
+  loadLogs();
 }

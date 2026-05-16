@@ -145,6 +145,42 @@
       </div>
     </section>
 
+    <section class="admin-section" id="section-logs">
+      <div class="admin-section-header">
+        <h2 class="admin-section-title">Activity log</h2>
+        <select id="log-filter" class="admin-log-filter">
+          <option value="">All actions</option>
+          <option value="login">Login</option>
+          <option value="logout">Logout</option>
+          <option value="photo_like">Like</option>
+          <option value="photo_upload">Upload</option>
+          <option value="photo_delete">Delete photo</option>
+          <option value="album_create">Create album</option>
+          <option value="album_rename">Rename album</option>
+          <option value="album_delete">Delete album</option>
+          <option value="user_create">Create user</option>
+          <option value="user_delete">Delete user</option>
+        </select>
+      </div>
+      <div class="admin-table-wrap">
+        <table class="admin-table" id="logs-table">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Action</th>
+              <th>User</th>
+              <th>IP</th>
+              <th>Details</th>
+            </tr>
+          </thead>
+          <tbody id="logs-body">
+            <tr><td colspan="5" class="admin-loading">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div id="logs-pagination" class="admin-pagination"></div>
+    </section>
+
   </main>
 
   <!-- Album settings modal -->
