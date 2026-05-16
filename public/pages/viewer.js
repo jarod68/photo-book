@@ -1,3 +1,4 @@
+import { t, applyTranslations, initLangSwitcher } from '../utils/i18n.js';
 import '../utils/admin-shortcut.js';
 import { AlbumTabs }      from '../components/album-tabs.js';
 import { ThumbnailStrip } from '../components/thumbnail-strip.js';
@@ -7,6 +8,9 @@ import { AlbumMap }       from '../components/album-map.js';
 import { getUserToken }   from '../utils/user-token.js';
 import { getAlbums, getAlbum, getLiked, toggleLike, recordView, geocode } from '../api/client.js';
 import { formatViews, formatLikes } from '../utils/format.js';
+
+applyTranslations();
+initLangSwitcher('lang-switcher');
 
 const userToken = getUserToken();
 
@@ -230,13 +234,13 @@ deleteBtn.addEventListener('click', async e => {
   closeActionsMenu();
   const photo = state.photos[state.index];
   if (!photo) return;
-  if (!confirm(`Supprimer « ${photo.filename} » ?`)) return;
+  if (!confirm(t('viewer.deleteConfirm', { filename: photo.filename }))) return;
   try {
     const res = await fetch(
       `/api/albums/${encodeURIComponent(state.current)}/photos/${encodeURIComponent(photo.filename)}`,
       { method: 'DELETE' },
     );
-    if (!res.ok) throw new Error((await res.json()).error ?? 'Erreur');
+    if (!res.ok) throw new Error((await res.json()).error ?? 'Error');
     const idx = state.index;
     state.photos.splice(idx, 1);
     thumbs.render(state.photos);
@@ -246,7 +250,7 @@ deleteBtn.addEventListener('click', async e => {
       showPhoto(Math.min(idx, state.photos.length - 1));
     }
   } catch (err) {
-    alert(`Erreur lors de la suppression : ${err.message}`);
+    alert(t('viewer.deleteError', { msg: err.message }));
   }
 });
 

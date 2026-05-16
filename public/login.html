@@ -7,18 +7,19 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body class="page-login">
+  <div id="lang-switcher"></div>
   <div class="login-card">
-    <a href="/" class="login-back">← Back</a>
+    <a href="/" class="login-back" data-i18n="login.back">← Back</a>
     <h1 class="login-logo">Photo Book<span class="login-dot">.</span></h1>
 
     <form id="login-form" class="login-form" novalidate>
       <div class="login-field">
-        <label for="username" class="login-label">Username</label>
+        <label for="username" class="login-label" data-i18n="login.username">Username</label>
         <input id="username" class="login-input" type="text" autocomplete="username"
                autocapitalize="none" spellcheck="false" required>
       </div>
       <div class="login-field">
-        <label for="password" class="login-label">Password</label>
+        <label for="password" class="login-label" data-i18n="login.password">Password</label>
         <input id="password" class="login-input" type="password" autocomplete="current-password" required>
       </div>
       <p id="login-error" class="login-error" hidden></p>
@@ -27,7 +28,7 @@
           <rect x="5" y="11" width="14" height="10" rx="2"/>
           <path d="M8 11V7a4 4 0 018 0v4"/>
         </svg>
-        <span class="login-btn-text">Sign in</span>
+        <span class="login-btn-text" data-i18n="login.submit">Sign in</span>
       </button>
     </form>
   </div>

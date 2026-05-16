@@ -3,24 +3,25 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <title>Carte — Photo Book</title>
+  <title>Photo Book — Map</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css">
   <link rel="stylesheet" href="style.css">
 </head>
 <body class="page-map">
 
   <header class="map-page-header">
-    <a href="index.html" class="map-page-back" aria-label="Retour">
+    <a href="index.html" class="map-page-back" data-i18n-aria="map.back">
       <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
     </a>
     <div class="map-page-title-wrap">
-      <h1 class="map-page-title">Carte</h1>
+      <h1 class="map-page-title" data-i18n="map.title">Map</h1>
       <p id="map-page-count" class="map-page-count"></p>
     </div>
+    <div id="lang-switcher"></div>
   </header>
 
   <div id="world-map">
-    <button id="route-toggle" class="route-toggle-btn active" title="Masquer le tracé">
+    <button id="route-toggle" class="route-toggle-btn active" data-i18n-title="map.hideRoute">
       <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <path d="M3 18 C7 18 7 6 12 6 C17 6 17 18 21 18"/>
         <polyline points="17.5,13 21,18 16.5,18" fill="currentColor" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>

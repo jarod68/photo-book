@@ -1,15 +1,19 @@
+import { t, getLang, applyTranslations, initLangSwitcher } from '../utils/i18n.js';
 import { requireLogin } from '../utils/auth-check.js';
 
 await requireLogin();
 
+applyTranslations();
+initLangSwitcher('lang-switcher');
+
 // ── Password utilities ────────────────────────────────────────────────────────
 
 function validatePwd(password) {
-  if (!password || password.length < 8)      return 'At least 8 characters required';
-  if (!/[A-Z]/.test(password))               return 'At least one uppercase letter required';
-  if (!/[a-z]/.test(password))               return 'At least one lowercase letter required';
-  if (!/[0-9]/.test(password))               return 'At least one digit required';
-  if (!/[^A-Za-z0-9]/.test(password))        return 'At least one special character required';
+  if (!password || password.length < 8)      return t('admin.pwd.minLength');
+  if (!/[A-Z]/.test(password))               return t('admin.pwd.uppercase');
+  if (!/[a-z]/.test(password))               return t('admin.pwd.lowercase');
+  if (!/[0-9]/.test(password))               return t('admin.pwd.digit');
+  if (!/[^A-Za-z0-9]/.test(password))        return t('admin.pwd.special');
   return null;
 }
 
@@ -61,7 +65,7 @@ async function loadAlbums() {
   try {
     const { albums } = await fetch('/api/admin/stats').then(r => r.json());
     if (!albums.length) {
-      body.innerHTML = '<tr><td colspan="5" class="admin-empty">No albums yet.</td></tr>';
+      body.innerHTML = `<tr><td colspan="5" class="admin-empty">${t('admin.noAlbums')}</td></tr>`;
       return;
     }
     body.innerHTML = albums.map(a => renderAlbumRow(a)).join('');
@@ -74,7 +78,7 @@ async function loadAlbums() {
     body.querySelectorAll('[data-upload]').forEach(btn =>
       btn.addEventListener('click', () => openUploadModal(btn.dataset.upload)));
   } catch (_) {
-    body.innerHTML = '<tr><td colspan="5" class="admin-error">Failed to load.</td></tr>';
+    body.innerHTML = `<tr><td colspan="5" class="admin-error">${t('admin.failedLoad')}</td></tr>`;
   }
 }
 
@@ -90,10 +94,10 @@ function renderAlbumRow(a) {
       <td class="num">${a.views.toLocaleString()}</td>
       <td class="num">${a.likes.toLocaleString()}</td>
       <td class="admin-row-actions">
-        <button class="admin-icon-btn" data-settings="${esc(a.album)}" title="Access settings">${iconGear()}</button>
-        <button class="admin-icon-btn" data-upload="${esc(a.album)}" title="Upload photos">${iconUpload()}</button>
-        <button class="admin-icon-btn" data-rename="${esc(a.album)}" title="Rename">${iconPencil()}</button>
-        <button class="admin-icon-btn admin-icon-btn--danger" data-delete="${esc(a.album)}" title="Delete">${iconTrash()}</button>
+        <button class="admin-icon-btn" data-settings="${esc(a.album)}" title="${t('admin.settings')}">${iconGear()}</button>
+        <button class="admin-icon-btn" data-upload="${esc(a.album)}" title="${t('admin.uploadPhotos')}">${iconUpload()}</button>
+        <button class="admin-icon-btn" data-rename="${esc(a.album)}" title="${t('admin.rename')}">${iconPencil()}</button>
+        <button class="admin-icon-btn admin-icon-btn--danger" data-delete="${esc(a.album)}" title="${t('admin.log.album_delete')}">${iconTrash()}</button>
       </td>
     </tr>`;
 }
@@ -106,8 +110,8 @@ function startRename(albumName) {
   nameCell.innerHTML = `
     <form class="admin-rename-form">
       <input class="admin-inline-input" value="${esc(albumName)}" autocomplete="off" spellcheck="false">
-      <button type="submit" class="admin-action-btn">Save</button>
-      <button type="button" class="admin-action-btn admin-action-btn--ghost admin-rename-cancel">Cancel</button>
+      <button type="submit" class="admin-action-btn">${t('admin.save')}</button>
+      <button type="button" class="admin-action-btn admin-action-btn--ghost admin-rename-cancel">${t('admin.cancel')}</button>
     </form>`;
   const form  = nameCell.querySelector('form');
   const input = nameCell.querySelector('input');
@@ -128,19 +132,19 @@ function startRename(albumName) {
     if (res.ok) { await loadAlbums(); }
     else {
       const { error } = await res.json();
-      alert(error ?? 'Rename failed');
+      alert(error ?? t('admin.renameFailed'));
       nameCell.innerHTML = original;
     }
   });
 }
 
 async function deleteAlbum(albumName) {
-  if (!confirm(`Delete album "${albumName}" and all its photos?\nThis cannot be undone.`)) return;
+  if (!confirm(t('admin.confirmDeleteAlbum', { name: albumName }))) return;
   const res = await fetch(`/api/admin/albums/${encodeURIComponent(albumName)}`, { method: 'DELETE' });
   if (res.ok) { await loadAlbums(); }
   else {
     const { error } = await res.json().catch(() => ({}));
-    alert(error ?? 'Delete failed');
+    alert(error ?? t('admin.deleteFailed'));
   }
 }
 
@@ -172,7 +176,7 @@ document.getElementById('new-album-form').addEventListener('submit', async e => 
     await loadAlbums();
   } else {
     const { error } = await res.json().catch(() => ({}));
-    alert(error ?? 'Create failed');
+    alert(error ?? t('admin.createFailed'));
   }
 });
 
@@ -183,7 +187,7 @@ async function loadTopPhotos() {
   try {
     const { photos } = await fetch('/api/admin/top-photos?limit=20').then(r => r.json());
     if (!photos.length) {
-      body.innerHTML = '<tr><td colspan="4" class="admin-empty">No data yet.</td></tr>';
+      body.innerHTML = `<tr><td colspan="4" class="admin-empty">${t('admin.noData')}</td></tr>`;
       return;
     }
     body.innerHTML = photos.map(p => `
@@ -195,7 +199,7 @@ async function loadTopPhotos() {
       </tr>
     `).join('');
   } catch (_) {
-    body.innerHTML = '<tr><td colspan="4" class="admin-error">Failed to load.</td></tr>';
+    body.innerHTML = `<tr><td colspan="4" class="admin-error">${t('admin.failedLoad')}</td></tr>`;
   }
 }
 
@@ -213,7 +217,7 @@ async function loadSystem() {
     `;
 
     if (!containers.length) {
-      body.innerHTML = '<tr><td colspan="4" class="admin-empty">Docker socket unavailable.</td></tr>';
+      body.innerHTML = `<tr><td colspan="4" class="admin-empty">${t('admin.noDockerSocket')}</td></tr>`;
       return;
     }
 
@@ -234,7 +238,7 @@ async function loadSystem() {
       `;
     }).join('');
   } catch (_) {
-    body.innerHTML = '<tr><td colspan="4" class="admin-error">Failed to load.</td></tr>';
+    body.innerHTML = `<tr><td colspan="4" class="admin-error">${t('admin.failedLoad')}</td></tr>`;
   }
 }
 
@@ -277,7 +281,7 @@ function openUploadModal(album) {
   progressWrap.hidden = true;
   progressFill.style.width = '0%';
   startBtn.disabled = true;
-  startBtn.textContent = 'Upload';
+  startBtn.textContent = t('admin.upload');
   dropZone.classList.remove('drop-zone--active');
   overlay.hidden = false;
 }
@@ -307,7 +311,7 @@ function renderFileList() {
       renderFileList();
     }));
   const n = pendingFiles.length;
-  fileCountEl.textContent = n ? `${n} file${n > 1 ? 's' : ''} selected` : '';
+  fileCountEl.textContent = n ? t('admin.filesSelected', { n, s: n > 1 ? 's' : '' }) : '';
   startBtn.disabled = n === 0;
 }
 
@@ -340,7 +344,7 @@ startBtn.addEventListener('click', async () => {
         if (xhr.status >= 200 && xhr.status < 300) resolve(JSON.parse(xhr.responseText));
         else reject(new Error(JSON.parse(xhr.responseText)?.error ?? 'Upload failed'));
       };
-      xhr.onerror = () => reject(new Error('Network error'));
+      xhr.onerror = () => reject(new Error(t('admin.networkError')));
       xhr.open('POST', `/api/admin/albums/${encodeURIComponent(uploadAlbum)}/photos`);
       xhr.send(formData);
     });
@@ -424,7 +428,7 @@ async function loadUsers() {
   try {
     const { users } = await fetch('/api/admin/users').then(r => r.json());
     if (!users.length) {
-      body.innerHTML = '<tr><td colspan="4" class="admin-empty">No users.</td></tr>';
+      body.innerHTML = `<tr><td colspan="4" class="admin-empty">${t('admin.noUsers')}</td></tr>`;
       return;
     }
     body.innerHTML = users.map(u => renderUserRow(u)).join('');
@@ -435,12 +439,12 @@ async function loadUsers() {
     body.querySelectorAll('[data-del]').forEach(btn =>
       btn.addEventListener('click', () => deleteUser(Number(btn.dataset.del), btn.dataset.username)));
   } catch (_) {
-    body.innerHTML = '<tr><td colspan="4" class="admin-error">Failed to load.</td></tr>';
+    body.innerHTML = `<tr><td colspan="4" class="admin-error">${t('admin.failedLoad')}</td></tr>`;
   }
 }
 
 function renderUserRow(u) {
-  const fmt = d => d ? new Date(d).toLocaleDateString('fr-FR', { year: 'numeric', month: 'short', day: 'numeric' }) : '—';
+  const fmt = d => d ? new Date(d).toLocaleDateString({ fr: 'fr-FR', en: 'en-US', es: 'es-ES' }[getLang()] ?? 'en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : '—';
   const isProtected = u.username === 'admin';
   return `
     <tr data-user-id="${u.id}">
@@ -454,9 +458,9 @@ function renderUserRow(u) {
       <td class="admin-date">${esc(fmt(u.created_at))}</td>
       <td class="admin-date">${esc(fmt(u.last_login_at))}</td>
       <td class="admin-row-actions">
-        <button class="admin-icon-btn" data-pwd="${u.id}" data-username="${esc(u.username)}" title="Change password">${iconKey()}</button>
+        <button class="admin-icon-btn" data-pwd="${u.id}" data-username="${esc(u.username)}" title="${t('admin.changePassword')}">${iconKey()}</button>
         <button class="admin-icon-btn admin-icon-btn--danger" data-del="${u.id}" data-username="${esc(u.username)}"
-                title="Delete user"${isProtected ? ' disabled' : ''}>${iconTrash()}</button>
+                title="${t('admin.log.user_delete')}"${isProtected ? ' disabled' : ''}>${iconTrash()}</button>
       </td>
     </tr>`;
 }
@@ -471,19 +475,19 @@ async function saveRole(id, role, selectEl) {
   });
   if (!res.ok) {
     const { error } = await res.json().catch(() => ({}));
-    alert(error ?? 'Failed to update role');
+    alert(error ?? t('admin.roleFailed'));
     selectEl.value = prev;
     selectEl.dataset.prev = prev;
   }
 }
 
 async function deleteUser(id, username) {
-  if (!confirm(`Delete user "${username}"?\nThis cannot be undone.`)) return;
+  if (!confirm(t('admin.confirmDeleteUser', { name: username }))) return;
   const res = await fetch(`/api/admin/users/${id}`, { method: 'DELETE' });
   if (res.ok) { await loadUsers(); }
   else {
     const { error } = await res.json().catch(() => ({}));
-    alert(error ?? 'Delete failed');
+    alert(error ?? t('admin.deleteFailed'));
   }
 }
 
@@ -542,7 +546,7 @@ document.getElementById('new-user-form').addEventListener('submit', async e => {
     await loadUsers();
   } else {
     const { error } = await res.json().catch(() => ({}));
-    errEl.textContent = error ?? 'Create failed';
+    errEl.textContent = error ?? t('admin.createFailed');
   }
 });
 
@@ -598,7 +602,7 @@ document.getElementById('pwd-save-btn').addEventListener('click', async () => {
   if (res.ok) { closePwdModal(); }
   else {
     const { error } = await res.json().catch(() => ({}));
-    pwdErrorEl.textContent = error ?? 'Failed to update password';
+    pwdErrorEl.textContent = error ?? t('admin.pwdFailed');
   }
 });
 
@@ -655,7 +659,7 @@ async function openAlbumSettings(albumName) {
 
   const checkboxesEl = document.getElementById('album-users-checkboxes');
   if (basicUsers.length === 0) {
-    checkboxesEl.innerHTML = '<p class="album-settings-no-users">No basic users.</p>';
+    checkboxesEl.innerHTML = `<p class="album-settings-no-users">${t('admin.noBasicUsers')}</p>`;
   } else {
     checkboxesEl.innerHTML = basicUsers.map(u => `
       <label class="album-user-checkbox">
@@ -693,7 +697,7 @@ document.getElementById('album-settings-save-btn').addEventListener('click', asy
     await loadAlbums();
   } else {
     const { error } = await res.json().catch(() => ({}));
-    albumSettingsError.textContent = error ?? 'Failed to save';
+    albumSettingsError.textContent = error ?? t('admin.saveFailed');
   }
 });
 
@@ -704,16 +708,16 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape' && !albumSett
 // ── Activity log ──────────────────────────────────────────────────────────────
 
 const LOG_LABELS = {
-  login:        { label: 'Login',         color: 'green'  },
-  logout:       { label: 'Logout',        color: 'gray'   },
-  photo_like:   { label: 'Like',          color: 'pink'   },
-  photo_upload: { label: 'Upload',        color: 'blue'   },
-  photo_delete: { label: 'Delete photo',  color: 'red'    },
-  album_create: { label: 'Create album',  color: 'blue'   },
-  album_rename: { label: 'Rename album',  color: 'blue'   },
-  album_delete: { label: 'Delete album',  color: 'red'    },
-  user_create:  { label: 'Create user',   color: 'green'  },
-  user_delete:  { label: 'Delete user',   color: 'red'    },
+  login:        { label: () => t('admin.log.login'),        color: 'green'  },
+  logout:       { label: () => t('admin.log.logout'),       color: 'gray'   },
+  photo_like:   { label: () => t('admin.log.photo_like'),   color: 'pink'   },
+  photo_upload: { label: () => t('admin.log.photo_upload'), color: 'blue'   },
+  photo_delete: { label: () => t('admin.log.photo_delete'), color: 'red'    },
+  album_create: { label: () => t('admin.log.album_create'), color: 'blue'   },
+  album_rename: { label: () => t('admin.log.album_rename'), color: 'blue'   },
+  album_delete: { label: () => t('admin.log.album_delete'), color: 'red'    },
+  user_create:  { label: () => t('admin.log.user_create'),  color: 'green'  },
+  user_delete:  { label: () => t('admin.log.user_delete'),  color: 'red'    },
 };
 
 function renderLogDetails(action, details) {
@@ -732,15 +736,15 @@ function renderLogDetails(action, details) {
 }
 
 function renderLogRow(log) {
-  const meta  = LOG_LABELS[log.action] ?? { label: log.action, color: 'gray' };
+  const meta  = LOG_LABELS[log.action] ?? { label: () => log.action, color: 'gray' };
   const date  = new Date(log.created_at);
-  const dateStr = date.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
-  const timeStr = date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  const dateStr = date.toLocaleDateString({ fr: 'fr-FR', en: 'en-US', es: 'es-ES' }[getLang()] ?? 'en-US', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  const timeStr = date.toLocaleTimeString({ fr: 'fr-FR', en: 'en-US', es: 'es-ES' }[getLang()] ?? 'en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
   return `
     <tr>
       <td class="admin-date" title="${esc(date.toISOString())}">${dateStr} ${timeStr}</td>
-      <td><span class="log-badge log-badge--${meta.color}">${esc(meta.label)}</span></td>
-      <td>${log.username ? esc(log.username) : '<span class="admin-dim">guest</span>'}</td>
+      <td><span class="log-badge log-badge--${meta.color}">${esc(meta.label())}</span></td>
+      <td>${log.username ? esc(log.username) : `<span class="admin-dim">${t('admin.guest')}</span>`}</td>
       <td class="admin-dim admin-mono">${log.ip ? esc(log.ip) : '—'}</td>
       <td class="admin-dim">${renderLogDetails(log.action, log.details)}</td>
     </tr>`;
@@ -754,33 +758,33 @@ async function loadLogs(page = 1, action = '') {
   logAction = action;
   const body = document.getElementById('logs-body');
   const pag  = document.getElementById('logs-pagination');
-  body.innerHTML = '<tr><td colspan="5" class="admin-loading">Loading…</td></tr>';
+  body.innerHTML = `<tr><td colspan="5" class="admin-loading">${t('admin.loading')}</td></tr>`;
   try {
     const params = new URLSearchParams({ page, limit: 50 });
     if (action) params.set('action', action);
     const data = await fetch(`/api/admin/logs?${params}`).then(r => r.json());
     if (!data.logs?.length) {
-      body.innerHTML = '<tr><td colspan="5" class="admin-empty">No entries.</td></tr>';
+      body.innerHTML = `<tr><td colspan="5" class="admin-empty">${t('admin.noEntries')}</td></tr>`;
       pag.innerHTML = '';
       return;
     }
     body.innerHTML = data.logs.map(renderLogRow).join('');
     pag.innerHTML = `
-      <button class="admin-action-btn admin-action-btn--ghost" ${page <= 1 ? 'disabled' : ''} id="log-prev">← Prev</button>
-      <span class="admin-pagination-info">Page ${page} / ${data.pages} &nbsp;·&nbsp; ${data.total} entries</span>
-      <button class="admin-action-btn admin-action-btn--ghost" ${page >= data.pages ? 'disabled' : ''} id="log-next">Next →</button>
+      <button class="admin-action-btn admin-action-btn--ghost" ${page <= 1 ? 'disabled' : ''} id="log-prev">${t('admin.prev')}</button>
+      <span class="admin-pagination-info">${t('admin.pageInfo', { page, pages: data.pages, total: data.total, s: data.total > 1 ? 's' : '' })}</span>
+      <button class="admin-action-btn admin-action-btn--ghost" ${page >= data.pages ? 'disabled' : ''} id="log-next">${t('admin.next')}</button>
     `;
     document.getElementById('log-prev')?.addEventListener('click', () => loadLogs(logPage - 1, logAction));
     document.getElementById('log-next')?.addEventListener('click', () => loadLogs(logPage + 1, logAction));
   } catch (_) {
-    body.innerHTML = '<tr><td colspan="5" class="admin-error">Failed to load.</td></tr>';
+    body.innerHTML = `<tr><td colspan="5" class="admin-error">${t('admin.failedLoad')}</td></tr>`;
   }
 }
 
 document.getElementById('log-filter').addEventListener('change', e => loadLogs(1, e.target.value));
 
 document.getElementById('clear-logs-btn').addEventListener('click', async () => {
-  if (!confirm('Clear all activity logs?')) return;
+  if (!confirm(t('admin.clearLogsConfirm'))) return;
   const res = await fetch('/api/admin/logs', { method: 'DELETE' });
   if (res.ok) loadLogs(1, logAction);
 });

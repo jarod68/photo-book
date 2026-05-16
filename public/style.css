@@ -270,7 +270,8 @@ body {
 }
 .map-page-back:hover { color: var(--text); }
 
-.map-page-title-wrap { display: flex; align-items: baseline; gap: 10px; }
+.map-page-title-wrap { display: flex; align-items: baseline; gap: 10px; flex: 1; }
+.map-page-header .lang-switcher { margin-left: auto; }
 
 .map-page-title {
   font-size: 14px;
@@ -343,8 +344,14 @@ body {
 }
 #album-nav::-webkit-scrollbar { display: none; }
 
-.album-map-btn {
+.album-nav-right {
   margin-left: auto;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+}
+
+.album-map-btn {
   flex-shrink: 0;
   display: flex;
   align-items: center;
@@ -1997,3 +2004,32 @@ body {
   color: rgba(238,238,242,0.65);
 }
 .admin-shortcut-btn svg { width: 15px; height: 15px; }
+
+/* ── Language switcher ────────────────────────────────────────────────────────── */
+.lang-switcher {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.lang-select {
+  appearance: none;
+  -webkit-appearance: none;
+  background: var(--surface) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23888'/%3E%3C/svg%3E") no-repeat right 7px center;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 11.5px;
+  font-weight: 500;
+  line-height: 1;
+  padding: 4px 24px 4px 8px;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.lang-select:hover  { border-color: var(--border-h); color: var(--text); }
+.lang-select:focus  { outline: none; border-color: var(--accent); color: var(--text); }
+
+.page-login .lang-switcher { position: absolute; top: 16px; right: 16px; }
+.page-login               { position: relative; }

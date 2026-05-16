@@ -1,6 +1,11 @@
-const form     = document.getElementById('login-form');
-const errorEl  = document.getElementById('login-error');
-const btn      = form.querySelector('button[type="submit"]');
+import { t, applyTranslations, initLangSwitcher } from '../utils/i18n.js';
+
+applyTranslations();
+initLangSwitcher('lang-switcher');
+
+const form    = document.getElementById('login-form');
+const errorEl = document.getElementById('login-error');
+const btn     = form.querySelector('button[type="submit"]');
 
 async function checkAlreadyLoggedIn() {
   try {
@@ -15,7 +20,7 @@ form.addEventListener('submit', async e => {
   e.preventDefault();
   errorEl.hidden = true;
   btn.disabled   = true;
-  btn.querySelector('.login-btn-text').textContent = 'Signing in…';
+  btn.querySelector('.login-btn-text').textContent = t('login.signingIn');
 
   const username = document.getElementById('username').value.trim();
   const password = document.getElementById('password').value;
@@ -30,18 +35,18 @@ form.addEventListener('submit', async e => {
 
     if (!res.ok) {
       errorEl.textContent = data.error === 'Invalid credentials'
-        ? 'Incorrect username or password.'
-        : 'Unable to sign in. Please try again.';
+        ? t('login.errorInvalid')
+        : t('login.errorGeneric');
       errorEl.hidden = false;
       return;
     }
 
     window.location.replace('/');
   } catch (_) {
-    errorEl.textContent = 'Network error. Please try again.';
+    errorEl.textContent = t('login.errorNetwork');
     errorEl.hidden = false;
   } finally {
-    btn.disabled    = false;
-    btn.querySelector('.login-btn-text').textContent = 'Sign in';
+    btn.disabled = false;
+    btn.querySelector('.login-btn-text').textContent = t('login.submit');
   }
 });

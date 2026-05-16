@@ -31,29 +31,35 @@ app.use(cookieParser());
 
 const IS_TEST = process.env.NODE_ENV === 'test';
 
+const RATE_WINDOW_15MIN = 15 * 60 * 1000;
+const RATE_WINDOW_1MIN  = 60 * 1000;
+const RATE_API_MAX      = 600;
+const RATE_LOGIN_MAX    = 10;
+const RATE_GEOCODE_MAX  = 30;
+
 app.use('/api/', rateLimit({
-  windowMs:         15 * 60 * 1000,
-  limit:            600,
+  windowMs:        RATE_WINDOW_15MIN,
+  limit:           RATE_API_MAX,
   standardHeaders: 'draft-8',
-  legacyHeaders:    false,
-  skip:             () => IS_TEST,
+  legacyHeaders:   false,
+  skip:            () => IS_TEST,
 }));
 
 app.use('/api/auth/login', rateLimit({
-  windowMs:         15 * 60 * 1000,
-  limit:            10,
+  windowMs:        RATE_WINDOW_15MIN,
+  limit:           RATE_LOGIN_MAX,
   standardHeaders: 'draft-8',
-  legacyHeaders:    false,
-  skip:             () => IS_TEST,
+  legacyHeaders:   false,
+  skip:            () => IS_TEST,
 }));
 
 // Nominatim ToS: max 1 req/s per user. 30/min per IP stays safely under that limit.
 app.use('/api/geocode', rateLimit({
-  windowMs:         60 * 1000,
-  limit:            30,
+  windowMs:        RATE_WINDOW_1MIN,
+  limit:           RATE_GEOCODE_MAX,
   standardHeaders: 'draft-8',
-  legacyHeaders:    false,
-  skip:             () => IS_TEST,
+  legacyHeaders:   false,
+  skip:            () => IS_TEST,
 }));
 
 const { requireAuth, requireAdmin, authStaticGuard } = auth;
@@ -186,7 +192,7 @@ app.post('/api/auth/logout', async (req, res) => {
   if (token && database.dbReady) {
     const u = await auth.getSessionUser(token).catch(() => null);
     username = u?.username ?? null;
-    await auth.logout(token).catch(() => {});
+    await auth.logout(token).catch(err => console.error('Session cleanup failed:', err.message));
   }
   res.clearCookie('pb_session');
   res.json({ ok: true });
@@ -255,7 +261,7 @@ app.get('/api/admin/stats', requireAdmin, async (req, res) => {
 
 app.get('/api/admin/system', requireAdmin, async (req, res) => {
   let containers = [];
-  try { containers = await dockerInfo.getContainers(); } catch (_) {}
+  try { containers = await dockerInfo.getContainers(); } catch (err) { console.error('Docker info unavailable:', err.message); }
   res.json({
     node:       process.version,
     uptime:     Math.floor(process.uptime()),
@@ -701,7 +707,7 @@ app.get('/api/albums/:album', async (req, res) => {
           p.views = viewMap.get(p.filename) ?? 0;
           p.likes = likeMap.get(p.filename) ?? 0;
         });
-      } catch (_) {}
+      } catch (err) { console.error('Failed to load view/like counts:', err.message); }
     }
 
     res.json({ name: req.params.album, photos, canDelete, canDownload: !!user });
@@ -772,7 +778,7 @@ app.get('/api/map', async (req, res) => {
             album:      dir.name,
             albumIndex,
           });
-        } catch (_) {}
+        } catch (err) { console.error('Map photo EXIF read failed:', err.message); }
       }));
 
       return photos;
@@ -886,7 +892,8 @@ app.get('/api/liked', async (req, res) => {
       [album, token],
     );
     res.json({ filenames: rows.map(r => r.filename) });
-  } catch (_) {
+  } catch (err) {
+    console.error('Failed to load likes:', err.message);
     res.json({ filenames: [] });
   }
 });
@@ -974,7 +981,7 @@ function watchPhotosDir() {
           deletePhotoFromDb(albumName, name).catch(console.error);
         }
       });
-    } catch (_) {}
+    } catch (err) { console.error('Album watcher failed:', albumName, err.message); }
   };
 
   try {
@@ -991,7 +998,7 @@ function watchPhotosDir() {
             // Album deleted
             deleteAlbumFromDb(name).catch(console.error);
           }
-        } catch (_) {}
+        } catch (err) { console.error('Photo dir watcher error:', err.message); }
       }, 500);
     });
   } catch (err) {

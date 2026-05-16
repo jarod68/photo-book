@@ -139,18 +139,17 @@ async function connectDb(dbInstance = null) {
 async function syncPhotosToDb() {
   if (!dbReady || !fs.existsSync(PHOTOS_DIR)) return;
   const albums = fs.readdirSync(PHOTOS_DIR, { withFileTypes: true }).filter(isAlbumDir);
-  let total = 0;
-  for (const album of albums) {
+  const allPhotos = albums.flatMap(album => {
     const files = fs.readdirSync(path.join(PHOTOS_DIR, album.name)).filter(isImage);
-    for (const file of files) {
-      await db.query(
-        'INSERT INTO photo_views (album, filename, views) VALUES ($1, $2, 0) ON CONFLICT DO NOTHING',
-        [album.name, file],
-      );
-    }
-    total += files.length;
-  }
-  console.log(`  ✓ ${total} photo(s) registered in photo_views.`);
+    return files.map(file => ({ album: album.name, file }));
+  });
+  await Promise.all(allPhotos.map(({ album, file }) =>
+    db.query(
+      'INSERT INTO photo_views (album, filename, views) VALUES ($1, $2, 0) ON CONFLICT DO NOTHING',
+      [album, file],
+    ),
+  ));
+  console.log(`  ✓ ${allPhotos.length} photo(s) registered in photo_views.`);
 }
 
 // Test-only helpers — allow controlling internal state

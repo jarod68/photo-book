@@ -11,7 +11,7 @@ async function log(action, { username = null, ip = null, details = {} } = {}) {
     await database.db.query(
       'DELETE FROM activity_log WHERE id NOT IN (SELECT id FROM activity_log ORDER BY created_at DESC LIMIT 5000)',
     );
-  } catch (_) {}
+  } catch (err) { console.error('Activity log failed:', err.message); }
 }
 
 module.exports = { log };

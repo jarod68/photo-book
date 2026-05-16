@@ -1,3 +1,4 @@
+import { t, getLang, applyTranslations, initLangSwitcher } from '../utils/i18n.js';
 import '../utils/admin-shortcut.js';
 import { buildMarkerIcon, buildClusterIcon } from '../components/map-marker.js';
 import { getMapPhotos }   from '../api/client.js';
@@ -5,6 +6,9 @@ import {
   haversineKm, catmullRom, cubicSample,
   centroid, buildSegments, clusterSegment,
 } from '../utils/map-math.js';
+
+applyTranslations();
+initLangSwitcher('lang-switcher');
 
 const ROUTE_COLOR = '#3b82f6';
 const ARROW_TS    = [0.2, 0.5, 0.8];
@@ -85,8 +89,8 @@ async function init() {
 
   const countEl = document.getElementById('map-page-count');
   countEl.textContent = photos.length
-    ? `${photos.length} photo${photos.length > 1 ? 's' : ''} géolocalisée${photos.length > 1 ? 's' : ''}`
-    : 'Aucune photo géolocalisée';
+    ? t('map.photos', { n: photos.length, s: photos.length > 1 ? 's' : '' })
+    : t('map.noPhotos');
 
   const map = L.map('world-map', {
     minZoom: 2, maxZoom: 18, worldCopyJump: true,
@@ -110,11 +114,11 @@ async function init() {
     if (visible) {
       map.removeLayer(routeLayer);
       toggleBtn.classList.remove('active');
-      toggleBtn.title = 'Afficher le tracé';
+      toggleBtn.title = t('map.showRoute');
     } else {
       map.addLayer(routeLayer);
       toggleBtn.classList.add('active');
-      toggleBtn.title = 'Masquer le tracé';
+      toggleBtn.title = t('map.hideRoute');
     }
   });
 
@@ -160,6 +164,7 @@ async function init() {
 
 // ── Popup ─────────────────────────────────────────────────────────────────────
 function buildPopup(photo) {
+  const locale = { fr: 'fr-FR', en: 'en-US', es: 'es-ES' }[getLang()] ?? 'en-US';
   const wrap = document.createElement('div');
   wrap.className = 'map-popup-inner';
 
@@ -175,7 +180,7 @@ function buildPopup(photo) {
   if (photo.date) {
     const dateEl = document.createElement('span');
     dateEl.className = 'map-popup-date';
-    dateEl.textContent = new Date(photo.date).toLocaleDateString('fr-FR', {
+    dateEl.textContent = new Date(photo.date).toLocaleDateString(locale, {
       day: 'numeric', month: 'short', year: 'numeric',
     });
     wrap.appendChild(dateEl);
@@ -190,7 +195,7 @@ function buildPopup(photo) {
 
   const link = document.createElement('a');
   link.className = 'map-popup-view';
-  link.textContent = "Voir dans l'album";
+  link.textContent = t('map.viewInAlbum');
   link.href = `viewer.html?album=${encodeURIComponent(photo.album)}&photo=${encodeURIComponent(photo.filename)}`;
   wrap.appendChild(link);
 

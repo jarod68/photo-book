@@ -10,10 +10,11 @@
 
   <header class="admin-header">
     <div class="admin-header-left">
-      <a href="/" class="admin-back">← Photo Book</a>
-      <h1 class="admin-title">Admin</h1>
+      <a href="/" class="admin-back" data-i18n="admin.back">← Photo Book</a>
+      <h1 class="admin-title" data-i18n="admin.title">Admin</h1>
     </div>
     <div class="admin-header-right">
+      <div id="lang-switcher"></div>
       <span id="admin-user" class="admin-username">
         <span class="admin-auth-dot"></span>
         <span id="admin-user-label"></span>
@@ -24,7 +25,7 @@
           <polyline points="16 17 21 12 16 7"/>
           <line x1="21" y1="12" x2="9" y2="12"/>
         </svg>
-        Sign out
+        <span data-i18n="admin.signOut">Sign out</span>
       </button>
     </div>
   </header>
@@ -33,28 +34,29 @@
 
     <section class="admin-section" id="section-albums">
       <div class="admin-section-header">
-        <h2 class="admin-section-title">Albums</h2>
-        <button id="new-album-btn" class="admin-action-btn">+ New album</button>
+        <h2 class="admin-section-title" data-i18n="admin.albums">Albums</h2>
+        <button id="new-album-btn" class="admin-action-btn" data-i18n="admin.newAlbum">+ New album</button>
       </div>
       <form id="new-album-form" class="admin-new-album-form" hidden>
         <input id="new-album-input" class="admin-inline-input" type="text"
-               placeholder="Album name" autocomplete="off" spellcheck="false">
-        <button type="submit" class="admin-action-btn">Create</button>
-        <button type="button" id="new-album-cancel" class="admin-action-btn admin-action-btn--ghost">Cancel</button>
+               data-i18n-placeholder="admin.albumName" placeholder="Album name"
+               autocomplete="off" spellcheck="false">
+        <button type="submit" class="admin-action-btn" data-i18n="admin.create">Create</button>
+        <button type="button" id="new-album-cancel" class="admin-action-btn admin-action-btn--ghost" data-i18n="admin.cancel">Cancel</button>
       </form>
       <div class="admin-table-wrap">
         <table class="admin-table" id="albums-table">
           <thead>
             <tr>
-              <th>Album</th>
-              <th class="num">Photos</th>
-              <th class="num">Views</th>
-              <th class="num">Likes</th>
+              <th data-i18n="admin.col.album">Album</th>
+              <th class="num" data-i18n="admin.col.photos">Photos</th>
+              <th class="num" data-i18n="admin.col.views">Views</th>
+              <th class="num" data-i18n="admin.col.likes">Likes</th>
               <th></th>
             </tr>
           </thead>
           <tbody id="albums-body">
-            <tr><td colspan="5" class="admin-loading">Loading…</td></tr>
+            <tr><td colspan="5" class="admin-loading" data-i18n="admin.loading">Loading…</td></tr>
           </tbody>
         </table>
       </div>
@@ -62,18 +64,20 @@
 
     <section class="admin-section" id="section-users">
       <div class="admin-section-header">
-        <h2 class="admin-section-title">Users</h2>
-        <button id="new-user-btn" class="admin-action-btn">+ New user</button>
+        <h2 class="admin-section-title" data-i18n="admin.users">Users</h2>
+        <button id="new-user-btn" class="admin-action-btn" data-i18n="admin.newUser">+ New user</button>
       </div>
       <form id="new-user-form" class="admin-new-user-form" hidden>
         <div class="admin-new-user-row">
           <input id="new-user-username" class="admin-inline-input" type="text"
-                 placeholder="Username" autocomplete="off" spellcheck="false" style="min-width:130px">
+                 data-i18n-placeholder="admin.col.username" placeholder="Username"
+                 autocomplete="off" spellcheck="false" style="min-width:130px">
           <div class="admin-pwd-group">
             <input id="new-user-password" class="admin-inline-input" type="password"
-                   placeholder="Password" autocomplete="new-password" style="min-width:130px">
-            <button type="button" id="new-user-gen-btn" class="admin-action-btn admin-action-btn--ghost admin-gen-btn">Generate</button>
-            <button type="button" id="new-user-reveal-btn" class="admin-icon-btn" title="Show / hide password">
+                   data-i18n-placeholder="login.password" placeholder="Password"
+                   autocomplete="new-password" style="min-width:130px">
+            <button type="button" id="new-user-gen-btn" class="admin-action-btn admin-action-btn--ghost admin-gen-btn" data-i18n="admin.generate">Generate</button>
+            <button type="button" id="new-user-reveal-btn" class="admin-icon-btn" data-i18n-title="login.password">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
               </svg>
@@ -83,8 +87,8 @@
             <option value="basic">basic</option>
             <option value="admin">admin</option>
           </select>
-          <button type="submit" class="admin-action-btn">Create</button>
-          <button type="button" id="new-user-cancel" class="admin-action-btn admin-action-btn--ghost">Cancel</button>
+          <button type="submit" class="admin-action-btn" data-i18n="admin.create">Create</button>
+          <button type="button" id="new-user-cancel" class="admin-action-btn admin-action-btn--ghost" data-i18n="admin.cancel">Cancel</button>
         </div>
         <p id="new-user-pwd-error" class="admin-pwd-policy-error"></p>
       </form>
@@ -92,54 +96,54 @@
         <table class="admin-table" id="users-table">
           <thead>
             <tr>
-              <th>Username</th>
-              <th>Role</th>
-              <th>Created</th>
-              <th>Last login</th>
+              <th data-i18n="admin.col.username">Username</th>
+              <th data-i18n="admin.col.role">Role</th>
+              <th data-i18n="admin.col.created">Created</th>
+              <th data-i18n="admin.col.lastLogin">Last login</th>
               <th></th>
             </tr>
           </thead>
           <tbody id="users-body">
-            <tr><td colspan="5" class="admin-loading">Loading…</td></tr>
+            <tr><td colspan="5" class="admin-loading" data-i18n="admin.loading">Loading…</td></tr>
           </tbody>
         </table>
       </div>
     </section>
 
     <section class="admin-section" id="section-system">
-      <h2 class="admin-section-title">System</h2>
+      <h2 class="admin-section-title" data-i18n="admin.system">System</h2>
       <div id="system-meta" class="admin-system-meta"></div>
       <div class="admin-table-wrap">
         <table class="admin-table">
           <thead>
             <tr>
-              <th>Container</th>
-              <th>Image</th>
-              <th>Reference / digest</th>
-              <th>Status</th>
+              <th data-i18n="admin.col.container">Container</th>
+              <th data-i18n="admin.col.image">Image</th>
+              <th data-i18n="admin.col.reference">Reference / digest</th>
+              <th data-i18n="admin.col.status">Status</th>
             </tr>
           </thead>
           <tbody id="system-body">
-            <tr><td colspan="4" class="admin-loading">Loading…</td></tr>
+            <tr><td colspan="4" class="admin-loading" data-i18n="admin.loading">Loading…</td></tr>
           </tbody>
         </table>
       </div>
     </section>
 
     <section class="admin-section">
-      <h2 class="admin-section-title">Top photos</h2>
+      <h2 class="admin-section-title" data-i18n="admin.topPhotos">Top photos</h2>
       <div class="admin-table-wrap">
         <table class="admin-table" id="photos-table">
           <thead>
             <tr>
-              <th>Photo</th>
-              <th>Album</th>
-              <th class="num">Views</th>
-              <th class="num">Likes</th>
+              <th data-i18n="admin.col.photo">Photo</th>
+              <th data-i18n="admin.col.album">Album</th>
+              <th class="num" data-i18n="admin.col.views">Views</th>
+              <th class="num" data-i18n="admin.col.likes">Likes</th>
             </tr>
           </thead>
           <tbody id="photos-body">
-            <tr><td colspan="4" class="admin-loading">Loading…</td></tr>
+            <tr><td colspan="4" class="admin-loading" data-i18n="admin.loading">Loading…</td></tr>
           </tbody>
         </table>
       </div>
@@ -147,37 +151,37 @@
 
     <section class="admin-section" id="section-logs">
       <div class="admin-section-header">
-        <h2 class="admin-section-title">Activity log</h2>
+        <h2 class="admin-section-title" data-i18n="admin.activityLog">Activity log</h2>
         <div class="admin-section-header-actions">
           <select id="log-filter" class="admin-log-filter">
-          <option value="">All actions</option>
-          <option value="login">Login</option>
-          <option value="logout">Logout</option>
-          <option value="photo_like">Like</option>
-          <option value="photo_upload">Upload</option>
-          <option value="photo_delete">Delete photo</option>
-          <option value="album_create">Create album</option>
-          <option value="album_rename">Rename album</option>
-          <option value="album_delete">Delete album</option>
-          <option value="user_create">Create user</option>
-          <option value="user_delete">Delete user</option>
-        </select>
-          <button id="clear-logs-btn" class="admin-action-btn admin-action-btn--ghost">Clear logs</button>
+            <option value="" data-i18n="admin.allActions">All actions</option>
+            <option value="login" data-i18n="admin.log.login">Login</option>
+            <option value="logout" data-i18n="admin.log.logout">Logout</option>
+            <option value="photo_like" data-i18n="admin.log.photo_like">Like</option>
+            <option value="photo_upload" data-i18n="admin.log.photo_upload">Upload</option>
+            <option value="photo_delete" data-i18n="admin.log.photo_delete">Delete photo</option>
+            <option value="album_create" data-i18n="admin.log.album_create">Create album</option>
+            <option value="album_rename" data-i18n="admin.log.album_rename">Rename album</option>
+            <option value="album_delete" data-i18n="admin.log.album_delete">Delete album</option>
+            <option value="user_create" data-i18n="admin.log.user_create">Create user</option>
+            <option value="user_delete" data-i18n="admin.log.user_delete">Delete user</option>
+          </select>
+          <button id="clear-logs-btn" class="admin-action-btn admin-action-btn--ghost" data-i18n="admin.clearLogs">Clear logs</button>
         </div>
       </div>
       <div class="admin-table-wrap">
         <table class="admin-table" id="logs-table">
           <thead>
             <tr>
-              <th>Date</th>
-              <th>Action</th>
-              <th>User</th>
-              <th>IP</th>
-              <th>Details</th>
+              <th data-i18n="admin.col.date">Date</th>
+              <th data-i18n="admin.col.action">Action</th>
+              <th data-i18n="admin.col.user">User</th>
+              <th data-i18n="admin.col.ip">IP</th>
+              <th data-i18n="admin.col.details">Details</th>
             </tr>
           </thead>
           <tbody id="logs-body">
-            <tr><td colspan="5" class="admin-loading">Loading…</td></tr>
+            <tr><td colspan="5" class="admin-loading" data-i18n="admin.loading">Loading…</td></tr>
           </tbody>
         </table>
       </div>
@@ -190,28 +194,28 @@
   <div id="album-settings-overlay" class="upload-overlay" hidden>
     <div class="upload-modal album-settings-modal">
       <div class="upload-modal-header">
-        <h3 class="upload-modal-title">Access — <strong id="album-settings-name"></strong></h3>
-        <button id="album-settings-close-btn" class="upload-close-btn" aria-label="Close">✕</button>
+        <h3 class="upload-modal-title"><span data-i18n="admin.access">Access</span> — <strong id="album-settings-name"></strong></h3>
+        <button id="album-settings-close-btn" class="upload-close-btn" data-i18n-aria="viewer.close">✕</button>
       </div>
       <div class="album-settings-body">
         <div class="album-settings-visibility">
           <label class="album-settings-radio">
             <input type="radio" name="album-visibility" value="public" id="vis-public">
-            <span>Public <span class="vis-hint">— accessible without login</span></span>
+            <span><span data-i18n="admin.visPublic">Public</span> <span class="vis-hint" data-i18n="admin.visPublicHint">— accessible without login</span></span>
           </label>
           <label class="album-settings-radio">
             <input type="radio" name="album-visibility" value="restricted" id="vis-restricted">
-            <span>Restricted <span class="vis-hint">— selected users only</span></span>
+            <span><span data-i18n="admin.visRestricted">Restricted</span> <span class="vis-hint" data-i18n="admin.visRestrictedHint">— selected users only</span></span>
           </label>
         </div>
         <div id="album-settings-users" class="album-settings-users" hidden>
-          <p class="album-settings-users-label">Authorized users</p>
+          <p class="album-settings-users-label" data-i18n="admin.authorizedUsers">Authorized users</p>
           <div id="album-users-checkboxes" class="album-users-checkboxes"></div>
         </div>
       </div>
       <div class="upload-modal-footer">
         <span id="album-settings-error" class="admin-error pwd-error-text"></span>
-        <button id="album-settings-save-btn" class="admin-action-btn">Save</button>
+        <button id="album-settings-save-btn" class="admin-action-btn" data-i18n="admin.save">Save</button>
       </div>
     </div>
   </div>
@@ -220,8 +224,8 @@
   <div id="upload-overlay" class="upload-overlay" hidden>
     <div class="upload-modal">
       <div class="upload-modal-header">
-        <h3 class="upload-modal-title">Upload to <strong id="upload-album-name"></strong></h3>
-        <button id="upload-close-btn" class="upload-close-btn" aria-label="Close">✕</button>
+        <h3 class="upload-modal-title"><span data-i18n="admin.uploadTo">Upload to</span> <strong id="upload-album-name"></strong></h3>
+        <button id="upload-close-btn" class="upload-close-btn" data-i18n-aria="viewer.close">✕</button>
       </div>
 
       <div id="drop-zone" class="drop-zone">
@@ -230,8 +234,8 @@
             d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021
                18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/>
         </svg>
-        <p class="drop-zone-text">Drop photos here</p>
-        <label class="admin-action-btn drop-zone-btn" for="upload-file-input">Add files</label>
+        <p class="drop-zone-text" data-i18n="admin.dropHere">Drop photos here</p>
+        <label class="admin-action-btn drop-zone-btn" for="upload-file-input" data-i18n="admin.addFiles">Add files</label>
         <input id="upload-file-input" type="file" multiple
                accept=".jpg,.jpeg,.png,.webp,.tiff,.tif" hidden>
       </div>
@@ -247,7 +251,7 @@
 
       <div class="upload-modal-footer">
         <span id="upload-file-count" class="upload-file-count"></span>
-        <button id="upload-start-btn" class="admin-action-btn" disabled>Upload</button>
+        <button id="upload-start-btn" class="admin-action-btn" data-i18n="admin.upload" disabled>Upload</button>
       </div>
     </div>
   </div>
@@ -256,15 +260,16 @@
   <div id="pwd-overlay" class="upload-overlay" hidden>
     <div class="upload-modal pwd-modal">
       <div class="upload-modal-header">
-        <h3 class="upload-modal-title">Change password — <strong id="pwd-username"></strong></h3>
-        <button id="pwd-close-btn" class="upload-close-btn" aria-label="Close">✕</button>
+        <h3 class="upload-modal-title"><span data-i18n="admin.changePassword">Change password</span> — <strong id="pwd-username"></strong></h3>
+        <button id="pwd-close-btn" class="upload-close-btn" data-i18n-aria="viewer.close">✕</button>
       </div>
       <div class="pwd-modal-body">
         <div class="admin-pwd-group">
           <input id="pwd-new" class="admin-inline-input" type="password"
-                 placeholder="New password" autocomplete="new-password">
-          <button type="button" id="pwd-gen-btn" class="admin-action-btn admin-action-btn--ghost admin-gen-btn">Generate</button>
-          <button type="button" id="pwd-reveal-btn" class="admin-icon-btn" title="Show / hide password">
+                 data-i18n-placeholder="admin.newPassword" placeholder="New password"
+                 autocomplete="new-password">
+          <button type="button" id="pwd-gen-btn" class="admin-action-btn admin-action-btn--ghost admin-gen-btn" data-i18n="admin.generate">Generate</button>
+          <button type="button" id="pwd-reveal-btn" class="admin-icon-btn" data-i18n-title="admin.newPassword">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
             </svg>
@@ -273,7 +278,7 @@
       </div>
       <div class="upload-modal-footer">
         <span id="pwd-error" class="admin-error pwd-error-text"></span>
-        <button id="pwd-save-btn" class="admin-action-btn">Save</button>
+        <button id="pwd-save-btn" class="admin-action-btn" data-i18n="admin.save">Save</button>
       </div>
     </div>
   </div>

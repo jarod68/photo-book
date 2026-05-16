@@ -1,5 +1,26 @@
-import { describe, it, expect } from 'vitest';
-import { formatViews, formatLikes } from '../../public/utils/format.js';
+import { vi, describe, it, expect, beforeAll } from 'vitest';
+
+vi.mock('../../public/utils/i18n.js', () => {
+  const fr = {
+    'format.view':    '{n} vue',
+    'format.views':   '{n} vues',
+    'format.views_k': '{n} k vues',
+    'format.views_M': '{n} M vues',
+  };
+  return {
+    t: (key, vars = {}) => {
+      let str = fr[key] ?? key;
+      for (const [k, v] of Object.entries(vars)) str = str.replaceAll(`{${k}}`, v);
+      return str;
+    },
+    getLang:           () => 'fr',
+    applyTranslations: () => {},
+    initLangSwitcher:  () => {},
+    setLang:           () => {},
+  };
+});
+
+const { formatViews, formatLikes } = await import('../../public/utils/format.js');
 
 describe('formatViews', () => {
   it('affiche "1 vue" au singulier', () => {

@@ -153,23 +153,21 @@ async function preGenerateAll(_deps = {}) {
   if (!_fs.existsSync(PHOTOS_DIR)) return;
   const albums = _fs.readdirSync(PHOTOS_DIR, { withFileTypes: true }).filter(isAlbumDir);
 
-  let count = 0;
-  for (const album of albums) {
+  const tasks = albums.flatMap(album => {
     const albumPath = path.join(PHOTOS_DIR, album.name);
     const files     = _fs.readdirSync(albumPath).filter(isImage).sort();
-    for (const file of files) {
-      const base        = path.parse(file).name + '.jpg';
-      const previewPath = path.join(PREVIEWS_DIR, album.name, base);
-      const mediumPath  = path.join(MEDIUM_DIR,   album.name, base);
-      if (!_fs.existsSync(previewPath) || !_fs.existsSync(mediumPath)) {
-        await photoMeta(album.name, file, albumPath, _deps).catch(e =>
-          console.error('Preview error:', file, e.message),
-        );
-        count++;
-      }
-    }
-  }
-  if (count > 0) console.log(`  ✓ ${count} thumbnail${count > 1 ? 's' : ''} generated.`);
+    return files
+      .filter(file => {
+        const base = path.parse(file).name + '.jpg';
+        return !_fs.existsSync(path.join(PREVIEWS_DIR, album.name, base))
+            || !_fs.existsSync(path.join(MEDIUM_DIR,   album.name, base));
+      })
+      .map(file => photoMeta(album.name, file, albumPath, _deps).catch(e =>
+        console.error('Preview error:', file, e.message),
+      ));
+  });
+  await Promise.all(tasks);
+  if (tasks.length > 0) console.log(`  ✓ ${tasks.length} thumbnail${tasks.length > 1 ? 's' : ''} generated.`);
 }
 
 module.exports = { PHOTOS_DIR, PREVIEWS_DIR, MEDIUM_DIR, IMAGE_EXT, isImage, isAlbumDir, ensurePreview, ensureMedium, photoMeta, preGenerateAll };

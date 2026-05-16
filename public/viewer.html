@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <title>Visionneuse — Photo Book</title>
+  <title>Photo Book</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pannellum@2.5.6/build/pannellum.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css">
   <link rel="stylesheet" href="style.css">
@@ -13,12 +13,15 @@
 
     <nav id="album-nav" aria-label="Albums">
       <div id="album-tabs" role="tablist"></div>
-      <button id="album-map-btn" class="album-map-btn" title="Carte de l'album" disabled>
-        <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor" aria-hidden="true">
-          <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
-        </svg>
-        Carte
-      </button>
+      <div class="album-nav-right">
+        <button id="album-map-btn" class="album-map-btn" data-i18n-title="viewer.albumMap" disabled>
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor" aria-hidden="true">
+            <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
+          </svg>
+          <span data-i18n="viewer.map">Map</span>
+        </button>
+        <div id="lang-switcher"></div>
+      </div>
     </nav>
 
     <main id="viewer">
@@ -31,23 +34,23 @@
         <div id="photo-meta">
           <p id="photo-location" class="photo-location"></p>
           <span id="photo-views" class="photo-views"></span>
-          <button id="like-btn" class="like-btn" aria-label="J'aime" aria-pressed="false">
+          <button id="like-btn" class="like-btn" data-i18n-aria="viewer.like" aria-pressed="false">
             <svg class="like-heart like-heart-outline" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
             <svg class="like-heart like-heart-filled" viewBox="0 0 24 24" width="13" height="13" fill="currentColor" aria-hidden="true"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
             <span id="like-count"></span>
           </button>
           <div id="photo-actions" class="photo-actions" hidden>
-            <button id="photo-actions-toggle" class="photo-actions-toggle" aria-label="Actions" aria-haspopup="true" aria-expanded="false">
+            <button id="photo-actions-toggle" class="photo-actions-toggle" data-i18n-aria="viewer.actions" aria-haspopup="true" aria-expanded="false">
               <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
             </button>
             <div id="photo-actions-menu" class="photo-actions-menu">
               <a id="download-btn" class="photo-action-item" download>
                 <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v12m0 0l-4-4m4 4l4-4M4 20h16"/></svg>
-                Télécharger
+                <span data-i18n="viewer.download">Download</span>
               </a>
               <button id="delete-btn" class="photo-action-item photo-action-item--danger" hidden>
                 <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-                Supprimer
+                <span data-i18n="viewer.delete">Delete</span>
               </button>
             </div>
           </div>
@@ -58,22 +61,22 @@
       <!-- Mini-map: shown when the current photo has GPS data -->
       <div id="photo-map-mini" class="photo-map-mini hidden">
         <div id="photo-map-canvas"></div>
-        <button id="photo-map-expand" class="photo-map-expand-btn" title="Agrandir la carte">
+        <button id="photo-map-expand" class="photo-map-expand-btn" data-i18n-title="viewer.expandMap">
           <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>
         </button>
       </div>
 
       <div id="empty-state" class="empty-state" hidden>
         <p class="empty-state-emoji">📷</p>
-        <p class="empty-state-title">Oups, y'a rien ici !</p>
-        <p class="empty-state-sub">Cet album est aussi vide que mon frigo un dimanche soir.</p>
+        <p class="empty-state-title" data-i18n="viewer.emptyTitle">Oops, nothing here!</p>
+        <p class="empty-state-sub" data-i18n="viewer.emptySub">This album is as empty as my fridge on a Sunday night.</p>
       </div>
 
       <div id="pano-controls">
-        <button id="pano-zoom-in"  aria-label="Zoom avant">+</button>
-        <button id="pano-zoom-out" aria-label="Zoom arrière">−</button>
-        <button id="pano-recenter" aria-label="Recentrer">⊙</button>
-        <button id="pano-gyro" aria-label="Gyroscope">
+        <button id="pano-zoom-in"  data-i18n-aria="viewer.zoomIn">+</button>
+        <button id="pano-zoom-out" data-i18n-aria="viewer.zoomOut">−</button>
+        <button id="pano-recenter" data-i18n-aria="viewer.recenter">⊙</button>
+        <button id="pano-gyro" data-i18n-aria="viewer.gyro">
           <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
             <circle cx="12" cy="12" r="3"/>
             <path d="M12 2v3M12 19v3M2 12h3M19 12h3"/>
@@ -84,9 +87,9 @@
     </main>
 
     <div id="strip">
-      <button id="strip-prev" class="strip-arrow strip-arrow-left" aria-label="Défiler à gauche" disabled>&#8249;</button>
+      <button id="strip-prev" class="strip-arrow strip-arrow-left" data-i18n-aria="viewer.scrollLeft" disabled>&#8249;</button>
       <div id="thumbnails" role="listbox" aria-label="Photos"></div>
-      <button id="strip-next" class="strip-arrow strip-arrow-right" aria-label="Défiler à droite" disabled>&#8250;</button>
+      <button id="strip-next" class="strip-arrow strip-arrow-right" data-i18n-aria="viewer.scrollRight" disabled>&#8250;</button>
     </div>
 
   </div>
@@ -94,13 +97,13 @@
   <!-- Map modal: enlarged view of a single photo location -->
   <div id="map-modal" class="map-modal hidden" role="dialog" aria-modal="true">
     <div id="map-modal-canvas"></div>
-    <button id="map-modal-close" class="map-modal-close" aria-label="Fermer">✕</button>
+    <button id="map-modal-close" class="map-modal-close" data-i18n-aria="viewer.close">✕</button>
   </div>
 
   <!-- Album map overlay: all photos on one map -->
   <div id="album-map-overlay" class="album-map-overlay hidden" role="dialog" aria-modal="true">
     <div id="album-map-canvas"></div>
-    <button id="album-map-close" class="album-map-close" aria-label="Fermer">✕</button>
+    <button id="album-map-close" class="album-map-close" data-i18n-aria="viewer.close">✕</button>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/pannellum@2.5.6/build/pannellum.js"></script>
