@@ -1,6 +1,9 @@
 import * as THREE from 'three';
-import { OrbitControls }                 from 'three/addons/controls/OrbitControls.js';
-import { CSS2DRenderer, CSS2DObject }    from 'three/addons/renderers/CSS2DRenderer.js';
+import { OrbitControls }              from 'three/addons/controls/OrbitControls.js';
+import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
+import { LineSegments2 }              from 'three/addons/lines/LineSegments2.js';
+import { LineSegmentsGeometry }       from 'three/addons/lines/LineSegmentsGeometry.js';
+import { LineMaterial }               from 'three/addons/lines/LineMaterial.js';
 import { t, applyTranslations, initLangSwitcher } from '../utils/i18n.js';
 import '../utils/admin-shortcut.js';
 import { getMapPhotos } from '../api/client.js';
@@ -8,10 +11,14 @@ import { getMapPhotos } from '../api/client.js';
 applyTranslations();
 initLangSwitcher('lang-switcher');
 
-const R        = 1;
-const TOPO_URL = 'https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json';
+const R   = 1;
+const DEG = Math.PI / 180;
 
-// [name, lat, lng, maxCamDist] — maxCamDist: camera distance below which label is visible
+// 50m resolution for max precision (finer coastlines, more islands)
+const URL_110 = 'https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json';
+const URL_50  = 'https://cdn.jsdelivr.net/npm/world-atlas@2/countries-50m.json';
+
+// [name, lat, lng, maxCamDist]
 const LABELS = [
   ['Russia',         62,  96, 99], ['Canada',       58, -100, 99],
   ['USA',            40, -98, 99], ['Brazil',       -10,  -52, 99],
@@ -40,47 +47,69 @@ const LABELS = [
   ['Malaysia',        3, 112, 1.7], ['Sudan',        15,   30, 1.7],
 ];
 
-function esc(s) {
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-}
-
-function latLngToVec3(lat, lng, r = R) {
-  const phi   = (90 - lat) * (Math.PI / 180);
-  const theta = (lng + 180) * (Math.PI / 180);
+// Geographic → Cartesian (Y-up). Z is negated so that east (positive lng)
+// maps to +screen-right when the camera is on the +X axis.
+// Round-trip: lat = asin(y), lng = atan2(-z, x)
+function ll2v(lat, lng, r = R) {
+  const lr = lat * DEG;
+  const er = lng * DEG;
   return new THREE.Vector3(
-    -r * Math.sin(phi) * Math.cos(theta),
-     r * Math.cos(phi),
-     r * Math.sin(phi) * Math.sin(theta),
+    r * Math.cos(lr) * Math.cos(er),
+    r * Math.sin(lr),
+    -r * Math.cos(lr) * Math.sin(er),
   );
 }
 
-function meshToPositions(multiLineString, r = R) {
-  const positions = [];
+// Fat-line helper: uses LineSegments2 so linewidth is actual CSS pixels, not capped at 1
+function buildLines(multiLineString, r, hexColor, lineWidth, opacity, W, H) {
+  const pos = [];
   for (const ring of multiLineString.coordinates) {
     for (let i = 0; i < ring.length - 1; i++) {
       const [lng0, lat0] = ring[i];
       const [lng1, lat1] = ring[i + 1];
-      if (Math.abs(lng1 - lng0) > 180) continue;
-      const a = latLngToVec3(lat0, lng0, r);
-      const b = latLngToVec3(lat1, lng1, r);
-      positions.push(a.x, a.y, a.z, b.x, b.y, b.z);
+      const a = ll2v(lat0, lng0, r);
+      const b = ll2v(lat1, lng1, r);
+      pos.push(a.x, a.y, a.z, b.x, b.y, b.z);
     }
   }
-  return positions;
+  const geo = new LineSegmentsGeometry();
+  geo.setPositions(pos);
+  const mat = new LineMaterial({
+    color: hexColor, linewidth: lineWidth,
+    opacity, transparent: true, depthTest: true,
+    resolution: new THREE.Vector2(W, H),
+  });
+  return new LineSegments2(geo, mat);
 }
 
-function makeLines(positions, color, opacity) {
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-  return new THREE.LineSegments(geo,
-    new THREE.LineBasicMaterial({ color, transparent: true, opacity, depthTest: true }),
-  );
+function buildBorderGroup(topo, r, W, H) {
+  const grp = new THREE.Group();
+  grp.renderOrder = 1;
+  const borders = topojson.mesh(topo, topo.objects.countries, (a, b) => a !== b);
+  const coast   = topojson.mesh(topo, topo.objects.land);
+  const bLines = buildLines(borders, r + 0.003, 0x2a4fa8, 1.0, 0.55, W, H);
+  const cLines = buildLines(coast,   r + 0.004, 0x3a7aff, 2.0, 0.85, W, H);
+  bLines.renderOrder = 1;
+  cLines.renderOrder = 1;
+  grp.add(bLines, cLines);
+  return grp;
 }
 
 async function init() {
-  const container = document.getElementById('globe-container');
-  const [topology, photos] = await Promise.all([
-    fetch(TOPO_URL).then(r => r.json()),
+  const container  = document.getElementById('globe-container');
+  const popup      = document.getElementById('globe-popup');
+  const popupClose = document.getElementById('globe-popup-close');
+  const popupAlbum = popup.querySelector('.globe-popup-album');
+  const popupTitle = popup.querySelector('.globe-popup-title');
+  const popupDate  = popup.querySelector('.globe-popup-date');
+  const popupImg   = popup.querySelector('.globe-popup-img');
+  const popupLink  = popup.querySelector('.globe-popup-link');
+
+  // Start 50m fetch immediately in background for LOD upgrade
+  const p50 = fetch(URL_50).then(r => r.json());
+
+  const [topo110, photos] = await Promise.all([
+    fetch(URL_110).then(r => r.json()),
     getMapPhotos(),
   ]);
 
@@ -94,33 +123,36 @@ async function init() {
   const W = container.clientWidth;
   const H = container.clientHeight;
 
-  // ── Renderers ────────────────────────────────────────────────────────────────
+  // ── Renderer ──────────────────────────────────────────────────────────────────
   const renderer = new THREE.WebGLRenderer({ antialias: true });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 3));
   renderer.setSize(W, H);
   renderer.setClearColor(0x050508);
   container.appendChild(renderer.domElement);
 
+  // CSS2D renderer for country labels only
   const labelRenderer = new CSS2DRenderer();
   labelRenderer.setSize(W, H);
-  labelRenderer.domElement.style.position = 'absolute';
-  labelRenderer.domElement.style.top = '0';
-  labelRenderer.domElement.style.left = '0';
-  labelRenderer.domElement.style.pointerEvents = 'none';
+  Object.assign(labelRenderer.domElement.style, {
+    position: 'absolute', top: '0', left: '0',
+    pointerEvents: 'none',
+    willChange: 'transform',
+  });
   container.appendChild(labelRenderer.domElement);
 
-  // ── Scene & camera ───────────────────────────────────────────────────────────
+  // ── Scene & camera ────────────────────────────────────────────────────────────
   const scene  = new THREE.Scene();
-  const camera = new THREE.PerspectiveCamera(45, W / H, 0.1, 100);
-  camera.position.z = 2.6;
+  const camera = new THREE.PerspectiveCamera(45, W / H, 0.01, 100);
+  // Atlantic view: Americas left, Europe/Africa right, north pole up
+  camera.position.set(2.6, 0.4, 0);
 
-  // ── Controls ─────────────────────────────────────────────────────────────────
+  // ── Controls ──────────────────────────────────────────────────────────────────
   const controls = new OrbitControls(camera, renderer.domElement);
   controls.enableDamping   = true;
-  controls.dampingFactor   = 0.06;
-  controls.minDistance     = 1.2;
+  controls.dampingFactor   = 0.07;
+  controls.minDistance     = 1.02;
   controls.maxDistance     = 5.0;
-  controls.rotateSpeed     = 0.45;
+  controls.rotateSpeed     = 0.55;
   controls.zoomSpeed       = 0.8;
   controls.enablePan       = false;
   controls.autoRotate      = true;
@@ -129,85 +161,178 @@ async function init() {
   let resumeTimer = null;
   controls.addEventListener('start', () => {
     controls.autoRotate = false;
-    if (resumeTimer) clearTimeout(resumeTimer);
+    if (resumeTimer) { clearTimeout(resumeTimer); resumeTimer = null; }
+    closePopup();
   });
   controls.addEventListener('end', () => {
     resumeTimer = setTimeout(() => { controls.autoRotate = true; }, 3000);
   });
 
-  // ── Stars ────────────────────────────────────────────────────────────────────
-  const starPos = [];
-  for (let i = 0; i < 3500; i++) {
-    const th = Math.random() * Math.PI * 2;
-    const ph = Math.acos(2 * Math.random() - 1);
-    const r  = 25 + Math.random() * 20;
-    starPos.push(r * Math.sin(ph) * Math.cos(th), r * Math.cos(ph), r * Math.sin(ph) * Math.sin(th));
+  // ── Stars ─────────────────────────────────────────────────────────────────────
+  {
+    const pos = [];
+    for (let i = 0; i < 3500; i++) {
+      const th = Math.random() * Math.PI * 2;
+      const ph = Math.acos(2 * Math.random() - 1);
+      const r  = 25 + Math.random() * 20;
+      pos.push(r * Math.sin(ph) * Math.cos(th), r * Math.cos(ph), r * Math.sin(ph) * Math.sin(th));
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    scene.add(new THREE.Points(geo,
+      new THREE.PointsMaterial({ color: 0xffffff, size: 0.04, transparent: true, opacity: 0.65 })));
   }
-  const starGeo = new THREE.BufferGeometry();
-  starGeo.setAttribute('position', new THREE.Float32BufferAttribute(starPos, 3));
-  scene.add(new THREE.Points(starGeo,
-    new THREE.PointsMaterial({ color: 0xffffff, size: 0.04, transparent: true, opacity: 0.65 })));
 
-  // ── Atmosphere ───────────────────────────────────────────────────────────────
+  // ── Atmosphere glow ───────────────────────────────────────────────────────────
   scene.add(new THREE.Mesh(
-    new THREE.SphereGeometry(1.035, 64, 64),
+    new THREE.SphereGeometry(1.035, 128, 128),
     new THREE.MeshPhongMaterial({
-      color: 0x0a2a6e, transparent: true, opacity: 0.10, side: THREE.FrontSide,
-      depthWrite: false,
+      color: 0x0a2a6e, transparent: true, opacity: 0.10,
+      side: THREE.FrontSide, depthWrite: false,
     }),
   ));
 
-  // ── Globe sphere (opaque, renders before lines to properly occlude back side) ─
+  // ── Globe sphere (fully opaque, no polygonOffset) ─────────────────────────────
   const globe = new THREE.Mesh(
-    new THREE.SphereGeometry(R, 72, 72),
+    new THREE.SphereGeometry(R, 256, 128),
     new THREE.MeshPhongMaterial({
-      color:     0x070e1e,
-      emissive:  0x040912,
-      specular:  0x1a3060,
-      shininess: 6,
-      // Polygon offset: push sphere depth slightly forward so lines exactly on
-      // the surface are cleanly occluded on the far side
-      polygonOffset:      true,
-      polygonOffsetFactor: -1,
-      polygonOffsetUnits: -1,
+      color: 0x070e1e, emissive: 0x040912, specular: 0x1a3060, shininess: 6,
     }),
   );
   globe.renderOrder = 0;
   scene.add(globe);
 
-  // ── Lighting ─────────────────────────────────────────────────────────────────
+  // ── Lighting ──────────────────────────────────────────────────────────────────
   scene.add(new THREE.AmbientLight(0x2a3d5a, 1.2));
   const sun = new THREE.DirectionalLight(0x6080bb, 1.1);
   sun.position.set(4, 2, 4);
   scene.add(sun);
 
-  // ── Country borders ──────────────────────────────────────────────────────────
-  /* global topojson */
-  const borders = topojson.mesh(topology, topology.objects.countries, (a, b) => a !== b);
-  const coast   = topojson.mesh(topology, topology.objects.land);
+  // ── Country borders — 110m first, 50m + fills when ready ─────────────────────
+  let currentBorders = buildBorderGroup(topo110, R, W, H);
+  scene.add(currentBorders);
 
-  const borderLines = makeLines(meshToPositions(borders, R + 0.001), 0x1a3d7c, 0.55);
-  const coastLines  = makeLines(meshToPositions(coast,   R + 0.002), 0x2a5fcb, 0.85);
-  borderLines.renderOrder = 1;
-  coastLines.renderOrder  = 1;
-  scene.add(borderLines);
-  scene.add(coastLines);
+  p50.then(topo => {
+    // Swap to 50m borders — max precision at all zoom levels
+    const b50 = buildBorderGroup(topo, R, container.clientWidth, container.clientHeight);
+    scene.remove(currentBorders);
+    scene.add(b50);
+    currentBorders = b50;
 
-  // ── Country labels ────────────────────────────────────────────────────────────
+  });
+
+  // ── Country labels (CSS2D, state-cached) ──────────────────────────────────────
   const labelObjects = LABELS.map(([name, lat, lng, maxDist]) => {
     const div = document.createElement('div');
     div.className = 'globe-label';
     div.textContent = name;
     const obj = new CSS2DObject(div);
-    obj.position.copy(latLngToVec3(lat, lng, R + 0.01));
+    obj.position.copy(ll2v(lat, lng, R + 0.01));
     scene.add(obj);
-    return { obj, worldPos: obj.position.clone(), maxDist };
+    return { obj, wp: obj.position.clone(), maxDist, vis: null };
   });
 
-  // ── Photo pins ────────────────────────────────────────────────────────────────
-  let activePopup = null;
+  // ── Photo pins — Sprite visual + invisible raycaster target ─────────────────
+  // Shared canvas texture: 160×224 px (4× scaled for crisp rendering), tip at bottom-center
+  const pinCanvas = document.createElement('canvas');
+  pinCanvas.width = 320; pinCanvas.height = 448;
+  const pctx = pinCanvas.getContext('2d');
+  // viewBox 20×28 scaled ×16 — 320×448 for crisp rendering at any DPR or zoom level
+  const pinPath = new Path2D('M160 0C71.63 0 0 71.63 0 160C0 280 160 448 160 448C160 448 320 280 320 160C320 71.63 248.37 0 160 0Z');
+  pctx.fillStyle = '#ff1010';
+  pctx.fill(pinPath);
+  pctx.strokeStyle = 'rgba(255,255,255,0.80)';
+  pctx.lineWidth = 12;
+  pctx.stroke(pinPath);
+  pctx.beginPath();
+  pctx.arc(160, 144, 56, 0, Math.PI * 2);
+  pctx.fillStyle = 'rgba(255,255,255,0.90)';
+  pctx.fill();
+  const pinTex = new THREE.CanvasTexture(pinCanvas);
 
-  // Close popup on canvas click (distinguish click from drag)
+  const hitGeo  = new THREE.SphereGeometry(0.022, 6, 4);
+  const hitMat  = new THREE.MeshBasicMaterial({ visible: false });
+  const pinItems = []; // { sprite, hit, wp, vis }
+
+  photos.forEach(photo => {
+    const wp = ll2v(photo.gps.lat, photo.gps.lng, R + 0.020);
+
+    // Sprite always faces camera; center=(0.5,0) anchors tip at world position.
+    // depthTest:true + alphaTest lets the opaque globe occlude back-hemisphere pins,
+    // and lets sprites write depth so borders (at R+0.003/0.004, further from camera)
+    // fail the depth test at sprite pixels — pins always render in front of borders.
+    const sprite = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: pinTex, transparent: true, depthTest: true, depthWrite: true, alphaTest: 0.01,
+    }));
+    sprite.position.copy(wp);
+    sprite.center.set(0.5, 0);
+    sprite.renderOrder = 0;
+    scene.add(sprite);
+
+    // Invisible sphere for raycasting — placed at surface (R+0.001) so it
+    // sits just above the globe but inside the sprite's visual footprint
+    const surfaceWp = ll2v(photo.gps.lat, photo.gps.lng, R + 0.001);
+    const hit = new THREE.Mesh(hitGeo, hitMat);
+    hit.position.copy(surfaceWp);
+    hit.userData = { photo, wp: wp.clone() };
+    scene.add(hit);
+
+    pinItems.push({ sprite, hit, wp: wp.clone(), surfaceWp: surfaceWp.clone(), vis: null });
+  });
+
+  const hitMeshes = pinItems.map(p => p.hit);
+
+  // ── Raycaster for pin clicks ───────────────────────────────────────────────────
+  const raycaster = new THREE.Raycaster();
+  const mouse     = new THREE.Vector2();
+  let   activeHit = null;
+
+  function closePopup() {
+    popup.dataset.open = 'false';
+    activeHit = null;
+  }
+
+  function openPopup(hit) {
+    const { photo, wp } = hit.userData;
+    popupAlbum.textContent = photo.album;
+    popupTitle.textContent = photo.name || photo.filename;
+
+    if (photo.date) {
+      const locale = { fr: 'fr-FR', en: 'en-US', es: 'es-ES' }[
+        document.documentElement.lang
+      ] ?? 'en-US';
+      popupDate.textContent  = new Date(photo.date).toLocaleDateString(locale,
+        { day: 'numeric', month: 'short', year: 'numeric' });
+      popupDate.style.display = '';
+    } else {
+      popupDate.style.display = 'none';
+    }
+
+    if (photo.previewUrl) {
+      popupImg.src = photo.previewUrl;
+      popupImg.style.display = '';
+    } else {
+      popupImg.style.display = 'none';
+    }
+
+    popupLink.textContent = t('map.viewInAlbum');
+    popupLink.href = `viewer.html?album=${encodeURIComponent(photo.album)}&photo=${encodeURIComponent(photo.filename)}`;
+    positionPopup(wp);
+    popup.dataset.open = 'true';
+    activeHit = hit;
+  }
+
+  function positionPopup(wp) {
+    const v    = wp.clone().project(camera);
+    const rect = container.getBoundingClientRect();
+    const sx   = (v.x + 1) / 2 * rect.width  + rect.left;
+    const sy   = (-v.y + 1) / 2 * rect.height + rect.top;
+    popup.style.left = `${sx}px`;
+    popup.style.top  = `${sy}px`;
+  }
+
+  popupClose.addEventListener('click', closePopup);
+
   let pointerDownXY = null;
   renderer.domElement.addEventListener('pointerdown', e => {
     pointerDownXY = { x: e.clientX, y: e.clientY };
@@ -216,52 +341,22 @@ async function init() {
     if (!pointerDownXY) return;
     const dx = e.clientX - pointerDownXY.x;
     const dy = e.clientY - pointerDownXY.y;
-    if (Math.hypot(dx, dy) < 6 && activePopup) {
-      activePopup.style.display = 'none';
-      activePopup = null;
-    }
     pointerDownXY = null;
-  });
+    if (Math.hypot(dx, dy) >= 6) return;
 
-  const pinObjects = photos.map(photo => {
-    const wrap = document.createElement('div');
-    wrap.className = 'globe-pin-wrap';
-    wrap.innerHTML = `
-      <div class="globe-popup">
-        <span class="globe-popup-album">${esc(photo.album)}</span>
-        <span class="globe-popup-name">${esc(photo.name || photo.filename)}</span>
-        <a class="globe-popup-link"
-           href="viewer.html?album=${encodeURIComponent(photo.album)}&photo=${encodeURIComponent(photo.filename)}">
-          ${t('map.viewInAlbum')} →
-        </a>
-      </div>
-      <svg class="globe-pin-svg" viewBox="0 0 20 28" width="20" height="28"
-           xmlns="http://www.w3.org/2000/svg">
-        <path d="M10 0C4.48 0 0 4.48 0 10C0 17.5 10 28 10 28C10 28 20 17.5 20 10C20 4.48 15.52 0 10 0Z"
-              fill="#ef4444" stroke="rgba(255,255,255,0.85)" stroke-width="1.5"/>
-        <circle cx="10" cy="10" r="3.5" fill="rgba(255,255,255,0.85)"/>
-      </svg>`;
+    const rect = renderer.domElement.getBoundingClientRect();
+    mouse.x =  ((e.clientX - rect.left)  / rect.width)  * 2 - 1;
+    mouse.y = -((e.clientY - rect.top)   / rect.height) * 2 + 1;
+    raycaster.setFromCamera(mouse, camera);
 
-    const popup  = wrap.querySelector('.globe-popup');
-    const pinSvg = wrap.querySelector('.globe-pin-svg');
-
-    // Popup starts hidden
-    popup.dataset.open = 'false';
-
-    pinSvg.addEventListener('click', e => {
-      e.stopPropagation();
-      const isOpen = popup.dataset.open === 'true';
-      if (activePopup && activePopup !== popup) {
-        activePopup.dataset.open = 'false';
-      }
-      popup.dataset.open = isOpen ? 'false' : 'true';
-      activePopup = isOpen ? null : popup;
-    });
-
-    const obj = new CSS2DObject(wrap);
-    obj.position.copy(latLngToVec3(photo.gps.lat, photo.gps.lng, R + 0.015));
-    scene.add(obj);
-    return { obj, worldPos: obj.position.clone() };
+    const hits = raycaster.intersectObjects(hitMeshes, false);
+    if (hits.length > 0) {
+      const hit = hits[0].object;
+      if (activeHit === hit) { closePopup(); return; }
+      openPopup(hit);
+    } else {
+      closePopup();
+    }
   });
 
   // ── Resize ────────────────────────────────────────────────────────────────────
@@ -272,38 +367,67 @@ async function init() {
     camera.updateProjectionMatrix();
     renderer.setSize(W, H);
     labelRenderer.setSize(W, H);
+    // Fat lines need the updated resolution to keep correct pixel width
+    scene.traverse(obj => {
+      if (obj.material instanceof LineMaterial) obj.material.resolution.set(W, H);
+    });
   });
 
   // ── Render loop ───────────────────────────────────────────────────────────────
-  const camDir = new THREE.Vector3();
+  const TAN_HALF_FOV = Math.tan(22.5 * Math.PI / 180); // tan(fov/2) for fov=45°, fixed
 
   function animate() {
     requestAnimationFrame(animate);
     controls.update();
 
-    camera.getWorldDirection(camDir); // direction camera is looking toward
-    const camDist = camera.position.length();
+    const camPos = camera.position;
+    const dist   = camPos.length();
 
-    // Country labels: visible only on front hemisphere + within zoom threshold
-    for (const { obj, worldPos, maxDist } of labelObjects) {
-      // dot > 0 means the point is on the same side as the camera (front hemisphere)
-      const onFront = worldPos.dot(camera.position) > 0.2;
-      obj.element.style.opacity = (onFront && camDist <= maxDist) ? '1' : '0';
+    // Movement speed scales with zoom: very slow and fluid when close in
+    const t = Math.max(0, Math.min(1, (dist - 1.0) / 4.0));
+    controls.rotateSpeed = 0.05 + t * 0.50;   // 0.05 at max zoom → 0.55 when far
+    controls.zoomSpeed   = 0.15 + t * 0.65;   // 0.15 at max zoom → 0.80 when far
+
+    // Target pin height in CSS px: 40 at max zoom, 12 when far out
+    const viewH    = container.clientHeight;
+    const targetPx = Math.max(12, Math.min(40, (5.0 - dist) / 3.98 * 28 + 12));
+
+    // Labels: state-cached DOM updates only on change
+    for (const lbl of labelObjects) {
+      const vis = lbl.wp.dot(camPos) > 0.2 && dist <= lbl.maxDist;
+      if (vis !== lbl.vis) {
+        lbl.obj.element.style.opacity       = vis ? '1' : '0';
+        lbl.obj.element.style.pointerEvents = vis ? 'auto' : 'none';
+        lbl.vis = vis;
+      }
     }
 
-    // Photo pins: visible only on front hemisphere
-    for (const { obj, worldPos } of pinObjects) {
-      const onFront = worldPos.dot(camera.position) > 0.05;
-      obj.element.style.opacity       = onFront ? '1' : '0';
-      obj.element.style.pointerEvents = onFront ? 'auto' : 'none';
-      // Close popup if pin goes to back side
-      if (!onFront) {
-        const popup = obj.element.querySelector('.globe-popup');
-        if (popup && popup.dataset.open === 'true') {
-          popup.dataset.open = 'false';
-          if (activePopup === popup) activePopup = null;
-        }
+    // Pins: per-sprite scale so every pin has the same CSS-pixel height.
+    // Each sprite's camera-space depth (z_view) is computed individually:
+    //   z_view = dist - (wp · camPos) / dist
+    // This is the actual distance from the camera plane to the sprite, which
+    // varies from (dist-1) for a sprite directly below the camera to dist
+    // for a sprite at 90°. Using dist instead of z_view was the bug that made
+    // close-in pins gigantic (dist-1 can be 0.02 at max zoom).
+    for (const item of pinItems) {
+      const dot = item.surfaceWp.dot(camPos);
+      const vis = dot > 0.05;
+      if (vis !== item.vis) {
+        item.sprite.visible = vis;
+        item.hit.visible    = vis;
+        item.vis = vis;
+        if (!vis && activeHit === item.hit) closePopup();
       }
+      if (vis) {
+        const zView = dist - dot / dist;
+        const sw    = targetPx * 2 * zView * TAN_HALF_FOV / (1.4 * viewH);
+        item.sprite.scale.set(sw, sw * 1.4, 1);
+      }
+    }
+
+    // Reposition popup each frame if open (follows pin as globe rotates)
+    if (activeHit && popup.dataset.open === 'true') {
+      positionPopup(activeHit.userData.wp);
     }
 
     renderer.render(scene, camera);

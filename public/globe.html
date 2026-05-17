@@ -35,7 +35,19 @@
     </div>
   </div>
 
+  <!-- Photo pin popup — lives outside container, positioned via project() -->
+  <div id="globe-popup" class="globe-popup" data-open="false">
+    <button id="globe-popup-close" class="globe-popup-close" aria-label="Close">×</button>
+    <div class="globe-popup-inner">
+      <span class="map-popup-album globe-popup-album"></span>
+      <strong class="globe-popup-title"></strong>
+      <span class="map-popup-date globe-popup-date"></span>
+      <img class="globe-popup-img" alt="">
+      <a class="map-popup-view globe-popup-link"></a>
+    </div>
+  </div>
+
   <script src="https://cdn.jsdelivr.net/npm/topojson-client@3/dist/topojson-client.min.js"></script>
-  <script type="module" src="pages/globe.js"></script>
+<script type="module" src="pages/globe.js"></script>
 </body>
 </html>
