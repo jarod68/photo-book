@@ -385,6 +385,71 @@ CREATE TABLE album_users (
 
 Views are deduplicated: a user token can only increment the counter once per photo. Likes are toggleable. The schema is managed entirely in `services/database.js` via `CREATE TABLE IF NOT EXISTS` on every startup — there is no external SQL init file.
 
+#### Diagramme Merise (MCD)
+
+```mermaid
+erDiagram
+    users {
+        int     id PK
+        varchar username
+        varchar password_hash
+        varchar role
+        timestamp created_at
+        timestamp last_login_at
+    }
+
+    user_sessions {
+        char    token PK
+        int     user_id FK
+        timestamp created_at
+        timestamp expires_at
+    }
+
+    album_settings {
+        varchar album PK
+        varchar visibility
+    }
+
+    album_users {
+        varchar album FK
+        int     user_id FK
+    }
+
+    photo_views {
+        int     id PK
+        varchar album
+        varchar filename
+        bigint  views
+    }
+
+    photo_view_log {
+        varchar album
+        varchar filename
+        varchar user_token
+        timestamp viewed_at
+    }
+
+    photo_likes {
+        varchar album
+        varchar filename
+        varchar user_token
+        timestamp created_at
+    }
+
+    activity_log {
+        int     id PK
+        varchar action
+        varchar username
+        varchar ip
+        jsonb   details
+        timestamp created_at
+    }
+
+    users ||--o{ user_sessions  : "possède"
+    users ||--o{ album_users    : "accède à"
+    album_settings ||--o{ album_users : "autorise"
+```
+
 ---
 
 ## Tests unitaires
