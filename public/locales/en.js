@@ -7,8 +7,10 @@ export default {
 
   // Home
   'home.empty':        'Add folders inside <code>photos/</code> to create albums.',
-  'home.mapCard.name': 'Map',
-  'home.mapCard.sub':  'All locations',
+  'home.mapCard.name':  'Map',
+  'home.mapCard.sub':   'All locations',
+  'home.globeCard.name': '3D Globe',
+  'home.globeCard.sub':  '3D view of Earth',
   'word.album':        'album{s}',
   'word.photo':        'photo{s}',
 
@@ -48,6 +50,8 @@ export default {
   'login.errorNetwork': 'Network error. Please try again.',
 
   // Map
+  'globe.title':     '3D Globe',
+
   'map.title':       'Map',
   'map.back':        'Back',
   'map.showRoute':   'Show route',

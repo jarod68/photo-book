@@ -25,6 +25,7 @@ async function init() {
     `${albums.length} ${t('word.album', { s: aS })} · ${totalPhotos} ${t('word.photo', { s: pS })}`;
 
   grid.appendChild(createMapCard());
+  grid.appendChild(createGlobeCard());
 
   if (albums.length === 0) {
     const p = document.createElement('p');
@@ -100,6 +101,68 @@ function createMapCard() {
   const sub = document.createElement('div');
   sub.className = 'album-card-count';
   sub.textContent = t('home.mapCard.sub');
+  info.appendChild(name);
+  info.appendChild(sub);
+  card.appendChild(info);
+
+  return card;
+}
+
+function createGlobeCard() {
+  const card = document.createElement('a');
+  card.className = 'album-card';
+  card.href = 'globe.html';
+
+  const visual = document.createElement('div');
+  visual.className = 'album-card-globe-visual';
+  visual.innerHTML = `
+    <svg viewBox="0 0 260 174" xmlns="http://www.w3.org/2000/svg" class="album-card-globe-svg">
+      <defs>
+        <radialGradient id="gGlow" cx="40%" cy="35%">
+          <stop offset="0%"   stop-color="#1e40af" stop-opacity="0.6"/>
+          <stop offset="100%" stop-color="#020818" stop-opacity="1"/>
+        </radialGradient>
+        <clipPath id="gClip"><circle cx="130" cy="87" r="62"/></clipPath>
+      </defs>
+      <!-- Globe base -->
+      <circle cx="130" cy="87" r="62" fill="url(#gGlow)"/>
+      <!-- Latitude lines -->
+      <g clip-path="url(#gClip)" stroke="rgba(59,130,246,0.20)" stroke-width="0.7" fill="none">
+        <ellipse cx="130" cy="87" rx="62" ry="9"/>
+        <ellipse cx="130" cy="87" rx="62" ry="25"/>
+        <ellipse cx="130" cy="87" rx="62" ry="46"/>
+        <ellipse cx="130" cy="87" rx="62" ry="60"/>
+        <line x1="68" y1="87" x2="192" y2="87"/>
+      </g>
+      <!-- Meridian arcs -->
+      <g clip-path="url(#gClip)" stroke="rgba(59,130,246,0.18)" stroke-width="0.7" fill="none">
+        <ellipse cx="130" cy="87" rx="20" ry="62"/>
+        <ellipse cx="130" cy="87" rx="42" ry="62"/>
+        <line x1="130" y1="25" x2="130" y2="149"/>
+      </g>
+      <!-- Globe outline -->
+      <circle cx="130" cy="87" r="62" fill="none" stroke="rgba(59,130,246,0.55)" stroke-width="1"/>
+      <!-- Atmosphere rim -->
+      <circle cx="130" cy="87" r="64" fill="none" stroke="rgba(96,165,250,0.18)" stroke-width="3"/>
+      <!-- Photo dots -->
+      <circle cx="104" cy="76" r="2.5" fill="#3b82f6" opacity="0.9"/>
+      <circle cx="104" cy="76" r="4"   fill="none" stroke="#93c5fd" stroke-width="1" opacity="0.5"/>
+      <circle cx="150" cy="82" r="2.5" fill="#3b82f6" opacity="0.9"/>
+      <circle cx="150" cy="82" r="4"   fill="none" stroke="#93c5fd" stroke-width="1" opacity="0.5"/>
+      <circle cx="120" cy="96" r="2.5" fill="#3b82f6" opacity="0.9"/>
+      <circle cx="163" cy="70" r="2.5" fill="#3b82f6" opacity="0.7"/>
+      <circle cx="94"  cy="91" r="2.5" fill="#3b82f6" opacity="0.7"/>
+    </svg>`;
+  card.appendChild(visual);
+
+  const info = document.createElement('div');
+  info.className = 'album-card-info';
+  const name = document.createElement('div');
+  name.className = 'album-card-name';
+  name.textContent = t('home.globeCard.name');
+  const sub = document.createElement('div');
+  sub.className = 'album-card-count';
+  sub.textContent = t('home.globeCard.sub');
   info.appendChild(name);
   info.appendChild(sub);
   card.appendChild(info);

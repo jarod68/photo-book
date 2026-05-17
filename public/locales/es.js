@@ -7,8 +7,10 @@ export default {
 
   // Home
   'home.empty':        'Añade carpetas en <code>photos/</code> para crear álbumes.',
-  'home.mapCard.name': 'Mapa',
-  'home.mapCard.sub':  'Todas las ubicaciones',
+  'home.mapCard.name':  'Mapa',
+  'home.mapCard.sub':   'Todas las ubicaciones',
+  'home.globeCard.name': 'Globo 3D',
+  'home.globeCard.sub':  'Vista 3D de la Tierra',
   'word.album':        'álbum{s}',
   'word.photo':        'foto{s}',
 
@@ -48,6 +50,8 @@ export default {
   'login.errorNetwork': 'Error de red. Inténtelo de nuevo.',
 
   // Map
+  'globe.title':     'Globo 3D',
+
   'map.title':       'Mapa',
   'map.back':        'Volver',
   'map.showRoute':   'Mostrar ruta',

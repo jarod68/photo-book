@@ -27,6 +27,17 @@ async function main() {
       outdir:  'dist/public/pages',
     }),
 
+    // Globe page: Three.js is loaded via importmap (CDN), so mark it external
+    esbuild.build({
+      ...shared,
+      entryPoints: ['public/pages/globe.js'],
+      bundle:   true,
+      minify:   true,
+      format:   'esm',
+      outdir:   'dist/public/pages',
+      external: ['three', 'three/addons/*'],
+    }),
+
     // CSS: minify
     esbuild.build({
       ...shared,
@@ -50,7 +61,7 @@ async function main() {
   ]);
 
   // HTML files are not processed by esbuild — copy as-is
-  for (const f of ['index.html', 'admin.html', 'login.html', 'map.html', 'viewer.html']) {
+  for (const f of ['index.html', 'admin.html', 'login.html', 'map.html', 'viewer.html', 'globe.html']) {
     copyFile(path.join(ROOT, 'public', f), path.join(DIST, 'public', f));
   }
 
