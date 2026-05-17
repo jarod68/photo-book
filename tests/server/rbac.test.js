@@ -5,18 +5,19 @@ import request from 'supertest';
 // ── Mocks ─────────────────────────────────────────────────────────────────────
 
 vi.mock('../../services/image.js', () => ({
-  PHOTOS_DIR:     '/test/photos',
-  PREVIEWS_DIR:   '/test/previews',
-  MEDIUM_DIR:     '/test/medium',
-  isImage:        f => ['.jpg', '.jpeg', '.png'].some(e => f.endsWith(e)),
-  isAlbumDir:     e => e.isDirectory?.() ?? false,
-  ensurePreview:  vi.fn().mockResolvedValue('/previews/album/photo.jpg'),
-  photoMeta:      vi.fn().mockResolvedValue({
+  PHOTOS_DIR:       '/test/photos',
+  PREVIEWS_DIR:     '/test/previews',
+  MEDIUM_DIR:       '/test/medium',
+  isImage:          f => ['.jpg', '.jpeg', '.png'].some(e => f.endsWith(e)),
+  isAlbumDir:       e => e.isDirectory?.() ?? false,
+  ensurePreview:    vi.fn().mockResolvedValue('/previews/album/photo.jpg'),
+  photoMeta:        vi.fn().mockResolvedValue({
     filename: 'photo.jpg', name: 'Photo', description: '',
     is360: false, gps: null, location: null,
     url: '/photos/album/photo.jpg', previewUrl: '/previews/album/photo.jpg',
   }),
-  preGenerateAll: vi.fn().mockResolvedValue(undefined),
+  preGenerateAll:   vi.fn().mockResolvedValue(undefined),
+  deletePhotoFiles: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock('fs', async () => {
@@ -31,6 +32,7 @@ vi.mock('fs', async () => {
     unlinkSync:  vi.fn(),
     watch:       vi.fn().mockReturnValue({ close: vi.fn() }),
     statSync:    vi.fn().mockReturnValue({ isDirectory: () => false }),
+    promises:    actual.promises,
   };
 });
 

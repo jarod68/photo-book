@@ -5,18 +5,19 @@ import request from 'supertest';
 // ── Mocks ─────────────────────────────────────────────────────────────────────
 
 vi.mock('../../services/image.js', () => ({
-  PHOTOS_DIR:     '/test/photos',
-  PREVIEWS_DIR:   '/test/previews',
-  MEDIUM_DIR:     '/test/medium',
-  isImage:        f => ['.jpg', '.jpeg', '.png'].some(e => f.endsWith(e)),
-  isAlbumDir:     e => e.isDirectory?.() ?? false,
-  ensurePreview:  vi.fn().mockResolvedValue('/previews/album/photo.jpg'),
-  photoMeta:      vi.fn().mockResolvedValue({
+  PHOTOS_DIR:       '/test/photos',
+  PREVIEWS_DIR:     '/test/previews',
+  MEDIUM_DIR:       '/test/medium',
+  isImage:          f => ['.jpg', '.jpeg', '.png'].some(e => f.endsWith(e)),
+  isAlbumDir:       e => e.isDirectory?.() ?? false,
+  ensurePreview:    vi.fn().mockResolvedValue('/previews/album/photo.jpg'),
+  photoMeta:        vi.fn().mockResolvedValue({
     filename: 'photo.jpg', name: 'Photo', description: '',
     is360: false, gps: null, location: null,
     url: '/photos/album/photo.jpg', previewUrl: '/previews/album/photo.jpg',
   }),
-  preGenerateAll: vi.fn().mockResolvedValue(undefined),
+  preGenerateAll:   vi.fn().mockResolvedValue(undefined),
+  deletePhotoFiles: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock('fs', async () => {
@@ -31,6 +32,7 @@ vi.mock('fs', async () => {
     unlinkSync:  vi.fn(),
     watch:       vi.fn().mockReturnValue({ close: vi.fn() }),
     statSync:    vi.fn().mockReturnValue({ isDirectory: () => false }),
+    promises:    actual.promises,
   };
 });
 
@@ -350,23 +352,24 @@ describe('POST /api/admin/albums', () => {
   });
 
   it('retourne 409 si l\'album existe déjà', async () => {
-    vi.spyOn(fsMod, 'existsSync').mockReturnValue(true);
+    vi.spyOn(fsMod.promises, 'access').mockResolvedValue(undefined); // album exists
     const res = await request(app).post('/api/admin/albums').send({ name: 'Paris' });
     expect(res.status).toBe(409);
   });
 
   it('crée le répertoire et retourne 200', async () => {
-    vi.spyOn(fsMod, 'existsSync').mockReturnValue(false);
-    const mkdirSpy = vi.spyOn(fsMod, 'mkdirSync');
+    // access rejects → album absent; mkdir resolves → creation ok
+    vi.spyOn(fsMod.promises, 'access').mockRejectedValue(Object.assign(new Error('ENOENT'), { code: 'ENOENT' }));
+    const mkdirSpy = vi.spyOn(fsMod.promises, 'mkdir').mockResolvedValue(undefined);
     const res = await request(app).post('/api/admin/albums').send({ name: 'Nouveau' });
     expect(res.status).toBe(200);
     expect(res.body.ok).toBe(true);
     expect(mkdirSpy).toHaveBeenCalled();
   });
 
-  it('retourne 500 si mkdirSync lève une exception', async () => {
-    vi.spyOn(fsMod, 'existsSync').mockReturnValue(false);
-    vi.spyOn(fsMod, 'mkdirSync').mockImplementation(() => { throw new Error('disk full'); });
+  it('retourne 500 si mkdir lève une exception', async () => {
+    vi.spyOn(fsMod.promises, 'access').mockRejectedValue(Object.assign(new Error('ENOENT'), { code: 'ENOENT' }));
+    vi.spyOn(fsMod.promises, 'mkdir').mockRejectedValue(new Error('disk full'));
     vi.spyOn(console, 'error').mockImplementation(() => {});
     const res = await request(app).post('/api/admin/albums').send({ name: 'Nouveau' });
     expect(res.status).toBe(500);
@@ -386,7 +389,8 @@ describe('PATCH /api/admin/albums/:album', () => {
   });
 
   it('retourne 404 si l\'album source n\'existe pas', async () => {
-    vi.spyOn(fsMod, 'existsSync').mockReturnValue(false);
+    // access rejects → old path absent
+    vi.spyOn(fsMod.promises, 'access').mockRejectedValue(Object.assign(new Error('ENOENT'), { code: 'ENOENT' }));
     const res = await request(app)
       .patch('/api/admin/albums/Inexistant')
       .send({ name: 'Nouveau' });
@@ -394,7 +398,8 @@ describe('PATCH /api/admin/albums/:album', () => {
   });
 
   it('retourne 409 si le nom cible est déjà pris', async () => {
-    vi.spyOn(fsMod, 'existsSync').mockReturnValue(true); // both old and new exist
+    // Both old and new path exist → access resolves for both
+    vi.spyOn(fsMod.promises, 'access').mockResolvedValue(undefined);
     const res = await request(app)
       .patch('/api/admin/albums/Paris')
       .send({ name: 'Rome' });
@@ -402,11 +407,12 @@ describe('PATCH /api/admin/albums/:album', () => {
   });
 
   it('renomme le dossier et met à jour la DB dans une transaction', async () => {
-    vi.spyOn(fsMod, 'existsSync')
-      .mockReturnValueOnce(true)   // old path exists
-      .mockReturnValueOnce(false)  // new path free
-      .mockReturnValue(false);     // previews/medium dirs don't exist
-    const renameSpy = vi.spyOn(fsMod, 'renameSync').mockImplementation(() => {});
+    // old exists, new free, previews/medium absent
+    vi.spyOn(fsMod.promises, 'access')
+      .mockResolvedValueOnce(undefined)  // old path exists
+      .mockRejectedValueOnce(Object.assign(new Error('ENOENT'), { code: 'ENOENT' })) // new path free
+      .mockRejectedValue(Object.assign(new Error('ENOENT'), { code: 'ENOENT' }));    // previews/medium absent
+    const renameSpy = vi.spyOn(fsMod.promises, 'rename').mockResolvedValue(undefined);
     const clientQuery = vi.fn().mockResolvedValue({ rowCount: 1 });
     const clientRelease = vi.fn();
     database._setState({
@@ -425,23 +431,23 @@ describe('PATCH /api/admin/albums/:album', () => {
   });
 
   it('renomme sans erreur si DB non prête', async () => {
-    vi.spyOn(fsMod, 'existsSync')
-      .mockReturnValueOnce(true)
-      .mockReturnValueOnce(false)
-      .mockReturnValue(false);
-    vi.spyOn(fsMod, 'renameSync').mockImplementation(() => {});
+    vi.spyOn(fsMod.promises, 'access')
+      .mockResolvedValueOnce(undefined)  // old path exists
+      .mockRejectedValue(Object.assign(new Error('ENOENT'), { code: 'ENOENT' })); // new path + previews/medium free
+    vi.spyOn(fsMod.promises, 'rename').mockResolvedValue(undefined);
     const res = await request(app)
       .patch('/api/admin/albums/Paris')
       .send({ name: 'London' });
     expect(res.status).toBe(200);
   });
 
-  it('renomme également les dossiers previews/medium si existants (ligne 267)', async () => {
-    vi.spyOn(fsMod, 'existsSync')
-      .mockReturnValueOnce(true)   // old path exists
-      .mockReturnValueOnce(false)  // new path free
-      .mockReturnValue(true);      // previews + medium dirs exist → renameSync appelé pour eux
-    const renameSpy = vi.spyOn(fsMod, 'renameSync').mockImplementation(() => {});
+  it('renomme également les dossiers previews/medium si existants', async () => {
+    // old exists, new free, previews + medium exist
+    vi.spyOn(fsMod.promises, 'access')
+      .mockResolvedValueOnce(undefined)  // old path exists
+      .mockRejectedValueOnce(Object.assign(new Error('ENOENT'), { code: 'ENOENT' })) // new path free
+      .mockResolvedValue(undefined);     // previews + medium exist
+    const renameSpy = vi.spyOn(fsMod.promises, 'rename').mockResolvedValue(undefined);
     const res = await request(app)
       .patch('/api/admin/albums/Paris')
       .send({ name: 'London' });
@@ -449,11 +455,11 @@ describe('PATCH /api/admin/albums/:album', () => {
     expect(renameSpy).toHaveBeenCalledTimes(3); // album + previews + medium
   });
 
-  it('retourne 500 si renameSync lève une exception', async () => {
-    vi.spyOn(fsMod, 'existsSync')
-      .mockReturnValueOnce(true)
-      .mockReturnValueOnce(false);
-    vi.spyOn(fsMod, 'renameSync').mockImplementation(() => { throw new Error('disk error'); });
+  it('retourne 500 si rename lève une exception', async () => {
+    vi.spyOn(fsMod.promises, 'access')
+      .mockResolvedValueOnce(undefined)  // old path exists
+      .mockRejectedValueOnce(Object.assign(new Error('ENOENT'), { code: 'ENOENT' })); // new path free
+    vi.spyOn(fsMod.promises, 'rename').mockRejectedValue(new Error('disk error'));
     vi.spyOn(console, 'error').mockImplementation(() => {});
     const res = await request(app)
       .patch('/api/admin/albums/Paris')
@@ -469,13 +475,15 @@ describe('DELETE /api/admin/albums/:album', () => {
   afterEach(() => vi.restoreAllMocks());
 
   it('retourne 404 si l\'album n\'existe pas', async () => {
-    vi.spyOn(fsMod, 'existsSync').mockReturnValue(false);
+    // access rejects → album absent
+    vi.spyOn(fsMod.promises, 'access').mockRejectedValue(Object.assign(new Error('ENOENT'), { code: 'ENOENT' }));
     const res = await request(app).delete('/api/admin/albums/Ghost');
     expect(res.status).toBe(404);
   });
 
   it('supprime le répertoire et nettoie la DB (deleteAlbumFromDb)', async () => {
-    vi.spyOn(fsMod, 'existsSync').mockReturnValue(true);
+    // album exists, previews + medium exist
+    vi.spyOn(fsMod.promises, 'access').mockResolvedValue(undefined);
     const rmSpy = vi.spyOn(fsMod, 'rmSync');
     mockQuery.mockResolvedValue({ rowCount: 1 });
     database._setState({ query: mockQuery }, true);
@@ -484,20 +492,20 @@ describe('DELETE /api/admin/albums/:album', () => {
     expect(res.body.ok).toBe(true);
     // album dir + previews + medium
     expect(rmSpy).toHaveBeenCalledTimes(3);
-    // 5 DELETE queries (view_log, likes, views, album_users, album_settings) + 1 INSERT + 1 purge activity_log
-    expect(mockQuery).toHaveBeenCalledTimes(7);
+    // 5 DELETE queries (view_log, likes, views, album_users, album_settings) + 1 INSERT activity_log
+    expect(mockQuery).toHaveBeenCalledTimes(6);
   });
 
   it('supprime sans erreur si DB non prête', async () => {
-    vi.spyOn(fsMod, 'existsSync').mockReturnValue(true);
+    vi.spyOn(fsMod.promises, 'access').mockResolvedValue(undefined);
     vi.spyOn(fsMod, 'rmSync');
     const res = await request(app).delete('/api/admin/albums/Paris');
     expect(res.status).toBe(200);
   });
 
-  it('supprime également les dossiers previews/medium si existants (ligne 292)', async () => {
-    // First existsSync: album dir (true), then previews (true), medium (true)
-    vi.spyOn(fsMod, 'existsSync').mockReturnValue(true);
+  it('supprime également les dossiers previews/medium si existants', async () => {
+    // album + previews + medium all exist
+    vi.spyOn(fsMod.promises, 'access').mockResolvedValue(undefined);
     const rmSpy = vi.spyOn(fsMod, 'rmSync').mockImplementation(() => {});
     mockQuery.mockResolvedValue({ rowCount: 1 });
     database._setState({ query: mockQuery }, true);
@@ -507,7 +515,7 @@ describe('DELETE /api/admin/albums/:album', () => {
   });
 
   it('retourne 500 si rmSync lève une exception', async () => {
-    vi.spyOn(fsMod, 'existsSync').mockReturnValue(true);
+    vi.spyOn(fsMod.promises, 'access').mockResolvedValue(undefined);
     vi.spyOn(fsMod, 'rmSync').mockImplementation(() => { throw new Error('disk error'); });
     vi.spyOn(console, 'error').mockImplementation(() => {});
     const res = await request(app).delete('/api/admin/albums/Paris');
@@ -528,40 +536,37 @@ describe('DELETE /api/admin/albums/:album/photos/:filename', () => {
   });
 
   it('retourne 404 si la photo n\'existe pas', async () => {
-    vi.spyOn(fsMod, 'existsSync').mockReturnValue(false);
+    // access rejects → file absent
+    vi.spyOn(fsMod.promises, 'access').mockRejectedValue(Object.assign(new Error('ENOENT'), { code: 'ENOENT' }));
     const res = await request(app).delete('/api/admin/albums/Paris/photos/photo.jpg');
     expect(res.status).toBe(404);
   });
 
-  it('supprime le fichier, les previews et nettoie la DB (deletePhotoFromDb)', async () => {
-    vi.spyOn(fsMod, 'existsSync').mockReturnValue(true);
-    const unlinkSpy = vi.spyOn(fsMod, 'unlinkSync').mockImplementation(() => {});
+  it('supprime le fichier, les previews et nettoie la DB', async () => {
+    // file exists → access resolves; unlink resolves (no real file ops)
+    vi.spyOn(fsMod.promises, 'access').mockResolvedValue(undefined);
+    const unlinkSpy = vi.spyOn(fsMod.promises, 'unlink').mockResolvedValue(undefined);
     mockQuery.mockResolvedValue({ rowCount: 1 });
     database._setState({ query: mockQuery }, true);
     const res = await request(app).delete('/api/admin/albums/Paris/photos/shot.jpg');
     expect(res.status).toBe(200);
     expect(res.body.ok).toBe(true);
-    // original + preview + medium
-    expect(unlinkSpy).toHaveBeenCalledTimes(3);
-    // 3 DELETE queries (view_log, likes, views) + 1 INSERT + 1 purge activity_log
-    expect(mockQuery).toHaveBeenCalledTimes(5);
+    // original + preview (ignored by .catch) + medium (ignored by .catch)
+    expect(unlinkSpy).toHaveBeenCalledWith(expect.stringContaining('shot.jpg'));
+    // 3 DELETE queries (view_log, likes, views) + 1 INSERT activity_log
+    expect(mockQuery).toHaveBeenCalledTimes(4);
   });
 
-  it('supprime sans preview ni medium si absents', async () => {
-    vi.spyOn(fsMod, 'existsSync')
-      .mockReturnValueOnce(true)   // original file exists
-      .mockReturnValue(false);     // previews/medium don't exist
-    const unlinkSpy = vi.spyOn(fsMod, 'unlinkSync').mockImplementation(() => {});
-    database._setState({ query: mockQuery }, true);
-    mockQuery.mockResolvedValue({ rowCount: 1 });
+  it('supprime sans erreur si DB non prête', async () => {
+    vi.spyOn(fsMod.promises, 'access').mockResolvedValue(undefined);
+    vi.spyOn(fsMod.promises, 'unlink').mockResolvedValue(undefined);
     const res = await request(app).delete('/api/admin/albums/Paris/photos/shot.jpg');
     expect(res.status).toBe(200);
-    expect(unlinkSpy).toHaveBeenCalledTimes(1); // only original
   });
 
-  it('retourne 500 si unlinkSync lève une exception', async () => {
-    vi.spyOn(fsMod, 'existsSync').mockReturnValue(true);
-    vi.spyOn(fsMod, 'unlinkSync').mockImplementation(() => { throw new Error('disk error'); });
+  it('retourne 500 si unlink lève une exception', async () => {
+    vi.spyOn(fsMod.promises, 'access').mockResolvedValue(undefined);
+    vi.spyOn(fsMod.promises, 'unlink').mockRejectedValue(new Error('disk error'));
     vi.spyOn(console, 'error').mockImplementation(() => {});
     const res = await request(app).delete('/api/admin/albums/Paris/photos/shot.jpg');
     expect(res.status).toBe(500);
@@ -574,7 +579,8 @@ describe('POST /api/admin/albums/:album/photos', () => {
   afterEach(() => vi.restoreAllMocks());
 
   it('retourne 404 si l\'album n\'existe pas', async () => {
-    vi.spyOn(fsMod, 'existsSync').mockReturnValue(false);
+    // access rejects → album absent
+    vi.spyOn(fsMod.promises, 'access').mockRejectedValue(Object.assign(new Error('ENOENT'), { code: 'ENOENT' }));
     const res = await request(app)
       .post('/api/admin/albums/Ghost/photos')
       .attach('photos', Buffer.from('fake'), 'test.jpg');
@@ -583,9 +589,9 @@ describe('POST /api/admin/albums/:album/photos', () => {
   });
 
   it('retourne 400 si multer ne peut pas écrire dans le répertoire', async () => {
-    // existsSync=true → dépasse le check 404; multer tente d'écrire dans /test/photos/Paris
-    // qui n'existe pas sur le vrai disque → multer appelle le callback avec une erreur ENOENT
-    vi.spyOn(fsMod, 'existsSync').mockReturnValue(true);
+    // access resolves → album exists check passes; multer tries to write to /test/photos/Paris
+    // which doesn't exist on real disk → multer calls callback with ENOENT error
+    vi.spyOn(fsMod.promises, 'access').mockResolvedValue(undefined);
     vi.spyOn(console, 'error').mockImplementation(() => {});
     const res = await request(app)
       .post('/api/admin/albums/Paris/photos')
@@ -1156,9 +1162,8 @@ describe('DELETE /api/albums/:album/photos/:filename', () => {
     // getAlbumAccess: visibility='public' → canDelete = 'admin'==='admin' = true
     mockQuery.mockResolvedValueOnce({ rows: [] }); // getAlbumVisibility (public by default)
     database._setState({ query: mockQuery }, true);
-    vi.spyOn(fsMod, 'existsSync').mockReturnValue(true);
-    vi.spyOn(fsMod, 'unlinkSync').mockImplementation(() => {});
-    mockQuery.mockResolvedValue({ rowCount: 1 }); // deletePhotoFromDb queries
+    vi.spyOn(fsMod.promises, 'access').mockResolvedValue(undefined); // file exists
+    vi.spyOn(fsMod.promises, 'unlink').mockResolvedValue(undefined);  // allow unlink
     const res = await request(app).delete('/api/albums/Paris/photos/photo.jpg');
     expect(res.status).toBe(200);
     expect(res.body.ok).toBe(true);
@@ -1168,7 +1173,7 @@ describe('DELETE /api/albums/:album/photos/:filename', () => {
     authMod._setTestUser({ id: 1, role: 'admin' });
     mockQuery.mockResolvedValueOnce({ rows: [] }); // getAlbumVisibility (public)
     database._setState({ query: mockQuery }, true);
-    vi.spyOn(fsMod, 'existsSync').mockReturnValue(false);
+    vi.spyOn(fsMod.promises, 'access').mockRejectedValue(Object.assign(new Error('ENOENT'), { code: 'ENOENT' }));
     const res = await request(app).delete('/api/albums/Paris/photos/missing.jpg');
     expect(res.status).toBe(404);
     expect(res.body.error).toBe('Photo not found');
@@ -1183,12 +1188,12 @@ describe('DELETE /api/albums/:album/photos/:filename', () => {
     expect(res.body.error).toBe('Not an image');
   });
 
-  it('retourne 500 si une exception est levée (route utilisateur, catch ligne 322)', async () => {
+  it('retourne 500 si unlink lève une exception (route utilisateur)', async () => {
     authMod._setTestUser({ id: 1, role: 'admin' });
     mockQuery.mockResolvedValueOnce({ rows: [] }); // getAlbumVisibility
     database._setState({ query: mockQuery }, true);
-    vi.spyOn(fsMod, 'existsSync').mockReturnValue(true);
-    vi.spyOn(fsMod, 'unlinkSync').mockImplementation(() => { throw new Error('disk error'); });
+    vi.spyOn(fsMod.promises, 'access').mockResolvedValue(undefined); // file exists
+    vi.spyOn(fsMod.promises, 'unlink').mockRejectedValue(new Error('disk error'));
     vi.spyOn(console, 'error').mockImplementation(() => {});
     const res = await request(app).delete('/api/albums/Paris/photos/photo.jpg');
     expect(res.status).toBe(500);

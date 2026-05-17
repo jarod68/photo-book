@@ -147,6 +147,21 @@ async function photoMeta(albumName, file, albumPath, _deps = {}) {
 // Runs in background after server start; skips photos that already have a
 // preview so subsequent restarts are near-instant.
 
+/**
+ * Run an array of zero-argument async functions with bounded concurrency.
+ * @param {Array<() => Promise<unknown>>} fns - Lazy task factories.
+ * @param {number} concurrency - Maximum number of simultaneous tasks.
+ */
+async function withConcurrency(fns, concurrency = 6) {
+  let i = 0;
+  async function worker() {
+    while (i < fns.length) {
+      await fns[i++]();
+    }
+  }
+  await Promise.all(Array.from({ length: concurrency }, worker));
+}
+
 async function preGenerateAll(_deps = {}) {
   const _fs = _deps.fs ?? fs;
 
@@ -162,12 +177,47 @@ async function preGenerateAll(_deps = {}) {
         return !_fs.existsSync(path.join(PREVIEWS_DIR, album.name, base))
             || !_fs.existsSync(path.join(MEDIUM_DIR,   album.name, base));
       })
-      .map(file => photoMeta(album.name, file, albumPath, _deps).catch(e =>
+      .map(file => () => photoMeta(album.name, file, albumPath, _deps).catch(e =>
         console.error('Preview error:', file, e.message),
       ));
   });
-  await Promise.all(tasks);
+  await withConcurrency(tasks);
   if (tasks.length > 0) console.log(`  ✓ ${tasks.length} thumbnail${tasks.length > 1 ? 's' : ''} generated.`);
 }
 
-module.exports = { PHOTOS_DIR, PREVIEWS_DIR, MEDIUM_DIR, IMAGE_EXT, isImage, isAlbumDir, ensurePreview, ensureMedium, photoMeta, preGenerateAll };
+// ── Photo deletion ────────────────────────────────────────────────────────────
+// Shared by the user-facing and admin DELETE /albums/:album/photos/:filename
+// handlers. Removes the original file plus any generated preview and medium
+// variants from disk, then cleans up the database rows.
+
+/**
+ * Delete a photo from disk (original + previews) and clean up DB rows.
+ * Authorization must be verified by the caller before invoking this function.
+ *
+ * @param {string} album
+ * @param {string} filename
+ * @param {{ dbReady: boolean, db: object }} database - the database service module
+ * @param {{ fs?: object }} _deps - injectable dependencies for testing
+ */
+async function deletePhotoFiles(album, filename, database, _deps = {}) {
+  const _fsPromises = _deps.fsPromises ?? fs.promises;
+
+  const albumPath = path.resolve(path.join(PHOTOS_DIR, album));
+  const filePath  = path.resolve(path.join(albumPath, filename));
+  await _fsPromises.unlink(filePath);
+
+  const previewName = path.parse(filename).name + '.jpg';
+  for (const base of [PREVIEWS_DIR, MEDIUM_DIR]) {
+    const p = path.join(base, album, previewName);
+    await _fsPromises.unlink(p).catch(() => {});
+  }
+
+  if (!database.dbReady) return;
+  console.log(`  ✕ Photo deleted — DB cleanup: ${album}/${filename}`);
+  const q = (sql) => database.db.query(sql, [album, filename]);
+  await q('DELETE FROM photo_view_log WHERE album = $1 AND filename = $2');
+  await q('DELETE FROM photo_likes    WHERE album = $1 AND filename = $2');
+  await q('DELETE FROM photo_views    WHERE album = $1 AND filename = $2');
+}
+
+module.exports = { PHOTOS_DIR, PREVIEWS_DIR, MEDIUM_DIR, IMAGE_EXT, isImage, isAlbumDir, ensurePreview, ensureMedium, photoMeta, preGenerateAll, withConcurrency, deletePhotoFiles };

@@ -90,6 +90,15 @@ function authStaticGuard(req, res, next) {
     .catch(() => res.redirect('/login.html'));
 }
 
+/**
+ * Hash a plain-text password using bcrypt with a cost factor of 12.
+ * @param {string} password
+ * @returns {Promise<string>} The bcrypt hash.
+ */
+async function hashPassword(password) {
+  return bcrypt.hash(password, 12);
+}
+
 // Test-only helpers — not exported in production
 function _setBypass(val)  { _testBypass = val; }
 function _setTestUser(u)  { _testUser = u; }
@@ -98,4 +107,4 @@ const testExports = process.env.NODE_ENV !== 'production'
   ? { _setBypass, _setTestUser }
   : {};
 
-module.exports = { ensureAdmin, login, getSessionUser, logout, requireAuth, requireAdmin, authStaticGuard, ...testExports };
+module.exports = { ensureAdmin, login, getSessionUser, logout, requireAuth, requireAdmin, authStaticGuard, hashPassword, ...testExports };
