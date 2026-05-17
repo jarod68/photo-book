@@ -408,10 +408,102 @@ body {
   text-transform: uppercase;
   white-space: nowrap;
   pointer-events: none;
-  text-shadow: 0 0 10px rgba(10,20,50,0.9), 0 0 20px rgba(10,20,50,0.7);
-  transition: opacity 0.3s;
+  text-shadow: 0 0 10px rgba(5,10,25,1), 0 0 20px rgba(5,10,25,0.9);
+  transition: opacity 0.25s;
   user-select: none;
 }
+
+/* ── Photo pins ──────────────────────────────────────────────────────────── */
+.globe-pin-wrap {
+  position: relative;
+  /* Offset so the pin tip (bottom-center of SVG) aligns with the 3D position */
+  margin-left: -10px;
+  margin-top:  -28px;
+  transition: opacity 0.2s;
+}
+
+.globe-pin-svg {
+  display: block;
+  cursor: pointer;
+  filter: drop-shadow(0 2px 6px rgba(0,0,0,0.7));
+  transition: transform 0.15s;
+}
+.globe-pin-svg:hover { transform: scale(1.25) translateY(-2px); }
+
+/* Popup card */
+.globe-popup {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(6, 12, 28, 0.97);
+  border: 1px solid rgba(59,130,246,0.30);
+  border-radius: 9px;
+  padding: 10px 13px 10px;
+  min-width: 155px;
+  max-width: 210px;
+  pointer-events: auto;
+  backdrop-filter: blur(10px);
+  box-shadow: 0 8px 28px rgba(0,0,0,0.6), 0 0 0 1px rgba(59,130,246,0.08);
+  /* Hide/show via data-open attribute set in JS */
+  display: none;
+}
+.globe-popup[data-open="true"]  { display: block; }
+.globe-popup[data-open="false"] { display: none;  }
+
+/* Downward-pointing caret */
+.globe-popup::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 6px solid transparent;
+  border-top-color: rgba(59,130,246,0.30);
+}
+.globe-popup::before {
+  content: '';
+  position: absolute;
+  top: calc(100% + 1px);
+  left: 50%;
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+  border-top-color: rgba(6,12,28,0.97);
+}
+
+.globe-popup-album {
+  display: block;
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: #3b82f6;
+  margin-bottom: 3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.globe-popup-name {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: #eeeef2;
+  margin-bottom: 9px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.globe-popup-link {
+  display: block;
+  font-size: 11px;
+  color: #93c5fd;
+  text-decoration: none;
+  font-weight: 500;
+  transition: color 0.15s;
+}
+.globe-popup-link:hover { color: #fff; }
 
 /* ── Globe album card visual (home page) ─────────────────────────────────── */
 .album-card-globe-visual {
