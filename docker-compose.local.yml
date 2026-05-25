@@ -5,5 +5,8 @@ services:
     profiles: [disabled]
 
   photo-book:
+    build: .
     ports:
       - "3000:3000"
+    environment:
+      - NODE_ENV=test

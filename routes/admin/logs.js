@@ -16,6 +16,7 @@ router.get('/', requireAdmin, async (req, res) => {
   const offset = (page - 1) * limit;
   try {
     const cond  = action ? 'WHERE action = $3' : '';
+    const cCond = action ? 'WHERE action = $1' : '';
     const args  = action ? [limit, offset, action] : [limit, offset];
     const cArgs = action ? [action] : [];
     const [{ rows }, { rows: cnt }] = await Promise.all([
@@ -23,7 +24,7 @@ router.get('/', requireAdmin, async (req, res) => {
         `SELECT id, action, username, ip, details, created_at FROM activity_log ${cond} ORDER BY created_at DESC LIMIT $1 OFFSET $2`,
         args,
       ),
-      database.db.query(`SELECT COUNT(*) FROM activity_log ${cond}`, cArgs),
+      database.db.query(`SELECT COUNT(*) FROM activity_log ${cCond}`, cArgs),
     ]);
     const total = parseInt(cnt[0].count);
     res.json({ logs: rows, total, page, pages: Math.ceil(total / limit) });

@@ -42,7 +42,7 @@ router.post('/', requireAdmin, express.json(), async (req, res) => {
     const exists = await fs.promises.access(albumPath).then(() => true).catch(() => false);
     if (exists) return res.status(409).json({ error: 'Album already exists' });
     await fs.promises.mkdir(albumPath, { recursive: true });
-    res.json({ ok: true });
+    res.status(201).json({ ok: true });
     activity.log('album_create', { username: req.user?.username ?? null, ip: req.ip, details: { album: name } });
   } catch (err) {
     console.error(err);
