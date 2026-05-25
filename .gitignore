@@ -154,3 +154,5 @@ letsencrypt/
 # macOS metadata — toutes profondeurs
 .DS_Store
 **/.DS_Store
+# Robot Framework results
+tests/robot/results/

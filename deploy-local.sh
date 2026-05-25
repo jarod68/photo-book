@@ -8,6 +8,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
 CMD="${1:-up}"
+shift 2>/dev/null || true
 DC="docker compose -f docker-compose.yml -f docker-compose.local.yml"
 
 # Generate .env if missing
