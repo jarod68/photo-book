@@ -1,3 +1,7 @@
+# CLAUDE.md
+# Rules
+Never commit and push unless it is explicitely requested.
+
 # Project Agents
 
 ## Active Agents
