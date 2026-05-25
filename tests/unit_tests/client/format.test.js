@@ -1,6 +1,6 @@
 import { vi, describe, it, expect, beforeAll } from 'vitest';
 
-vi.mock('../../public/utils/i18n.js', () => {
+vi.mock('../../../public/utils/i18n.js', () => {
   const fr = {
     'format.view':    '{n} vue',
     'format.views':   '{n} vues',
@@ -20,7 +20,7 @@ vi.mock('../../public/utils/i18n.js', () => {
   };
 });
 
-const { formatViews, formatLikes } = await import('../../public/utils/format.js');
+const { formatViews, formatLikes } = await import('../../../public/utils/format.js');
 
 describe('formatViews', () => {
   it('affiche "1 vue" au singulier', () => {

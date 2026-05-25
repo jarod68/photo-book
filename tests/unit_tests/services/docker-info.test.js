@@ -1,7 +1,7 @@
 import { createRequire } from 'module';
 import { describe, it, expect, vi, afterEach } from 'vitest';
 
-const dockerInfo = await import('../../services/docker-info.js');
+const dockerInfo = await import('../../../services/docker-info.js');
 const _require   = createRequire(import.meta.url);
 const httpMod    = _require('http');
 

@@ -5,7 +5,7 @@ export default defineConfig({
     env: { NODE_ENV: 'test' },
     environment: 'node',
     environmentMatchGlobs: [
-      ['tests/client/**', 'happy-dom'],
+      ['tests/unit_tests/client/**', 'happy-dom'],
     ],
     coverage: {
       provider: 'v8',

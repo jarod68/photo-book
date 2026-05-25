@@ -4,7 +4,7 @@ import request from 'supertest';
 
 // ── Mocks ─────────────────────────────────────────────────────────────────────
 
-vi.mock('../../services/image.js', () => ({
+vi.mock('../../../services/image.js', () => ({
   PHOTOS_DIR:       '/test/photos',
   PREVIEWS_DIR:     '/test/previews',
   MEDIUM_DIR:       '/test/medium',
@@ -41,12 +41,12 @@ const {
   watchPhotosDir,
   deletePhotoFromDb,
   deleteAlbumFromDb,
-} = await import('../../server.js');
+} = await import('../../../server.js');
 
 const _require      = createRequire(import.meta.url);
-const database      = _require('../../services/database.js');
-const authMod       = _require('../../services/auth.js');
-const dockerInfoMod = _require('../../services/docker-info.js');
+const database      = _require('../../../services/database.js');
+const authMod       = _require('../../../services/auth.js');
+const dockerInfoMod = _require('../../../services/docker-info.js');
 const fsMod         = _require('fs');
 
 authMod._setBypass(true);

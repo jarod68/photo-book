@@ -155,4 +155,4 @@ letsencrypt/
 .DS_Store
 **/.DS_Store
 # Robot Framework results
-tests/robot/results/
+tests/integration_tests/results/

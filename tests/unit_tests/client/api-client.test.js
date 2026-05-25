@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
   getAlbums, getAlbum, getLiked, toggleLike, recordView, geocode, getMapPhotos,
-} from '../../public/api/client.js';
+} from '../../../public/api/client.js';
 
 const ok  = (data) => ({ ok: true,  json: () => Promise.resolve(data) });
 const err = (status) => ({ ok: false, status });

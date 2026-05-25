@@ -3,9 +3,9 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 // Load auth.js — it requires database.js (same CJS cache).
 // We inject a mock DB via database._setState() to control query results.
-const auth     = await import('../../services/auth.js');
+const auth     = await import('../../../services/auth.js');
 const _require = createRequire(import.meta.url);
-const database = _require('../../services/database.js');
+const database = _require('../../../services/database.js');
 const bcrypt   = _require('bcryptjs');
 
 const mockQuery = vi.fn();

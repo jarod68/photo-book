@@ -9,7 +9,7 @@ import {
   MAX_DAYS,
   MAX_KM,
   CLUSTER_KM,
-} from '../../public/utils/map-math.js';
+} from '../../../public/utils/map-math.js';
 
 // ── haversineKm ───────────────────────────────────────────────────────────────
 

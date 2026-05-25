@@ -6,7 +6,7 @@ import request from 'supertest';
 // database.js is NOT mocked: we retrieve the same CJS instance as server.js
 // via createRequire, then control the state with _reset() / _setState().
 
-vi.mock('../../services/image.js', () => ({
+vi.mock('../../../services/image.js', () => ({
   PHOTOS_DIR:    '/test/photos',
   PREVIEWS_DIR:  '/test/previews',
   isImage:       f  => ['.jpg', '.jpeg', '.png'].some(e => f.endsWith(e)),
@@ -31,14 +31,14 @@ vi.mock('fs', async () => {
 });
 
 // server.js is loaded first — it places database.js in the CJS cache
-const { app } = await import('../../server.js');
+const { app } = await import('../../../server.js');
 
 // createRequire gives access to the same CJS cache as server.js's require() calls.
 // fsMod and exifrMod are the same objects used by server.js:
 // modifying their properties here is immediately visible in the routes.
 const _require  = createRequire(import.meta.url);
-const database  = _require('../../services/database.js');
-const authMod   = _require('../../services/auth.js');
+const database  = _require('../../../services/database.js');
+const authMod   = _require('../../../services/auth.js');
 const fsMod     = _require('fs');    // vi.fn() instances from vi.mock('fs', …)
 const exifrMod  = _require('exifr'); // real module — we will use vi.spyOn
 

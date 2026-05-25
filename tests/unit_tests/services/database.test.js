@@ -1,7 +1,7 @@
 import { createRequire } from 'module';
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 
-vi.mock('../../services/image.js', () => ({
+vi.mock('../../../services/image.js', () => ({
   PHOTOS_DIR: '/test/photos',
   isImage:    f => f.endsWith('.jpg'),
   // Accepts withFileTypes entries whose isDirectory() returns true,
@@ -12,7 +12,7 @@ vi.mock('../../services/image.js', () => ({
 // Module imported once — state reset via _reset() between tests.
 // We inject a mock pool directly into connectDb() to avoid interception issues
 // with require('pg') CJS in Vitest's ESM interop.
-const database = await import('../../services/database.js');
+const database = await import('../../../services/database.js');
 
 // fsMod: same fs object used by database.js (shared CJS cache).
 // vi.spyOn on its properties is immediately visible in the tested module.

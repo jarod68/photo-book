@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { isImage, isAlbumDir } from '../../services/image.js';
+import { isImage, isAlbumDir } from '../../../services/image.js';
 
 // ── isImage ───────────────────────────────────────────────────────────────────
 

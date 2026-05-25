@@ -4,7 +4,7 @@ import request from 'supertest';
 
 // ── Mocks ─────────────────────────────────────────────────────────────────────
 
-vi.mock('../../services/image.js', () => ({
+vi.mock('../../../services/image.js', () => ({
   PHOTOS_DIR:       '/test/photos',
   PREVIEWS_DIR:     '/test/previews',
   MEDIUM_DIR:       '/test/medium',
@@ -36,10 +36,10 @@ vi.mock('fs', async () => {
   };
 });
 
-const { app } = await import('../../server.js');
+const { app } = await import('../../../server.js');
 
 const _require = createRequire(import.meta.url);
-const database = _require('../../services/database.js');
+const database = _require('../../../services/database.js');
 const fsMod    = _require('fs');
 
 // ⚠️  Ne pas appeler authMod._setBypass(true) — ce fichier teste les vraies

@@ -41,4 +41,4 @@ for i in $(seq 1 30); do
 done
 
 echo "[robot] Running test suites..."
-robot --outputdir tests/robot/results tests/robot/suites/
+robot --outputdir tests/integration_tests/results tests/integration_tests/suites/

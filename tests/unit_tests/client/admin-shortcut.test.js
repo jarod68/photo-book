@@ -2,7 +2,7 @@
  * @vitest-environment happy-dom
  */
 import { describe, it, expect } from 'vitest';
-import '../../public/utils/admin-shortcut.js';
+import '../../../public/utils/admin-shortcut.js';
 
 // admin-shortcut.js runs side-effects at import time:
 // it creates an <a> and appends it to document.body.

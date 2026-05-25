@@ -2,7 +2,7 @@
  * @vitest-environment happy-dom
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { requireLogin } from '../../public/utils/auth-check.js';
+import { requireLogin } from '../../../public/utils/auth-check.js';
 
 beforeEach(() => {
   vi.stubGlobal('fetch', vi.fn());
