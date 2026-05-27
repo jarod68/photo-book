@@ -357,12 +357,12 @@ describe('POST /api/admin/albums', () => {
     expect(res.status).toBe(409);
   });
 
-  it('crée le répertoire et retourne 200', async () => {
+  it('crée le répertoire et retourne 201', async () => {
     // access rejects → album absent; mkdir resolves → creation ok
     vi.spyOn(fsMod.promises, 'access').mockRejectedValue(Object.assign(new Error('ENOENT'), { code: 'ENOENT' }));
     const mkdirSpy = vi.spyOn(fsMod.promises, 'mkdir').mockResolvedValue(undefined);
     const res = await request(app).post('/api/admin/albums').send({ name: 'Nouveau' });
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(201);
     expect(res.body.ok).toBe(true);
     expect(mkdirSpy).toHaveBeenCalled();
   });
