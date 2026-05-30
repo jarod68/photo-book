@@ -156,3 +156,9 @@ letsencrypt/
 **/.DS_Store
 # Robot Framework results
 tests/integration_tests/results/
+
+# Playwright visual tests
+tests/visual_tests/.auth/
+tests/visual_tests/report/
+playwright-report/
+test-results/

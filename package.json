@@ -18,7 +18,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "test:robot": "bash scripts/test-robot.sh"
+    "test:robot": "bash scripts/test-robot.sh",
+    "test:visual": "bash scripts/test-visual.sh",
+    "test:visual:update": "bash scripts/test-visual.sh --update-snapshots"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
@@ -35,6 +37,7 @@
     "chokidar": "^4.0.3"
   },
   "devDependencies": {
+    "@playwright/test": "^1.60.0",
     "@vitest/coverage-v8": "^4.1.5",
     "esbuild": "^0.28.0",
     "happy-dom": "^20.9.0",
