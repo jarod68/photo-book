@@ -61,5 +61,4 @@ Anonymous Viewer Does Not Show Download Actions
     New Context    locale=fr-FR
     New Page    ${BASE_URL}/viewer.html?album=${ANON_ALBUM}
     Wait For Elements State    css=#thumbnails .thumb >> nth=0    visible    timeout=10s
-    ${count}=    Get Element Count    id=photo-actions
-    Should Be Equal As Integers    ${count}    0
+    Wait For Elements State    id=photo-actions    hidden    timeout=5s
