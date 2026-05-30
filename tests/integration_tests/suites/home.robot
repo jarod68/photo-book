@@ -31,3 +31,26 @@ Auth Area Is Rendered
 Summary Text Appears
     ${text}=    Get Text    css=#summary
     Should Not Be Empty    ${text}
+
+Summary Text Contains A Number
+    ${text}=    Get Text    css=#summary
+    Should Match Regexp    ${text}    \\d+
+
+Anonymous User Sees Sign In Link
+    ${count}=    Get Element Count    css=a[href="/login.html"]
+    Should Be Equal As Integers    ${count}    1
+
+Anonymous User Does Not See Admin Link
+    ${count}=    Get Element Count    css=a[href="/admin.html"]
+    Should Be Equal As Integers    ${count}    0
+
+GET Albums API Returns Array
+    ${data}=    Evaluate JavaScript    ${NONE}
+    ...    () => fetch('/api/albums').then(r => r.json())
+    Should Be True    isinstance(${data}, list)
+
+GET Albums Entries Have Name And Count Fields
+    ${valid}=    Evaluate JavaScript    ${NONE}
+    ...    () => fetch('/api/albums').then(r => r.json())
+    ...    .then(albums => albums.length === 0 || albums.every(a => a.name && 'count' in a))
+    Should Be True    ${valid}

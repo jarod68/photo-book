@@ -505,6 +505,124 @@ Coverage targets: `server.js`, `services/**`, `public/api/**`, `public/utils/**`
 
 ---
 
+## Tests d'intégration (Robot Framework)
+
+Integration tests use **Robot Framework** with the **Browser library** (Playwright) to validate the full application stack — HTTP API, browser rendering, and multi-user flows — against a real running instance.
+
+Unlike unit tests (which mock I/O and isolate modules), integration tests:
+
+- Spin up a real Chromium browser (headless)
+- Execute API calls via `fetch()` from within the browser context, so cookies are included automatically
+- Navigate real HTML pages and assert on DOM state
+- Cover multi-user flows using separate browser contexts per identity
+
+### Prerequisites
+
+```bash
+# Python ≥ 3.10 required
+pip install -r requirements-robot.txt
+
+# Download Playwright + Chromium (~150 MB, cached after first run)
+rfbrowser init
+```
+
+### Running tests
+
+```bash
+# Full end-to-end run (starts the Docker stack, configures users, runs all suites)
+npm run test:robot
+
+# Run a single suite manually against an already-running instance
+robot \
+  --outputdir tests/integration_tests/results \
+  --variable ADMIN_PASS:YourPass \
+  --variable BASIC_USER:robot-basic \
+  --variable BASIC_PASS:Robot@basic1 \
+  tests/integration_tests/suites/auth.robot
+```
+
+Results (HTML report + execution log) are written to `tests/integration_tests/results/`. Open `log.html` for step-by-step detail including screenshots on failure.
+
+To see verbose output in the terminal during a run:
+
+```bash
+robot --console verbose --loglevel TRACE tests/integration_tests/suites/
+```
+
+### Test suites
+
+| Suite | Endpoints / features covered |
+|---|---|
+| `auth.robot` | `POST /api/auth/login`, `POST /api/auth/logout`, `GET /api/auth/me`, session validation, rate limiting |
+| `security.robot` | Security headers (CSP, HSTS, X-Frame-Options), injection protection, path traversal, unauthenticated access |
+| `home.robot` | Home page structure, album grid, Map/Globe cards, anonymous auth state, `GET /api/albums` |
+| `home_auth.robot` | Authenticated home: username display, admin link, logout, album card navigation |
+| `viewer.robot` | Thumbnail strip, keyboard navigation (←→), view counter, download button for authenticated users |
+| `viewer_edge_cases.robot` | Empty album (no thumbnails), anonymous viewer (no download), non-existent album (404) |
+| `interactions.robot` | `POST /api/view` (deduplication), `POST /api/like` (toggle), `GET /api/liked` |
+| `album_access.robot` | Restricted album visibility, per-user authorization via `PUT /api/admin/albums/:album/settings` |
+| `album_api.robot` | `GET /api/albums/:album/cover`, `DELETE /api/albums/:album/photos/:filename` (anonymous 401, admin 200) |
+| `admin_albums.robot` | Admin album CRUD (create, rename, delete), photo upload via UI |
+| `admin_users.robot` | User management API: create, PATCH role/password, password policy, duplicate detection |
+| `admin_logs.robot` | Activity log: filtering by action, pagination, `DELETE /api/admin/logs` |
+| `admin_stats.robot` | `GET /api/admin/stats`, `GET /api/admin/system`, `GET /api/admin/top-photos` with limit enforcement |
+| `map.robot` | Map page structure, `GET /api/map` response shape |
+| `map_route.robot` | Route segmentation with GPS EXIF fixtures: two temporal groups form two independent polylines |
+| `geocode.robot` | `GET /api/geocode` input validation (400 on bad coords), response shape, cache consistency |
+
+### Suite architecture
+
+Each suite is self-contained:
+
+- **Setup** — creates the album(s), user(s), or fixtures it needs via API or UI
+- **Tests** — assert API responses and/or DOM state
+- **Teardown** — deletes created resources via API, closes the browser
+
+Resources are namespaced with `robot-` prefixes (`robot-viewer`, `robot-gps-route`, …) so they can be identified and cleaned up without affecting real data.
+
+### Multi-user tests
+
+Suites that test access control (`album_access.robot`, `viewer_edge_cases.robot`, `home_auth.robot`) use multiple browser contexts within the same browser process:
+
+```
+New Browser
+  ├─ Context A  (admin session)   → stores ${ADMIN_CTX}
+  └─ Context B  (basic / anon)    → created per test or per suite
+```
+
+`Switch Context ${ADMIN_CTX}` restores the admin context after a basic-user test. Each context has its own cookie jar, so the two identities never interfere.
+
+### How API assertions work
+
+All API assertions use the Browser library's `Evaluate JavaScript` keyword to call `fetch()` from within the page. Cookies are included automatically; the result is converted to a Python value:
+
+```robot
+${data}=    Evaluate JavaScript    ${NONE}
+...    async () => {
+...    const all = await fetch('/api/admin/logs?limit=1&page=2').then(r => r.json());
+...    return all.logs[0].id;
+...    }
+Should Not Be Empty    ${data}
+```
+
+The arrow-function syntax (`() =>` or `async () => { }`) is required by the Browser library's JavaScript injection mechanism.
+
+### GPS route fixtures
+
+`map_route.robot` uses five TIFF files generated by `tests/integration_tests/fixtures/generate_gps.py` (pure Python, no external dependencies). Each file is a 1×1 grayscale TIFF with GPS IFD and `DateTimeOriginal` EXIF:
+
+| File | Coordinates | Date | Group |
+|---|---|---|---|
+| `gps-a.tiff` | 45.5017 N, 73.5673 W | 2026-05-25 | Recent |
+| `gps-b.tiff` | 45.5107 N (1 km N) | 2026-05-24 | Recent |
+| `gps-c.tiff` | 45.5917 N (10 km N) | 2026-05-25 | Recent |
+| `gps-d.tiff` | 45.5737 N (8 km N) | 2024-05-25 | Old |
+| `gps-e.tiff` | 45.5800 N (8.6 km N) | 2024-05-24 | Old |
+
+The `buildSegments` algorithm (`public/utils/map-math.js`) connects photos within `MAX_DAYS = 21` days and `MAX_KM = 400` km. The ~730-day gap between the two groups exceeds `MAX_DAYS`, producing two independent route segments. The suite replicate the algorithm inline in JavaScript to validate the segmentation end-to-end.
+
+---
+
 ## How to deploy
 
 ### Prerequisites
