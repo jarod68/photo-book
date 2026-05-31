@@ -23,6 +23,7 @@
     "test:visual:update": "bash scripts/test-visual.sh --update-snapshots"
   },
   "dependencies": {
+    "archiver": "^8.0.0",
     "bcryptjs": "^2.4.3",
     "cookie-parser": "^1.4.7",
     "exifr": "^7.1.3",

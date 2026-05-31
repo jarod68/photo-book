@@ -1,5 +1,6 @@
 'use strict';
 
+const crypto   = require('crypto');
 const express  = require('express');
 const path     = require('path');
 const fs       = require('fs');
@@ -210,6 +211,62 @@ router.put('/:album/settings', requireAdmin, express.json(), async (req, res) =>
         [album, ...userIds],
       );
     }
+    res.json({ ok: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// POST /api/admin/albums/:album/share — create share token
+router.post('/:album/share', requireAdmin, express.json(), async (req, res) => {
+  if (!database.dbReady) return res.status(503).json({ error: 'Service unavailable' });
+  const { days = 7, label = '' } = req.body ?? {};
+  const daysNum = Number(days);
+  if (!Number.isInteger(daysNum) || daysNum < 1 || daysNum > 365) {
+    return res.status(400).json({ error: 'days must be between 1 and 365' });
+  }
+  try {
+    const token     = crypto.randomBytes(32).toString('hex');
+    const expiresAt = new Date(Date.now() + daysNum * 24 * 60 * 60 * 1000);
+    const { rows } = await database.db.query(
+      `INSERT INTO share_tokens (token, album, created_by, expires_at, label)
+       VALUES ($1, $2, $3, $4, $5) RETURNING id, token, expires_at`,
+      [token, req.params.album, req.user.id, expiresAt, label || null],
+    );
+    res.status(201).json({ id: rows[0].id, token: rows[0].token, expires_at: rows[0].expires_at });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// GET /api/admin/albums/:album/share — list share tokens
+router.get('/:album/share', requireAdmin, async (req, res) => {
+  if (!database.dbReady) return res.json({ tokens: [] });
+  try {
+    const { rows } = await database.db.query(
+      `SELECT id, token, label, created_at, expires_at
+       FROM share_tokens WHERE album = $1 ORDER BY created_at DESC`,
+      [req.params.album],
+    );
+    res.json({ tokens: rows });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// DELETE /api/admin/albums/:album/share/:id — revoke share token
+router.delete('/:album/share/:id', requireAdmin, async (req, res) => {
+  if (!database.dbReady) return res.status(503).json({ error: 'Service unavailable' });
+  const id = parseInt(req.params.id, 10);
+  if (!Number.isFinite(id)) return res.status(400).json({ error: 'Invalid id' });
+  try {
+    await database.db.query(
+      'DELETE FROM share_tokens WHERE id = $1 AND album = $2',
+      [id, req.params.album],
+    );
     res.json({ ok: true });
   } catch (err) {
     console.error(err);

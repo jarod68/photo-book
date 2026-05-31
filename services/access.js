@@ -45,17 +45,38 @@ async function isUserAuthorizedForAlbum(album, userId) {
 }
 
 /**
+ * Returns true when the share token is valid (exists + not expired) for the album.
+ *
+ * @param {string|null} token
+ * @param {string} album
+ * @returns {Promise<boolean>}
+ */
+async function validateShareToken(token, album) {
+  if (!database.dbReady || !token) return false;
+  const { rows } = await database.db.query(
+    `SELECT 1 FROM share_tokens WHERE token = $1 AND album = $2 AND expires_at > NOW()`,
+    [token, album],
+  );
+  return rows.length > 0;
+}
+
+/**
  * Checks and returns access information for a specific album for the given user.
  * Returns { allowed, canDelete }.
  *
  * @param {string} album
  * @param {object|null} user
+ * @param {string|null} shareToken
  * @returns {Promise<{ allowed: boolean, canDelete: boolean }>}
  */
-async function getAlbumAccess(album, user) {
+async function getAlbumAccess(album, user, shareToken = null) {
   const visibility = await getAlbumVisibility(album);
   if (visibility === 'public') {
     return { allowed: true, canDelete: user?.role === 'admin' };
+  }
+  if (shareToken) {
+    const valid = await validateShareToken(shareToken, album).catch(() => false);
+    if (valid) return { allowed: true, canDelete: false };
   }
   if (!user) return { allowed: false, canDelete: false };
   if (user.role === 'admin') return { allowed: true, canDelete: true };
@@ -102,4 +123,4 @@ async function filterVisibleAlbums(albumDirs, user) {
   return { filtered, visibilityMap, authorizedSet };
 }
 
-module.exports = { resolveUser, getAlbumAccess, filterVisibleAlbums };
+module.exports = { resolveUser, getAlbumAccess, filterVisibleAlbums, validateShareToken };

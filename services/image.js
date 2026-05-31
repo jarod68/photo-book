@@ -62,6 +62,12 @@ async function ensureMedium(albumName, filename, filePath, _deps = {}) {
 
 // ── EXIF metadata extraction ──────────────────────────────────────────────────
 
+function formatShutterSpeed(t) {
+  if (t >= 1) return `${t}s`;
+  const den = Math.round(1 / t);
+  return `1/${den}`;
+}
+
 async function photoMeta(albumName, file, albumPath, _deps = {}) {
   const _exifr = _deps.exifr ?? exifr;
 
@@ -70,6 +76,7 @@ async function photoMeta(albumName, file, albumPath, _deps = {}) {
   let description  = '';
   let is360        = false;
   let iptcLocation = null;
+  let exifOut      = null;
 
   try {
     const exifData = await _exifr.parse(filePath, {
@@ -112,6 +119,37 @@ async function photoMeta(albumName, file, albumPath, _deps = {}) {
     if (iptcCity || iptcState || iptcCountry) {
       iptcLocation = [iptcCity, iptcState, iptcCountry].filter(Boolean).join(', ');
     }
+
+    const make   = clean(exifData.Make);
+    const model  = clean(exifData.Model);
+    const lens   = clean(exifData.LensModel) || clean(exifData.Lens);
+    const dtRaw  = exifData.DateTimeOriginal;
+    const dateTime = dtRaw instanceof Date
+      ? dtRaw.toISOString()
+      : typeof dtRaw === 'string' ? dtRaw : null;
+    const iso        = exifData.ISO ?? exifData.ISOSpeedRatings ?? null;
+    const fnumber    = exifData.FNumber ?? null;
+    const expTime    = exifData.ExposureTime ?? null;
+    const focal      = exifData.FocalLength ?? null;
+    const focal35    = exifData.FocalLengthIn35mmFilm ?? null;
+    const imgWidth   = exifData.ImageWidth  || exifData.ExifImageWidth  || null;
+    const imgHeight  = exifData.ImageHeight || exifData.ExifImageHeight || null;
+
+    if (make || model || lens || dateTime || iso != null || fnumber != null || expTime != null || focal != null) {
+      exifOut = {
+        make:          make   || null,
+        model:         model  || null,
+        lens:          lens   || null,
+        dateTime,
+        iso:           iso       != null ? Number(iso)      : null,
+        aperture:      fnumber   != null ? Number(fnumber)  : null,
+        shutterSpeed:  expTime   != null ? formatShutterSpeed(Number(expTime)) : null,
+        focalLength:   focal     != null ? Number(focal)    : null,
+        focalLength35: focal35   != null ? Number(focal35)  : null,
+        width:         imgWidth  != null ? Number(imgWidth) : null,
+        height:        imgHeight != null ? Number(imgHeight): null,
+      };
+    }
   } catch (_) { /* use filename defaults */ }
 
   const [previewUrl, mediumUrl] = await Promise.all([
@@ -140,6 +178,7 @@ async function photoMeta(albumName, file, albumPath, _deps = {}) {
     is360,
     gps,
     location:    iptcLocation,
+    exif:        exifOut,
   };
 }
 

@@ -2,6 +2,7 @@ import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
   test: {
+    exclude: ['tests/visual_tests/**', 'node_modules/**'],
     env: { NODE_ENV: 'test' },
     environment: 'node',
     environmentMatchGlobs: [

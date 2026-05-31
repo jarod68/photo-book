@@ -1,8 +1,9 @@
 'use strict';
 
-const express  = require('express');
-const path     = require('path');
-const fs       = require('fs');
+const express   = require('express');
+const path      = require('path');
+const fs        = require('fs');
+const { ZipArchive } = require('archiver');
 
 const { PHOTOS_DIR, PREVIEWS_DIR, MEDIUM_DIR, isImage, ensurePreview, photoMeta, deletePhotoFiles } = require('../services/image');
 const database = require('../services/database');
@@ -53,14 +54,53 @@ router.get('/', async (req, res) => {
   }
 });
 
+// GET /api/albums/:album/download/zip
+router.get('/:album/download/zip', async (req, res) => {
+  try {
+    const albumPath = safeAlbumPath(req.params.album);
+    if (!fs.existsSync(albumPath)) return res.status(404).json({ error: 'Not found' });
+
+    const user       = await resolveUser(req.cookies?.pb_session);
+    const shareToken = req.query?.share ?? null;
+    const { allowed } = await getAlbumAccess(req.params.album, user, shareToken)
+      .catch(() => ({ allowed: true }));
+    if (!allowed) return res.status(401).json({ error: 'Unauthorized' });
+
+    const files = fs.readdirSync(albumPath).filter(isImage).sort();
+    if (!files.length) return res.status(404).json({ error: 'Album is empty' });
+
+    const albumName   = req.params.album;
+    const asciiName   = albumName.replace(/[^\x20-\x7E]/g, '_').replace(/"/g, '');
+    const encodedName = encodeURIComponent(albumName);
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="${asciiName}.zip"; filename*=UTF-8''${encodedName}.zip`,
+    );
+
+    const archive = new ZipArchive({ zlib: { level: 0 } });
+    archive.on('warning', err => { if (err.code !== 'ENOENT') console.warn('Archive warning:', err); });
+    archive.on('error',   err => { console.error('Archive error:', err); res.destroy(err); });
+    archive.pipe(res);
+    for (const file of files) {
+      archive.file(path.join(albumPath, file), { name: file });
+    }
+    archive.finalize(); // event-driven — do not await
+  } catch (err) {
+    console.error(err);
+    if (!res.headersSent) res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // GET /api/albums/:album
 router.get('/:album', async (req, res) => {
   try {
     const albumPath = safeAlbumPath(req.params.album);
     if (!fs.existsSync(albumPath)) return res.status(404).json({ error: 'Not found' });
 
-    const user = await resolveUser(req.cookies?.pb_session);
-    const { allowed, canDelete } = await getAlbumAccess(req.params.album, user)
+    const user       = await resolveUser(req.cookies?.pb_session);
+    const shareToken = req.query?.share ?? null;
+    const { allowed, canDelete } = await getAlbumAccess(req.params.album, user, shareToken)
       .catch(() => ({ allowed: true, canDelete: false }));
     if (!allowed) return res.status(401).json({ error: 'Unauthorized' });
 

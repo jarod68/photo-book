@@ -53,18 +53,47 @@ export function initLangSwitcher(containerId) {
   const el = document.getElementById(containerId);
   if (!el) return;
   el.className = 'lang-switcher';
-  const select = document.createElement('select');
-  select.className = 'lang-select';
-  select.setAttribute('aria-label', 'Language');
+
+  const btn = document.createElement('button');
+  btn.className = 'lang-btn';
+  btn.setAttribute('aria-haspopup', 'listbox');
+  btn.setAttribute('aria-expanded', 'false');
+  btn.setAttribute('aria-label', 'Language');
+  btn.innerHTML = `<span>${lang.toUpperCase()}</span><svg viewBox="0 0 10 6" width="8" height="8" aria-hidden="true"><path d="M0 0l5 6 5-6z" fill="currentColor"/></svg>`;
+
+  const menu = document.createElement('ul');
+  menu.className = 'lang-menu';
+  menu.setAttribute('role', 'listbox');
+  menu.hidden = true;
+
   SUPPORTED.forEach(l => {
-    const opt = document.createElement('option');
-    opt.value = l;
-    opt.textContent = LABELS[l];
-    if (l === lang) opt.selected = true;
-    select.appendChild(opt);
+    const li = document.createElement('li');
+    li.className = 'lang-option' + (l === lang ? ' lang-option--active' : '');
+    li.setAttribute('role', 'option');
+    li.setAttribute('aria-selected', String(l === lang));
+    li.textContent = LABELS[l];
+    li.addEventListener('click', e => {
+      e.stopPropagation();
+      if (l !== lang) setLang(l);
+    });
+    menu.appendChild(li);
   });
-  select.addEventListener('change', () => {
-    if (select.value !== lang) setLang(select.value);
+
+  function close() {
+    menu.hidden = true;
+    btn.setAttribute('aria-expanded', 'false');
+  }
+
+  btn.addEventListener('click', e => {
+    e.stopPropagation();
+    const opening = menu.hidden;
+    menu.hidden = !opening;
+    btn.setAttribute('aria-expanded', String(opening));
   });
-  el.appendChild(select);
+
+  document.addEventListener('click', close);
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') close(); });
+
+  el.appendChild(btn);
+  el.appendChild(menu);
 }

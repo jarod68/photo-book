@@ -39,6 +39,9 @@
             <svg class="like-heart like-heart-filled" viewBox="0 0 24 24" width="13" height="13" fill="currentColor" aria-hidden="true"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
             <span id="like-count"></span>
           </button>
+          <button id="exif-toggle" class="exif-toggle-btn" data-i18n-aria="viewer.exif" hidden>
+            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 8h.01M12 12v4"/></svg>
+          </button>
           <div id="photo-actions" class="photo-actions" hidden>
             <button id="photo-actions-toggle" class="photo-actions-toggle" data-i18n-aria="viewer.actions" aria-haspopup="true" aria-expanded="false">
               <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
@@ -48,6 +51,14 @@
                 <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v12m0 0l-4-4m4 4l4-4M4 20h16"/></svg>
                 <span data-i18n="viewer.download">Download</span>
               </a>
+              <a id="zip-btn" class="photo-action-item" hidden>
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-3-3v6M3 7l2-2h14l2 2v12a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"/></svg>
+                <span data-i18n="viewer.downloadZip">Download album (ZIP)</span>
+              </a>
+              <button id="share-btn" class="photo-action-item" hidden>
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path stroke-linecap="round" d="M8.59 13.51l6.83 3.98M15.41 6.51L8.59 10.49"/></svg>
+                <span data-i18n="viewer.share">Share</span>
+              </button>
               <button id="delete-btn" class="photo-action-item photo-action-item--danger" hidden>
                 <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
                 <span data-i18n="viewer.delete">Delete</span>
@@ -56,6 +67,11 @@
           </div>
         </div>
         <p id="photo-desc"></p>
+      </div>
+
+      <!-- EXIF panel -->
+      <div id="exif-panel" class="exif-panel" hidden>
+        <table class="exif-table" id="exif-table"></table>
       </div>
 
       <!-- Mini-map: shown when the current photo has GPS data -->
@@ -104,6 +120,38 @@
   <div id="album-map-overlay" class="album-map-overlay hidden" role="dialog" aria-modal="true">
     <div id="album-map-canvas"></div>
     <button id="album-map-close" class="album-map-close" data-i18n-aria="viewer.close">✕</button>
+  </div>
+
+  <!-- Share modal -->
+  <div id="share-modal" class="share-modal hidden" role="dialog" aria-modal="true">
+    <div class="share-modal-box">
+      <div class="share-modal-header">
+        <span class="share-modal-title" data-i18n="viewer.shareTitle">Partager l'album</span>
+        <button id="share-modal-close" class="share-modal-close" data-i18n-aria="viewer.close">✕</button>
+      </div>
+      <div class="share-modal-body">
+        <div class="share-duration-row">
+          <label class="share-duration-label" data-i18n="viewer.shareDuration">Durée</label>
+          <div id="share-duration" class="share-duration-picker" data-value="7">
+            <button class="share-duration-btn" type="button" aria-haspopup="listbox" aria-expanded="false">
+              <span class="share-duration-label" data-i18n="viewer.share7d">7 jours</span>
+              <svg viewBox="0 0 10 6" width="8" height="8" aria-hidden="true"><path d="M0 0l5 6 5-6z" fill="currentColor"/></svg>
+            </button>
+            <ul class="share-duration-menu" role="listbox" hidden>
+              <li class="share-duration-option" role="option" data-value="1" data-i18n="viewer.share1d">1 jour</li>
+              <li class="share-duration-option share-duration-option--active" role="option" data-value="7" data-i18n="viewer.share7d">7 jours</li>
+              <li class="share-duration-option" role="option" data-value="30" data-i18n="viewer.share30d">30 jours</li>
+            </ul>
+          </div>
+          <button id="share-create-btn" class="share-create-btn" data-i18n="viewer.shareCreate">Créer un lien</button>
+        </div>
+        <div id="share-result" class="share-result hidden">
+          <input id="share-url" class="share-url-input" type="text" readonly>
+          <button id="share-copy-btn" class="share-copy-btn" data-i18n="viewer.shareCopy">Copier</button>
+        </div>
+        <p id="share-expires" class="share-expires"></p>
+      </div>
+    </div>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/pannellum@2.5.6/build/pannellum.js"></script>

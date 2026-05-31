@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
   getAlbums, getAlbum, getLiked, toggleLike, recordView, geocode, getMapPhotos,
+  createShareToken, deleteShareToken,
 } from '../../../public/api/client.js';
 
 const ok  = (data) => ({ ok: true,  json: () => Promise.resolve(data) });
@@ -165,5 +166,51 @@ describe('getMapPhotos', () => {
   it("lève une erreur si la réponse n'est pas ok", async () => {
     fetch.mockResolvedValue(err(500));
     await expect(getMapPhotos()).rejects.toThrow('getMapPhotos: 500');
+  });
+});
+
+// ── createShareToken ──────────────────────────────────────────────────────────
+
+describe('createShareToken', () => {
+  it('envoie un POST avec album encodé et body days', async () => {
+    const data = { id: 1, token: 'abc123', expires_at: '2025-01-01T00:00:00Z' };
+    fetch.mockResolvedValue(ok(data));
+    await createShareToken('My Album', 7);
+    expect(fetch).toHaveBeenCalledWith('/api/admin/albums/My%20Album/share', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ days: 7 }),
+    });
+  });
+
+  it('retourne les données du token créé', async () => {
+    const data = { id: 2, token: 'xyz', expires_at: '2026-06-01T00:00:00Z' };
+    fetch.mockResolvedValue(ok(data));
+    expect(await createShareToken('Paris', 30)).toEqual(data);
+  });
+
+  it("lève une erreur si la réponse n'est pas ok", async () => {
+    fetch.mockResolvedValue(err(403));
+    await expect(createShareToken('Paris', 7)).rejects.toThrow('createShareToken: 403');
+  });
+});
+
+// ── deleteShareToken ──────────────────────────────────────────────────────────
+
+describe('deleteShareToken', () => {
+  it('envoie un DELETE avec album et id encodés', async () => {
+    fetch.mockResolvedValue({ ok: true });
+    await deleteShareToken('My Album', 42);
+    expect(fetch).toHaveBeenCalledWith('/api/admin/albums/My%20Album/share/42', { method: 'DELETE' });
+  });
+
+  it('retourne true si ok', async () => {
+    fetch.mockResolvedValue({ ok: true });
+    expect(await deleteShareToken('Paris', 1)).toBe(true);
+  });
+
+  it('retourne false si non ok', async () => {
+    fetch.mockResolvedValue({ ok: false });
+    expect(await deleteShareToken('Paris', 1)).toBe(false);
   });
 });

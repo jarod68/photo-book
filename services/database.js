@@ -83,6 +83,23 @@ async function initSchema() {
   await db.query(`
     CREATE INDEX IF NOT EXISTS activity_log_created_idx ON activity_log (created_at DESC)
   `);
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS share_tokens (
+      id         SERIAL       PRIMARY KEY,
+      token      CHAR(64)     UNIQUE NOT NULL,
+      album      VARCHAR(255) NOT NULL,
+      created_by INTEGER      NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      created_at TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      expires_at TIMESTAMP    NOT NULL,
+      label      VARCHAR(255)
+    )
+  `);
+  await db.query(`
+    CREATE INDEX IF NOT EXISTS share_tokens_token_idx   ON share_tokens(token)
+  `);
+  await db.query(`
+    CREATE INDEX IF NOT EXISTS share_tokens_expires_idx ON share_tokens(expires_at)
+  `);
 }
 
 async function tryConnect() {

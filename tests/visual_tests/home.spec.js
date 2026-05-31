@@ -28,4 +28,18 @@ test.describe('home page - admin', () => {
       ],
     });
   });
+
+  test('lang switcher is a custom button (not a native select)', async ({ page }) => {
+    await page.goto('/');
+    await page.waitForSelector('.lang-btn', { state: 'visible' });
+
+    // Must be a button element, not a select
+    const tagName = await page.locator('.lang-btn').evaluate(el => el.tagName);
+    expect(tagName).toBe('BUTTON');
+
+    // Custom menu is hidden by default
+    await expect(page.locator('.lang-menu')).toBeHidden();
+
+    await expect(page.locator('.lang-switcher')).toHaveScreenshot('home-lang-btn.png');
+  });
 });

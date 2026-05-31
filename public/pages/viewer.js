@@ -6,13 +6,15 @@ import { PhotoViewer }    from '../components/photo-viewer.js';
 import { PhotoMap }       from '../components/photo-map.js';
 import { AlbumMap }       from '../components/album-map.js';
 import { getUserToken }   from '../utils/user-token.js';
-import { getAlbums, getAlbum, getLiked, toggleLike, recordView, geocode } from '../api/client.js';
+import { getAlbums, getAlbum, getLiked, toggleLike, recordView, geocode, createShareToken } from '../api/client.js';
 import { formatViews, formatLikes } from '../utils/format.js';
 
 applyTranslations();
 initLangSwitcher('lang-switcher');
 
-const userToken = getUserToken();
+const userToken  = getUserToken();
+const urlParams  = new URLSearchParams(location.search);
+const shareToken = urlParams.get('share');
 
 // ── State ─────────────────────────────────────────────────────────────────────
 const state = {
@@ -35,9 +37,55 @@ const actionsEl     = document.getElementById('photo-actions');
 const actionsToggle = document.getElementById('photo-actions-toggle');
 const actionsMenu   = document.getElementById('photo-actions-menu');
 const downloadBtn   = document.getElementById('download-btn');
+const zipBtn        = document.getElementById('zip-btn');
+const shareBtn      = document.getElementById('share-btn');
 const deleteBtn     = document.getElementById('delete-btn');
 const photoInfoEl   = document.getElementById('photo-info');
 const emptyEl       = document.getElementById('empty-state');
+const exifToggle    = document.getElementById('exif-toggle');
+const exifPanel     = document.getElementById('exif-panel');
+const exifTable     = document.getElementById('exif-table');
+const shareModal    = document.getElementById('share-modal');
+const shareModalClose = document.getElementById('share-modal-close');
+const shareDuration = document.getElementById('share-duration');
+const shareCreateBtn = document.getElementById('share-create-btn');
+const shareResult   = document.getElementById('share-result');
+const shareUrlInput = document.getElementById('share-url');
+const shareCopyBtn  = document.getElementById('share-copy-btn');
+const shareExpires  = document.getElementById('share-expires');
+
+// ── Share duration picker ─────────────────────────────────────────────────────
+{
+  const pickerBtn  = shareDuration.querySelector('.share-duration-btn');
+  const pickerMenu = shareDuration.querySelector('.share-duration-menu');
+  const pickerLabel = shareDuration.querySelector('.share-duration-label');
+
+  function closePicker() {
+    pickerMenu.hidden = true;
+    pickerBtn.setAttribute('aria-expanded', 'false');
+  }
+
+  pickerBtn.addEventListener('click', e => {
+    e.stopPropagation();
+    const opening = pickerMenu.hidden;
+    pickerMenu.hidden = !opening;
+    pickerBtn.setAttribute('aria-expanded', String(opening));
+  });
+
+  pickerMenu.querySelectorAll('.share-duration-option').forEach(opt => {
+    opt.addEventListener('click', e => {
+      e.stopPropagation();
+      shareDuration.dataset.value = opt.dataset.value;
+      pickerLabel.textContent = opt.textContent;
+      pickerMenu.querySelectorAll('.share-duration-option').forEach(o => o.classList.remove('share-duration-option--active'));
+      opt.classList.add('share-duration-option--active');
+      closePicker();
+    });
+  });
+
+  document.addEventListener('click', closePicker);
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closePicker(); });
+}
 
 // ── Action menu toggle ────────────────────────────────────────────────────────
 function closeActionsMenu() {
@@ -52,8 +100,106 @@ actionsToggle.addEventListener('click', e => {
 });
 
 document.addEventListener('click', closeActionsMenu);
-document.addEventListener('keydown', e => { if (e.key === 'Escape') closeActionsMenu(); });
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    closeActionsMenu();
+    closeShareModal();
+    closeExifPanel();
+  }
+});
 downloadBtn.addEventListener('click', closeActionsMenu);
+zipBtn.addEventListener('click', closeActionsMenu);
+
+// ── EXIF panel ────────────────────────────────────────────────────────────────
+function closeExifPanel() {
+  exifPanel.hidden = true;
+  exifToggle.classList.remove('active');
+  viewerEl.classList.remove('exif-open');
+}
+
+exifToggle.addEventListener('click', e => {
+  e.stopPropagation();
+  const open = exifPanel.hidden;
+  exifPanel.hidden = !open;
+  exifToggle.classList.toggle('active', open);
+  viewerEl.classList.toggle('exif-open', open);
+});
+
+exifPanel.addEventListener('click', e => e.stopPropagation());
+
+function renderExif(photo) {
+  const exif = photo?.exif;
+  if (!exif) {
+    exifToggle.hidden = true;
+    closeExifPanel();
+    return;
+  }
+  exifToggle.hidden = false;
+
+  const rows = [];
+  const add = (key, val) => {
+    if (val != null && val !== '') rows.push([t(key), val]);
+  };
+
+  if (exif.make || exif.model) {
+    add('exif.camera', [exif.make, exif.model].filter(Boolean).join(' '));
+  }
+  add('exif.lens',         exif.lens);
+  add('exif.dateTime',     exif.dateTime ? exif.dateTime.replace('T', ' ').replace(/\.\d+Z?$/, '') : null);
+  add('exif.iso',          exif.iso      != null ? `ISO ${exif.iso}` : null);
+  add('exif.aperture',     exif.aperture != null ? `f/${exif.aperture}` : null);
+  add('exif.shutterSpeed', exif.shutterSpeed);
+  add('exif.focalLength',  exif.focalLength != null ? `${exif.focalLength} mm` + (exif.focalLength35 ? ` (${exif.focalLength35} mm équiv.)` : '') : null);
+  add('exif.dimensions',   exif.width && exif.height ? `${exif.width} × ${exif.height}` : null);
+
+  exifTable.innerHTML = rows.map(([k, v]) =>
+    `<tr><th>${k}</th><td>${v}</td></tr>`,
+  ).join('');
+}
+
+// ── Share modal ───────────────────────────────────────────────────────────────
+function closeShareModal() {
+  shareModal.classList.add('hidden');
+  shareResult.classList.add('hidden');
+  shareExpires.textContent = '';
+}
+
+function openShareModal() {
+  shareResult.classList.add('hidden');
+  shareExpires.textContent = '';
+  shareModal.classList.remove('hidden');
+}
+
+shareModalClose.addEventListener('click', closeShareModal);
+shareModal.addEventListener('click', e => { if (e.target === shareModal) closeShareModal(); });
+
+shareCreateBtn.addEventListener('click', async () => {
+  shareCreateBtn.disabled = true;
+  try {
+    const days = parseInt(shareDuration.dataset.value, 10);
+    const data = await createShareToken(state.current, days);
+    const url  = `${location.origin}/viewer.html?album=${encodeURIComponent(state.current)}&share=${data.token}`;
+    shareUrlInput.value = url;
+    shareResult.classList.remove('hidden');
+    const exp = new Date(data.expires_at).toLocaleDateString();
+    shareExpires.textContent = t('viewer.shareExpires', { date: exp });
+  } catch {
+    alert(t('viewer.shareError'));
+  } finally {
+    shareCreateBtn.disabled = false;
+  }
+});
+
+shareCopyBtn.addEventListener('click', async () => {
+  try {
+    await navigator.clipboard.writeText(shareUrlInput.value);
+    shareCopyBtn.textContent = t('viewer.shareCopied');
+    setTimeout(() => { shareCopyBtn.textContent = t('viewer.shareCopy'); }, 2000);
+  } catch {
+    shareUrlInput.select();
+    document.execCommand('copy');
+  }
+});
 
 // ── Geocoding (lazy, cached on photo objects) ─────────────────────────────────
 async function showLocation(photo) {
@@ -90,8 +236,9 @@ function toggleUI() {
   appEl.classList.toggle('ui-hidden');
 }
 
+const viewerEl = document.getElementById('viewer');
 const viewer = new PhotoViewer({
-  root:         document.getElementById('viewer'),
+  root:         viewerEl,
   pnlContainer: document.getElementById('pnl-container'),
   stdImg:       document.getElementById('std-img'),
   badge:        document.getElementById('badge-360'),
@@ -158,7 +305,7 @@ async function selectAlbum(name, targetFilename = null) {
   tabs.render(state.albums, name);
 
   const [data, likedData] = await Promise.all([
-    getAlbum(name),
+    getAlbum(name, shareToken),
     getLiked(name, userToken),
   ]);
   const isRestricted = state.albums.find(a => a.name === name)?.visibility === 'restricted';
@@ -170,26 +317,48 @@ async function selectAlbum(name, targetFilename = null) {
 
   albumMapBtn.disabled = !state.photos.some(p => p.gps);
 
-  if ((data.canDownload || data.canDelete) && state.photos.length > 0) {
+  const hasActions = data.canDownload || data.canDelete;
+  if (hasActions) {
     actionsEl.removeAttribute('hidden');
   } else {
     actionsEl.setAttribute('hidden', '');
   }
   closeActionsMenu();
 
-  if (data.canDelete) {
+  if (data.canDelete && state.photos.length > 0) {
     deleteBtn.removeAttribute('hidden');
   } else {
     deleteBtn.setAttribute('hidden', '');
   }
 
+  if (data.canDownload && state.photos.length > 0) {
+    const zipShare = shareToken ? `?share=${encodeURIComponent(shareToken)}` : '';
+    zipBtn.href = `/api/albums/${encodeURIComponent(name)}/download/zip${zipShare}`;
+    zipBtn.removeAttribute('hidden');
+  } else {
+    zipBtn.setAttribute('hidden', '');
+  }
+
+  if (data.canDelete && isRestricted) {
+    shareBtn.removeAttribute('hidden');
+  } else {
+    shareBtn.setAttribute('hidden', '');
+  }
+
   if (state.photos.length === 0) {
     emptyEl.removeAttribute('hidden');
-    photoInfoEl.setAttribute('hidden', '');
+    if (data.canDelete) {
+      // Show photo-info in minimal mode so the share button is accessible
+      photoInfoEl.removeAttribute('hidden');
+      photoInfoEl.classList.add('photo-info--empty');
+    } else {
+      photoInfoEl.setAttribute('hidden', '');
+    }
     return;
   }
   emptyEl.setAttribute('hidden', '');
   photoInfoEl.removeAttribute('hidden');
+  photoInfoEl.classList.remove('photo-info--empty');
 
   if (state.photos.length > 0) {
     const target = targetFilename
@@ -227,6 +396,12 @@ likeBtn.addEventListener('click', e => {
       updateLikeBtn(photo);
     })
     .catch(() => {});
+});
+
+shareBtn.addEventListener('click', e => {
+  e.stopPropagation();
+  closeActionsMenu();
+  openShareModal();
 });
 
 deleteBtn.addEventListener('click', async e => {
@@ -270,6 +445,7 @@ function showPhoto(index) {
   albumMap.setCurrent(index);
   showLocation(photo);
   updateLikeBtn(photo);
+  renderExif(photo);
 
   viewer.show(photo, () => {
     state.photos[index].is360 = true;

@@ -16,6 +16,7 @@ const albumsRouter       = require('./routes/albums');
 const interactionsRouter = require('./routes/interactions');
 const geocodeRouter      = require('./routes/geocode');
 const mapRouter          = require('./routes/map');
+const shareRouter        = require('./routes/share');
 const adminStatsRouter   = require('./routes/admin/stats');
 const adminUsersRouter   = require('./routes/admin/users');
 const adminAlbumsRouter  = require('./routes/admin/albums');
@@ -118,10 +119,11 @@ function albumAccessGuard() {
     if (!database.dbReady) return next();
     const parts = req.path.split('/').filter(Boolean);
     if (!parts.length) return next();
-    const album = decodeURIComponent(parts[0]);
-    const token = req.cookies?.pb_session;
+    const album      = decodeURIComponent(parts[0]);
+    const token      = req.cookies?.pb_session;
+    const shareToken = req.query?.share ?? null;
     const user  = token ? await auth.getSessionUser(token).catch(() => null) : null;
-    const { allowed } = await getAlbumAccess(album, user).catch(() => ({ allowed: true }));
+    const { allowed } = await getAlbumAccess(album, user, shareToken).catch(() => ({ allowed: true }));
     if (!allowed) return res.status(401).end();
     next();
   };
@@ -145,10 +147,17 @@ async function isUserAuthorizedForAlbum(album, userId) {
 }
 
 // Returns { allowed, canDelete }
-async function getAlbumAccess(album, user) {
+async function getAlbumAccess(album, user, shareToken = null) {
   const visibility = await getAlbumVisibility(album);
   if (visibility === 'public') {
     return { allowed: true, canDelete: user?.role === 'admin' };
+  }
+  if (shareToken && database.dbReady) {
+    const { rows } = await database.db.query(
+      `SELECT 1 FROM share_tokens WHERE token = $1 AND album = $2 AND expires_at > NOW()`,
+      [shareToken, album],
+    );
+    if (rows.length > 0) return { allowed: true, canDelete: false };
   }
   if (!user) return { allowed: false, canDelete: false };
   if (user.role === 'admin') return { allowed: true, canDelete: true };
@@ -170,6 +179,7 @@ app.use('/api/albums',  albumsRouter);
 app.use('/api',         interactionsRouter);
 app.use('/api/geocode', geocodeRouter);
 app.use('/api/map',     mapRouter);
+app.use('/api/share',   shareRouter);
 
 // Admin routes require authentication at the router level
 app.use('/api/admin', auth.requireAuth);

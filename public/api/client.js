@@ -4,6 +4,22 @@
 
 /**
  * @typedef {{
+ *   make:          string|null,
+ *   model:         string|null,
+ *   lens:          string|null,
+ *   dateTime:      string|null,
+ *   iso:           number|null,
+ *   aperture:      number|null,
+ *   shutterSpeed:  string|null,
+ *   focalLength:   number|null,
+ *   focalLength35: number|null,
+ *   width:         number|null,
+ *   height:        number|null,
+ * }} ExifData
+ */
+
+/**
+ * @typedef {{
  *   filename:    string,
  *   url:         string,
  *   previewUrl:  string|null,
@@ -14,6 +30,7 @@
  *   location:    string|null,
  *   views:       number,
  *   likes:       number,
+ *   exif:        ExifData|null,
  * }} Photo
  */
 
@@ -46,12 +63,43 @@ export async function getAlbums() {
 
 /**
  * @param {string} name
- * @returns {Promise<{ name: string, photos: Photo[] }>}
+ * @param {string|null} shareToken
+ * @returns {Promise<{ name: string, photos: Photo[], canDelete: boolean, canDownload: boolean }>}
  */
-export async function getAlbum(name) {
-  const r = await fetch(`/api/albums/${encodeURIComponent(name)}`);
+export async function getAlbum(name, shareToken = null) {
+  const qs = shareToken ? `?share=${encodeURIComponent(shareToken)}` : '';
+  const r  = await fetch(`/api/albums/${encodeURIComponent(name)}${qs}`);
   if (!r.ok) throw new Error(`getAlbum: ${r.status}`);
   return r.json();
+}
+
+// ── Share tokens ──────────────────────────────────────────────────────────────
+
+/**
+ * @param {string} album
+ * @param {number} days
+ * @returns {Promise<{ id: number, token: string, expires_at: string }>}
+ */
+export async function createShareToken(album, days = 7) {
+  const r = await fetch(`/api/admin/albums/${encodeURIComponent(album)}/share`, {
+    method:  'POST',
+    headers: JSON_HEADERS,
+    body:    JSON.stringify({ days }),
+  });
+  if (!r.ok) throw new Error(`createShareToken: ${r.status}`);
+  return r.json();
+}
+
+/**
+ * @param {string} album
+ * @param {number} id
+ * @returns {Promise<boolean>}
+ */
+export async function deleteShareToken(album, id) {
+  const r = await fetch(`/api/admin/albums/${encodeURIComponent(album)}/share/${id}`, {
+    method: 'DELETE',
+  });
+  return r.ok;
 }
 
 // ── Likes ─────────────────────────────────────────────────────────────────────

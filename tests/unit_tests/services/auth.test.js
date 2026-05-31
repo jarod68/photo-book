@@ -299,3 +299,61 @@ describe('authStaticGuard', () => {
     expect(res.redirect).toHaveBeenCalledWith('/login.html');
   });
 });
+
+// ── hashPassword ──────────────────────────────────────────────────────────────
+
+describe('hashPassword', () => {
+  it('retourne un hash bcrypt valide', async () => {
+    const hash = await auth.hashPassword('mypassword');
+    expect(hash).toBeTypeOf('string');
+    expect(hash).toMatch(/^\$2[ab]\$/);
+  });
+
+  it('le hash correspond au mot de passe original', async () => {
+    const hash = await auth.hashPassword('secret123');
+    const match = await bcrypt.compare('secret123', hash);
+    expect(match).toBe(true);
+  });
+
+  it('deux hashes du même mot de passe sont différents (salt unique)', async () => {
+    const h1 = await auth.hashPassword('same');
+    const h2 = await auth.hashPassword('same');
+    expect(h1).not.toBe(h2);
+  });
+});
+
+// ── requireAuth avec _testUser ────────────────────────────────────────────────
+
+describe('requireAuth + _setTestUser', () => {
+  const makeRes = () => {
+    const res = { status: vi.fn(), json: vi.fn() };
+    res.status.mockReturnValue(res);
+    return res;
+  };
+
+  afterEach(() => {
+    auth._setBypass(false);
+    auth._setTestUser(null);
+  });
+
+  it('expose req.user depuis _testUser quand bypass activé', async () => {
+    const user = { id: 99, username: 'tester', role: 'basic' };
+    auth._setBypass(true);
+    auth._setTestUser(user);
+    const req  = {};
+    const next = vi.fn();
+    await auth.requireAuth(req, makeRes(), next);
+    expect(req.user).toEqual(user);
+    expect(next).toHaveBeenCalledOnce();
+  });
+
+  it('n\'expose pas req.user si _testUser est null avec bypass', async () => {
+    auth._setBypass(true);
+    auth._setTestUser(null);
+    const req  = {};
+    const next = vi.fn();
+    await auth.requireAuth(req, makeRes(), next);
+    expect(req.user).toBeUndefined();
+    expect(next).toHaveBeenCalledOnce();
+  });
+});
