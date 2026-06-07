@@ -2299,7 +2299,34 @@ body {
 .photo-info--empty #photo-location,
 .photo-info--empty #photo-views,
 .photo-info--empty #like-btn,
-.photo-info--empty #exif-toggle { display: none !important; }
+.photo-info--empty #exif-toggle,
+.photo-info--empty #download-btn { display: none !important; }
+
+/* ── Download photo button ───────────────────────────────────────────────── */
+.download-photo-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0,0,0,0.28);
+  border: 1px solid rgba(255,255,255,0.16);
+  border-radius: 50%;
+  color: rgba(255,255,255,0.55);
+  cursor: pointer;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  text-decoration: none;
+  transition: color 0.16s, background 0.16s, border-color 0.16s;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  pointer-events: auto;
+  flex-shrink: 0;
+}
+.download-photo-btn:hover {
+  background: var(--accent-dim);
+  border-color: var(--accent);
+  color: var(--accent);
+}
 
 /* ── EXIF toggle button ───────────────────────────────────────────────────── */
 .exif-toggle-btn {

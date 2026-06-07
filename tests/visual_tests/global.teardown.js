@@ -4,8 +4,10 @@ const { chromium } = require('@playwright/test');
 const fs   = require('fs');
 const path = require('path');
 
-const BASE_URL    = process.env.BASE_URL ?? 'http://localhost:3000';
-const AUTH_FILE   = path.join(__dirname, '.auth/admin.json');
+const BASE_URL      = process.env.BASE_URL ?? 'http://localhost:3000';
+const AUTH_FILE     = path.join(__dirname, '.auth/admin.json');
+const PUBLIC_ALBUM  = 'visual-regression';
+const PRIVATE_ALBUM = 'visual-regression-private';
 
 async function globalTeardown() {
   if (!fs.existsSync(AUTH_FILE)) return;
@@ -13,9 +15,8 @@ async function globalTeardown() {
   const browser = await chromium.launch();
   const context = await browser.newContext({ storageState: AUTH_FILE });
 
-  await context.request
-    .delete(`${BASE_URL}/api/admin/albums/visual-regression`)
-    .catch(() => {});
+  await context.request.delete(`${BASE_URL}/api/admin/albums/${PUBLIC_ALBUM}`).catch(() => {});
+  await context.request.delete(`${BASE_URL}/api/admin/albums/${PRIVATE_ALBUM}`).catch(() => {});
 
   await browser.close();
 }

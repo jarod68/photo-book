@@ -42,15 +42,14 @@
           <button id="exif-toggle" class="exif-toggle-btn" data-i18n-aria="viewer.exif" hidden>
             <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 8h.01M12 12v4"/></svg>
           </button>
+          <a id="download-btn" class="download-photo-btn" data-i18n-aria="viewer.download" download>
+            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v12m0 0l-4-4m4 4l4-4M4 20h16"/></svg>
+          </a>
           <div id="photo-actions" class="photo-actions" hidden>
             <button id="photo-actions-toggle" class="photo-actions-toggle" data-i18n-aria="viewer.actions" aria-haspopup="true" aria-expanded="false">
               <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
             </button>
             <div id="photo-actions-menu" class="photo-actions-menu">
-              <a id="download-btn" class="photo-action-item" download>
-                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v12m0 0l-4-4m4 4l4-4M4 20h16"/></svg>
-                <span data-i18n="viewer.download">Download</span>
-              </a>
               <a id="zip-btn" class="photo-action-item" hidden>
                 <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-3-3v6M3 7l2-2h14l2 2v12a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"/></svg>
                 <span data-i18n="viewer.downloadZip">Download album (ZIP)</span>

@@ -107,7 +107,6 @@ document.addEventListener('keydown', e => {
     closeExifPanel();
   }
 });
-downloadBtn.addEventListener('click', closeActionsMenu);
 zipBtn.addEventListener('click', closeActionsMenu);
 
 // ── EXIF panel ────────────────────────────────────────────────────────────────
