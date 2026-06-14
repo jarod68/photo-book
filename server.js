@@ -9,6 +9,7 @@ const { PHOTOS_DIR, PREVIEWS_DIR, isImage, isAlbumDir, preGenerateAll } = requir
 const database = require('./services/database'); // database.db, database.dbReady (getters)
 const auth     = require('./services/auth');
 const activity = require('./services/activity');
+const push     = require('./services/push');
 
 // Route modules
 const authRouter         = require('./routes/auth');
@@ -17,6 +18,7 @@ const interactionsRouter = require('./routes/interactions');
 const geocodeRouter      = require('./routes/geocode');
 const mapRouter          = require('./routes/map');
 const shareRouter        = require('./routes/share');
+const pushRouter         = require('./routes/push');
 const adminStatsRouter   = require('./routes/admin/stats');
 const adminUsersRouter   = require('./routes/admin/users');
 const adminAlbumsRouter  = require('./routes/admin/albums');
@@ -123,8 +125,14 @@ function albumAccessGuard() {
     const token      = req.cookies?.pb_session;
     const shareToken = req.query?.share ?? null;
     const user  = token ? await auth.getSessionUser(token).catch(() => null) : null;
-    const { allowed } = await getAlbumAccess(album, user, shareToken).catch(() => ({ allowed: true }));
-    if (!allowed) return res.status(401).end();
+    // Fail closed: an access-check error must never expose a restricted album.
+    let access;
+    try {
+      access = await getAlbumAccess(album, user, shareToken);
+    } catch {
+      return res.status(503).end();
+    }
+    if (!access.allowed) return res.status(401).end();
     next();
   };
 }
@@ -180,6 +188,7 @@ app.use('/api',         interactionsRouter);
 app.use('/api/geocode', geocodeRouter);
 app.use('/api/map',     mapRouter);
 app.use('/api/share',   shareRouter);
+app.use('/api/push',    pushRouter);
 
 // Admin routes require authentication at the router level
 app.use('/api/admin', auth.requireAuth);
@@ -203,11 +212,13 @@ async function deleteAlbumFromDb(album) {
   if (!database.dbReady) return;
   console.log(`  ✕ Album deleted — DB cleanup: ${album}`);
   const q = (sql) => database.db.query(sql, [album]);
-  await q('DELETE FROM photo_view_log WHERE album = $1');
-  await q('DELETE FROM photo_likes    WHERE album = $1');
-  await q('DELETE FROM photo_views    WHERE album = $1');
-  await q('DELETE FROM album_users    WHERE album = $1');
-  await q('DELETE FROM album_settings WHERE album = $1');
+  await q('DELETE FROM photo_view_log     WHERE album = $1');
+  await q('DELETE FROM photo_likes        WHERE album = $1');
+  await q('DELETE FROM photo_views        WHERE album = $1');
+  await q('DELETE FROM album_users        WHERE album = $1');
+  await q('DELETE FROM album_settings     WHERE album = $1');
+  await q('DELETE FROM share_tokens       WHERE album = $1');
+  await q('DELETE FROM push_subscriptions WHERE album = $1');
 }
 
 function watchPhotosDir() {
@@ -277,6 +288,7 @@ if (require.main === module) {
       .then(() => auth.ensureAdmin())
       .then(() => activity.purgeActivityLog())
       .then(() => database.syncPhotosToDb())
+      .then(() => push.initVapid(database.db))
       .catch(console.error);
     preGenerateAll().catch(console.error);
     watchPhotosDir();

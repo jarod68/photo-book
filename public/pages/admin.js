@@ -646,9 +646,10 @@ async function openAlbumSettings(albumName) {
   albumSettingsError.textContent = '';
   albumSettingsOverlay.hidden = false;
 
-  const [settingsRes, usersRes] = await Promise.all([
+  const [settingsRes, usersRes, subsRes] = await Promise.all([
     fetch(`/api/admin/albums/${encodeURIComponent(albumName)}/settings`).then(r => r.json()),
     fetch('/api/admin/users').then(r => r.json()),
+    fetch(`/api/admin/albums/${encodeURIComponent(albumName)}/subscribers`).then(r => r.json()).catch(() => ({ count: 0, subscribers: [] })),
   ]);
 
   const basicUsers    = (usersRes.users ?? []).filter(u => u.role === 'basic');
@@ -673,6 +674,38 @@ async function openAlbumSettings(albumName) {
   document.querySelectorAll('input[name="album-visibility"]').forEach(radio => {
     radio.onchange = () => { usersSection.hidden = radio.value !== 'restricted'; };
   });
+
+  renderSubscribers(albumName, subsRes);
+}
+
+function renderSubscribers(albumName, data) {
+  const listEl = document.getElementById('album-subscribers-list');
+  const subs = data.subscribers ?? [];
+  if (subs.length === 0) {
+    listEl.innerHTML = `<p class="album-settings-no-users admin-dim">${data.count ?? 0} subscriber(s)</p>`;
+  } else {
+    listEl.innerHTML = `<p class="album-settings-no-users admin-dim">${data.count} subscriber(s)</p>` +
+      subs.map(s => {
+        const ua  = s.user_agent ? esc(s.user_agent.slice(0, 60)) : '—';
+        const dt  = s.subscribed_at ? new Date(s.subscribed_at).toLocaleDateString() : '';
+        return `<div class="album-subscriber-row">
+          <span class="admin-mono admin-dim">…${esc(s.endpoint_short)}</span>
+          <span class="admin-dim">${ua}</span>
+          <span class="admin-dim">${dt}</span>
+          <button class="admin-action-btn admin-action-btn--small admin-action-btn--danger"
+            data-sub-id="${s.id}">✕</button>
+        </div>`;
+      }).join('');
+
+    listEl.querySelectorAll('[data-sub-id]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const id = btn.dataset.subId;
+        await fetch(`/api/admin/albums/${encodeURIComponent(albumName)}/subscribers/${id}`, { method: 'DELETE' });
+        const fresh = await fetch(`/api/admin/albums/${encodeURIComponent(albumName)}/subscribers`).then(r => r.json()).catch(() => ({ count: 0, subscribers: [] }));
+        renderSubscribers(albumName, fresh);
+      });
+    });
+  }
 }
 
 function closeAlbumSettings() {
@@ -704,6 +737,35 @@ document.getElementById('album-settings-save-btn').addEventListener('click', asy
 document.getElementById('album-settings-close-btn').addEventListener('click', closeAlbumSettings);
 albumSettingsOverlay.addEventListener('click', e => { if (e.target === albumSettingsOverlay) closeAlbumSettings(); });
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && !albumSettingsOverlay.hidden) closeAlbumSettings(); });
+
+document.getElementById('notify-send-btn').addEventListener('click', async () => {
+  if (!albumSettingsName) return;
+  const title = document.getElementById('notify-title').value.trim();
+  const body  = document.getElementById('notify-body').value.trim();
+  if (!title && !body) return;
+  const btn = document.getElementById('notify-send-btn');
+  btn.disabled = true;
+  try {
+    const res = await fetch(`/api/admin/albums/${encodeURIComponent(albumSettingsName)}/notify`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title, body }),
+    });
+    const data = await res.json();
+    if (res.ok) {
+      btn.textContent = t('admin.notifySent');
+      setTimeout(() => { btn.textContent = t('admin.notifySend'); }, 2500);
+      document.getElementById('notify-title').value = '';
+      document.getElementById('notify-body').value  = '';
+    } else {
+      albumSettingsError.textContent = data.error ?? t('admin.saveFailed');
+    }
+  } catch {
+    albumSettingsError.textContent = t('admin.saveFailed');
+  } finally {
+    btn.disabled = false;
+  }
+});
 
 // ── Activity log ──────────────────────────────────────────────────────────────
 

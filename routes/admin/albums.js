@@ -14,7 +14,10 @@ const { getAlbumAccess } = require('../../services/access');
 
 const router = express.Router();
 
-const ALBUM_NAME_RE = /^[A-Za-z0-9][^/\\]*$/;
+// Must start alphanumeric (matches isAlbumDir); excludes path separators and
+// HTML-significant characters since album names are rendered in the UI.
+// eslint-disable-next-line no-control-regex
+const ALBUM_NAME_RE = /^[A-Za-z0-9][^/\\<>&"'`\x00-\x1f]*$/;
 
 function safeAlbumPath(name) {
   const full = path.resolve(path.join(PHOTOS_DIR, name));
@@ -27,11 +30,13 @@ async function deleteAlbumFromDb(album) {
   if (!database.dbReady) return;
   console.log(`  ✕ Album deleted — DB cleanup: ${album}`);
   const q = (sql) => database.db.query(sql, [album]);
-  await q('DELETE FROM photo_view_log WHERE album = $1');
-  await q('DELETE FROM photo_likes    WHERE album = $1');
-  await q('DELETE FROM photo_views    WHERE album = $1');
-  await q('DELETE FROM album_users    WHERE album = $1');
-  await q('DELETE FROM album_settings WHERE album = $1');
+  await q('DELETE FROM photo_view_log     WHERE album = $1');
+  await q('DELETE FROM photo_likes        WHERE album = $1');
+  await q('DELETE FROM photo_views        WHERE album = $1');
+  await q('DELETE FROM album_users        WHERE album = $1');
+  await q('DELETE FROM album_settings     WHERE album = $1');
+  await q('DELETE FROM share_tokens       WHERE album = $1');
+  await q('DELETE FROM push_subscriptions WHERE album = $1');
 }
 
 // POST /api/admin/albums
@@ -74,11 +79,13 @@ router.patch('/:album', requireAdmin, express.json(), async (req, res) => {
       const client = await database.db.connect();
       try {
         await client.query('BEGIN');
-        await client.query('UPDATE photo_views    SET album=$1 WHERE album=$2', [newName, oldName]);
-        await client.query('UPDATE photo_view_log SET album=$1 WHERE album=$2', [newName, oldName]);
-        await client.query('UPDATE photo_likes    SET album=$1 WHERE album=$2', [newName, oldName]);
-        await client.query('UPDATE album_settings SET album=$1 WHERE album=$2', [newName, oldName]);
-        await client.query('UPDATE album_users    SET album=$1 WHERE album=$2', [newName, oldName]);
+        await client.query('UPDATE photo_views        SET album=$1 WHERE album=$2', [newName, oldName]);
+        await client.query('UPDATE photo_view_log     SET album=$1 WHERE album=$2', [newName, oldName]);
+        await client.query('UPDATE photo_likes        SET album=$1 WHERE album=$2', [newName, oldName]);
+        await client.query('UPDATE album_settings     SET album=$1 WHERE album=$2', [newName, oldName]);
+        await client.query('UPDATE album_users        SET album=$1 WHERE album=$2', [newName, oldName]);
+        await client.query('UPDATE share_tokens       SET album=$1 WHERE album=$2', [newName, oldName]);
+        await client.query('UPDATE push_subscriptions SET album=$1 WHERE album=$2', [newName, oldName]);
         await client.query('COMMIT');
       } catch (err) {
         await client.query('ROLLBACK');
@@ -149,7 +156,8 @@ router.post('/:album/photos', requireAdmin, async (req, res) => {
   multer({
     storage: multer.diskStorage({
       destination: (_req, _file, cb) => cb(null, albumPath),
-      filename:    (_req, file,  cb) => cb(null, file.originalname),
+      // basename strips any client-supplied path components (e.g. "../../x.jpg")
+      filename:    (_req, file,  cb) => cb(null, path.basename(file.originalname)),
     }),
     fileFilter: (_req, file, cb) => cb(null, isImage(file.originalname)),
     limits: { fileSize: 200 * 1024 * 1024 },
@@ -159,6 +167,12 @@ router.post('/:album/photos', requireAdmin, async (req, res) => {
     const uploadedFiles = req.files?.map(f => f.originalname) ?? [];
     res.json({ ok: true, count: uploadedFiles.length });
     activity.log('photo_upload', { username: req.user?.username ?? null, ip: req.ip, details: { album: req.params.album, count: uploadedFiles.length, filenames: uploadedFiles } });
+    if (uploadedFiles.length > 0) {
+      push.sendToAlbum(req.params.album, {
+        title: req.params.album,
+        body:  `${uploadedFiles.length} nouvelle${uploadedFiles.length > 1 ? 's' : ''} photo${uploadedFiles.length > 1 ? 's' : ''} ajoutée${uploadedFiles.length > 1 ? 's' : ''}`,
+      }).catch(err => console.error('Push send error:', err.message));
+    }
   });
 });
 
@@ -268,6 +282,64 @@ router.delete('/:album/share/:id', requireAdmin, async (req, res) => {
       [id, req.params.album],
     );
     res.json({ ok: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ── Push notification admin routes ────────────────────────────────────────────
+
+const push = require('../../services/push');
+
+// GET /api/admin/albums/:album/subscribers
+router.get('/:album/subscribers', requireAdmin, async (req, res) => {
+  if (!database.dbReady) return res.json({ count: 0, subscribers: [] });
+  try {
+    const { rows } = await database.db.query(
+      `SELECT id, endpoint, user_agent, subscribed_at
+       FROM push_subscriptions WHERE album = $1 ORDER BY subscribed_at DESC`,
+      [req.params.album],
+    );
+    res.json({
+      count: rows.length,
+      subscribers: rows.map(r => ({
+        id:           r.id,
+        endpoint_short: r.endpoint.slice(-20),
+        user_agent:   r.user_agent,
+        subscribed_at: r.subscribed_at,
+      })),
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// DELETE /api/admin/albums/:album/subscribers/:id
+router.delete('/:album/subscribers/:id', requireAdmin, async (req, res) => {
+  if (!database.dbReady) return res.status(503).json({ error: 'Service unavailable' });
+  const id = parseInt(req.params.id, 10);
+  if (!Number.isFinite(id)) return res.status(400).json({ error: 'Invalid id' });
+  try {
+    await database.db.query(
+      'DELETE FROM push_subscriptions WHERE id = $1 AND album = $2',
+      [id, req.params.album],
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// POST /api/admin/albums/:album/notify
+router.post('/:album/notify', requireAdmin, express.json(), async (req, res) => {
+  const { title, body } = req.body ?? {};
+  if (!title && !body) return res.status(400).json({ error: 'title or body required' });
+  try {
+    const sent = await push.sendToAlbum(req.params.album, { title: title ?? '', body: body ?? '' });
+    res.json({ ok: true, sent });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Internal server error' });

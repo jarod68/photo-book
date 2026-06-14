@@ -212,6 +212,15 @@
           <p class="album-settings-users-label" data-i18n="admin.authorizedUsers">Authorized users</p>
           <div id="album-users-checkboxes" class="album-users-checkboxes"></div>
         </div>
+        <div class="album-settings-subscribers">
+          <p class="album-settings-users-label" data-i18n="admin.pushSubscribers">Push subscribers</p>
+          <div id="album-subscribers-list" class="album-subscribers-list"></div>
+          <div class="album-subscribers-notify">
+            <input id="notify-title" class="admin-input" type="text" data-i18n-placeholder="admin.notifyTitle" placeholder="Title">
+            <input id="notify-body"  class="admin-input" type="text" data-i18n-placeholder="admin.notifyBody"  placeholder="Message">
+            <button id="notify-send-btn" class="admin-action-btn admin-action-btn--small" data-i18n="admin.notifySend">Send</button>
+          </div>
+        </div>
       </div>
       <div class="upload-modal-footer">
         <span id="album-settings-error" class="admin-error pwd-error-text"></span>

@@ -100,6 +100,26 @@ async function initSchema() {
   await db.query(`
     CREATE INDEX IF NOT EXISTS share_tokens_expires_idx ON share_tokens(expires_at)
   `);
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS push_subscriptions (
+      id           SERIAL       PRIMARY KEY,
+      album        VARCHAR(255) NOT NULL,
+      endpoint     TEXT         NOT NULL,
+      p256dh       TEXT         NOT NULL,
+      auth         TEXT         NOT NULL,
+      user_agent   TEXT,
+      subscribed_at TIMESTAMP   NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE (album, endpoint)
+    )
+  `);
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS push_vapid (
+      id          INTEGER PRIMARY KEY DEFAULT 1,
+      public_key  TEXT NOT NULL,
+      private_key TEXT NOT NULL,
+      CHECK (id = 1)
+    )
+  `);
 }
 
 async function tryConnect() {

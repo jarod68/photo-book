@@ -204,4 +204,14 @@ export default {
   'admin.visRestricted':   'Restreint',
   'admin.visRestrictedHint':'— utilisateurs sélectionnés uniquement',
   'admin.authorizedUsers': 'Utilisateurs autorisés',
+
+  // Push notifications
+  'viewer.subscribe':      'S\'abonner aux notifications',
+  'viewer.unsubscribe':    'Se désabonner des notifications',
+  'viewer.subscribed':     'Abonné',
+  'admin.pushSubscribers': 'Abonnés aux notifications push',
+  'admin.notifyTitle':     'Titre',
+  'admin.notifyBody':      'Message',
+  'admin.notifySend':      'Envoyer',
+  'admin.notifySent':      'Envoyé !',
 };

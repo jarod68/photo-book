@@ -8,6 +8,7 @@ import { AlbumMap }       from '../components/album-map.js';
 import { getUserToken }   from '../utils/user-token.js';
 import { getAlbums, getAlbum, getLiked, toggleLike, recordView, geocode, createShareToken } from '../api/client.js';
 import { formatViews, formatLikes } from '../utils/format.js';
+import { subscribeTo, unsubscribeFrom, getSubscription, getStoredAlbums } from '../utils/push.js';
 
 applyTranslations();
 initLangSwitcher('lang-switcher');
@@ -24,6 +25,9 @@ const state = {
   index:   -1,
   liked:   new Set(), // filenames liked by this user in the current album
 };
+
+// Map<album, endpoint> — seeded from localStorage on load, endpoint filled lazily
+const subscribedAlbums = new Map(getStoredAlbums().map(a => [a, null]));
 
 // ── DOM ───────────────────────────────────────────────────────────────────────
 const tabsEl      = document.getElementById('album-tabs');
@@ -53,6 +57,7 @@ const shareResult   = document.getElementById('share-result');
 const shareUrlInput = document.getElementById('share-url');
 const shareCopyBtn  = document.getElementById('share-copy-btn');
 const shareExpires  = document.getElementById('share-expires');
+const pushBtn       = document.getElementById('push-btn');
 
 // ── Share duration picker ─────────────────────────────────────────────────────
 {
@@ -151,8 +156,10 @@ function renderExif(photo) {
   add('exif.focalLength',  exif.focalLength != null ? `${exif.focalLength} mm` + (exif.focalLength35 ? ` (${exif.focalLength35} mm équiv.)` : '') : null);
   add('exif.dimensions',   exif.width && exif.height ? `${exif.width} × ${exif.height}` : null);
 
+  // EXIF values come from untrusted image metadata — escape before injecting
+  const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   exifTable.innerHTML = rows.map(([k, v]) =>
-    `<tr><th>${k}</th><td>${v}</td></tr>`,
+    `<tr><th>${k}</th><td>${esc(v)}</td></tr>`,
   ).join('');
 }
 
@@ -171,6 +178,50 @@ function openShareModal() {
 
 shareModalClose.addEventListener('click', closeShareModal);
 shareModal.addEventListener('click', e => { if (e.target === shareModal) closeShareModal(); });
+
+// ── Push subscription ─────────────────────────────────────────────────────────
+const pushSupported = 'PushManager' in window;
+
+// Seed endpoint from PushManager; clear stale localStorage if subscription was revoked
+if (pushSupported) {
+  getSubscription().then(sub => {
+    if (sub) {
+      for (const album of subscribedAlbums.keys()) subscribedAlbums.set(album, sub.endpoint);
+    } else {
+      // Subscription revoked in browser settings — clear local state
+      subscribedAlbums.clear();
+      localStorage.removeItem('pb_push_albums');
+    }
+  }).catch(() => {});
+}
+
+pushBtn.addEventListener('click', async e => {
+  e.stopPropagation();
+  const album = state.current;
+  if (!album) return;
+
+  if (subscribedAlbums.has(album)) {
+    // Unsubscribe
+    const endpoint = subscribedAlbums.get(album);
+    try {
+      await unsubscribeFrom(album, endpoint);
+      subscribedAlbums.delete(album);
+      pushBtn.classList.remove('active');
+      pushBtn.setAttribute('aria-label', t('viewer.subscribe'));
+    } catch { /* ignore */ }
+  } else {
+    // Subscribe
+    try {
+      const ok = await subscribeTo(album, shareToken);
+      if (ok) {
+        const sub = await getSubscription();
+        subscribedAlbums.set(album, sub?.endpoint ?? null);
+        pushBtn.classList.add('active');
+        pushBtn.setAttribute('aria-label', t('viewer.unsubscribe'));
+      }
+    } catch { /* ignore */ }
+  }
+});
 
 shareCreateBtn.addEventListener('click', async () => {
   shareCreateBtn.disabled = true;
@@ -342,6 +393,14 @@ async function selectAlbum(name, targetFilename = null) {
     shareBtn.removeAttribute('hidden');
   } else {
     shareBtn.setAttribute('hidden', '');
+  }
+
+  // Push button visibility and state (Map is seeded from localStorage on load)
+  if (pushSupported) {
+    pushBtn.removeAttribute('hidden');
+    const subscribed = subscribedAlbums.has(name);
+    pushBtn.classList.toggle('active', subscribed);
+    pushBtn.setAttribute('aria-label', t(subscribed ? 'viewer.unsubscribe' : 'viewer.subscribe'));
   }
 
   if (state.photos.length === 0) {

@@ -73,6 +73,18 @@ services:
     networks:
       - proxy
 
+  # ── Mine-sim game (served on play.holtz.fr) ──────────────────────────────
+  mine-sim:
+    image: ${MINESIM_IMAGE:-jarod68/mine-sim:latest}
+    restart: unless-stopped
+    expose:
+      - "3200"
+    environment:
+      - NODE_ENV=production
+      - PORT=3200
+    networks:
+      - proxy
+
 networks:
   proxy:
     driver: bridge

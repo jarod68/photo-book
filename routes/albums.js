@@ -62,9 +62,14 @@ router.get('/:album/download/zip', async (req, res) => {
 
     const user       = await resolveUser(req.cookies?.pb_session);
     const shareToken = req.query?.share ?? null;
-    const { allowed } = await getAlbumAccess(req.params.album, user, shareToken)
-      .catch(() => ({ allowed: true }));
-    if (!allowed) return res.status(401).json({ error: 'Unauthorized' });
+    // Fail closed: an access-check error must never expose a restricted album.
+    let access;
+    try {
+      access = await getAlbumAccess(req.params.album, user, shareToken);
+    } catch {
+      return res.status(503).json({ error: 'Service unavailable' });
+    }
+    if (!access.allowed) return res.status(401).json({ error: 'Unauthorized' });
 
     const files = fs.readdirSync(albumPath).filter(isImage).sort();
     if (!files.length) return res.status(404).json({ error: 'Album is empty' });
@@ -100,8 +105,14 @@ router.get('/:album', async (req, res) => {
 
     const user       = await resolveUser(req.cookies?.pb_session);
     const shareToken = req.query?.share ?? null;
-    const { allowed, canDelete } = await getAlbumAccess(req.params.album, user, shareToken)
-      .catch(() => ({ allowed: true, canDelete: false }));
+    // Fail closed: an access-check error must never expose a restricted album.
+    let access;
+    try {
+      access = await getAlbumAccess(req.params.album, user, shareToken);
+    } catch {
+      return res.status(503).json({ error: 'Service unavailable' });
+    }
+    const { allowed, canDelete } = access;
     if (!allowed) return res.status(401).json({ error: 'Unauthorized' });
 
     const files  = fs.readdirSync(albumPath).filter(isImage).sort();

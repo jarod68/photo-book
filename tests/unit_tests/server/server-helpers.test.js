@@ -104,16 +104,18 @@ describe('deleteAlbumFromDb', () => {
     expect(mockQuery).not.toHaveBeenCalled();
   });
 
-  it('supprime les entrées dans les 5 tables', async () => {
+  it('supprime les entrées dans les 7 tables', async () => {
     database._setState({ query: mockQuery }, true);
     await deleteAlbumFromDb('Paris');
-    expect(mockQuery).toHaveBeenCalledTimes(5);
+    expect(mockQuery).toHaveBeenCalledTimes(7);
     const sqls = mockQuery.mock.calls.map(c => c[0]);
     expect(sqls.some(s => s.includes('photo_view_log'))).toBe(true);
     expect(sqls.some(s => s.includes('photo_likes'))).toBe(true);
     expect(sqls.some(s => s.includes('photo_views'))).toBe(true);
     expect(sqls.some(s => s.includes('album_users'))).toBe(true);
     expect(sqls.some(s => s.includes('album_settings'))).toBe(true);
+    expect(sqls.some(s => s.includes('share_tokens'))).toBe(true);
+    expect(sqls.some(s => s.includes('push_subscriptions'))).toBe(true);
   });
 
   it('passe le nom d\'album en paramètre', async () => {

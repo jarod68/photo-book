@@ -472,14 +472,13 @@ describe('GET /api/albums/:album', () => {
     expect(res.status).toBe(401);
   });
 
-  it('traite comme public si getAlbumAccess lève une exception (catch ligne 561)', async () => {
+  it('retourne 503 (fail-closed) si getAlbumAccess lève une exception', async () => {
     fsMod.existsSync.mockReturnValue(true);
     fsMod.readdirSync.mockReturnValue(['photo.jpg']);
     mockQuery.mockRejectedValueOnce(new Error('db error'));
     database._setState({ query: mockQuery }, true);
     const res = await request(app).get('/api/albums/Paris');
-    expect(res.status).toBe(200);
-    expect(res.body.canDelete).toBe(false);
+    expect(res.status).toBe(503);
   });
 });
 
@@ -637,5 +636,65 @@ describe('GET /api/map', () => {
     expect(res.status).toBe(200);
     expect(res.body).toHaveLength(1);
     expect(res.body[0].date).toBeNull();
+  });
+});
+
+// ── POST /api/push/subscribe ──────────────────────────────────────────────────
+
+describe('POST /api/push/subscribe', () => {
+  beforeEach(() => {
+    vi.spyOn(fsMod, 'existsSync').mockReturnValue(false);
+  });
+
+  afterEach(() => vi.restoreAllMocks());
+
+  const validBody = {
+    album: 'Paris',
+    subscription: { endpoint: 'https://push.example/ep', keys: { p256dh: 'k', auth: 'a' } },
+  };
+
+  it('retourne 400 si champs manquants', async () => {
+    const res = await request(app).post('/api/push/subscribe').send({ album: 'Paris' });
+    expect(res.status).toBe(400);
+  });
+
+  it('retourne 404 si l\'album n\'existe pas sur disque', async () => {
+    fsMod.existsSync.mockReturnValue(false);
+    mockQuery.mockResolvedValue({ rows: [] });
+    database._setState({ query: mockQuery }, true);
+    const res = await request(app).post('/api/push/subscribe').send(validBody);
+    expect(res.status).toBe(404);
+  });
+
+  it('retourne 401 sur album restreint sans utilisateur ni share token', async () => {
+    fsMod.existsSync.mockReturnValue(true);
+    mockQuery.mockResolvedValueOnce({ rows: [{ visibility: 'restricted' }] }); // album_settings
+    database._setState({ query: mockQuery }, true);
+    const res = await request(app).post('/api/push/subscribe').send(validBody);
+    expect(res.status).toBe(401);
+  });
+
+  it('accepte l\'abonnement sur album public', async () => {
+    fsMod.existsSync.mockReturnValue(true);
+    mockQuery.mockResolvedValue({ rows: [] }); // visibility public + INSERT
+    database._setState({ query: mockQuery }, true);
+    const res = await request(app).post('/api/push/subscribe').send(validBody);
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
+    const sqls = mockQuery.mock.calls.map(c => c[0]);
+    expect(sqls.some(s => s.includes('INSERT INTO push_subscriptions'))).toBe(true);
+  });
+
+  it('accepte l\'abonnement sur album restreint avec share token valide', async () => {
+    fsMod.existsSync.mockReturnValue(true);
+    mockQuery
+      .mockResolvedValueOnce({ rows: [{ visibility: 'restricted' }] }) // album_settings
+      .mockResolvedValueOnce({ rows: [{ 1: 1 }] })                     // share_tokens
+      .mockResolvedValueOnce({ rows: [] });                            // INSERT
+    database._setState({ query: mockQuery }, true);
+    const res = await request(app)
+      .post('/api/push/subscribe')
+      .send({ ...validBody, share: 'tok123' });
+    expect(res.status).toBe(200);
   });
 });
