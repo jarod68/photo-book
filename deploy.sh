@@ -55,7 +55,9 @@ done
 PREVIEWS_DIR="$INSTALL_DIR/public/previews"
 MEDIUM_DIR="$INSTALL_DIR/public/medium"
 LETSENCRYPT_DIR="$INSTALL_DIR/letsencrypt"
+MINESIM_DATA_DIR="$INSTALL_DIR/minesim-data"   # mine-sim DATA_DIR (admin .env + SQLite DB)
 POSTGRES_PASS_FILE="$INSTALL_DIR/.postgres_password"
+MINESIM_UID=1000   # the `node` user inside the mine-sim image owns its data dir
 
 # ── Root check ────────────────────────────────────────────────────────────────
 [[ "$(id -u)" -eq 0 ]] || error "Please run as root: sudo $0"
@@ -128,6 +130,7 @@ sync_project_files() {
     --exclude='photos/' \
     --exclude='public/previews/' \
     --exclude='letsencrypt/' \
+    --exclude='minesim-data/' \
     --exclude='coverage/' \
     --exclude='.git/' \
     "$SCRIPT_DIR/" "$INSTALL_DIR/"
@@ -244,6 +247,17 @@ MINESIM
   success "start-mine-sim.sh written."
 }
 
+# ── Create mine-sim's persistent data dir (DATA_DIR volume) ───────────────────
+# Bind-mounted at ./minesim-data → /data; holds the admin-password .env and the
+# SQLite game DB. Owned by the container's unprivileged `node` user (uid 1000).
+ensure_minesim_data() {
+  info "Ensuring mine-sim data dir $MINESIM_DATA_DIR …"
+  mkdir -p "$MINESIM_DATA_DIR"
+  chown -R "${MINESIM_UID}:${MINESIM_UID}" "$MINESIM_DATA_DIR" 2>/dev/null || true
+  chmod 700 "$MINESIM_DATA_DIR"
+  success "mine-sim data dir ready (persists across redeploys)."
+}
+
 # ── Update-only shortcut ──────────────────────────────────────────────────────
 if $UPDATE_ONLY; then
   [[ -f "$INSTALL_DIR/docker-compose.yml" ]] \
@@ -255,6 +269,7 @@ if $UPDATE_ONLY; then
   info "Ensuring writable directories …"
   mkdir -p "$PREVIEWS_DIR" "$MEDIUM_DIR"
   chmod 777 "$PREVIEWS_DIR" "$MEDIUM_DIR"
+  ensure_minesim_data
   info "Pulling latest images …"
   cd "$INSTALL_DIR"
   $DC pull
@@ -283,6 +298,7 @@ chmod 777 "$PHOTOS_DIR" "$PREVIEWS_DIR" "$MEDIUM_DIR"
 touch "$LETSENCRYPT_DIR/acme.json"
 chmod 600 "$LETSENCRYPT_DIR/acme.json"
 success "Directories ready."
+ensure_minesim_data
 
 # ── Save generated password (first install only) ──────────────────────────────
 if [[ ! -f "$POSTGRES_PASS_FILE" ]]; then
@@ -358,6 +374,7 @@ echo
 echo -e "  photo-book URL : ${BOLD}https://${DOMAIN}${RESET}"
 echo -e "  mine-sim URL   : ${BOLD}https://${PLAY_DOMAIN}${RESET}"
 echo -e "  Photos         : ${BOLD}${PHOTOS_DIR}${RESET}"
+echo -e "  mine-sim data  : ${BOLD}${MINESIM_DATA_DIR}${RESET}"
 echo -e "  TLS certificate: ${BOLD}${LETSENCRYPT_DIR}/acme.json${RESET}"
 echo -e "  Logs           : ${BOLD}journalctl -u ${SERVICE} -f${RESET}"
 echo -e "  Logs Postgres  : ${BOLD}cd ${INSTALL_DIR} && ${DC} logs -f postgres${RESET}"

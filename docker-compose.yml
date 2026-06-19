@@ -82,6 +82,11 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=3200
+      - DATA_DIR=/data
+      - ALLOWED_ORIGINS=https://${PLAY_DOMAIN}
+    volumes:
+      # Persists the admin-password .env and the SQLite game DB across redeploys.
+      - ./minesim-data:/data
     networks:
       - proxy
 
