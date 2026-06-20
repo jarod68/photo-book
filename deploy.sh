@@ -210,6 +210,10 @@ write_env() {
   DOCKER_GID=$(getent group docker 2>/dev/null | cut -d: -f3 \
     || stat -c '%g' /var/run/docker.sock 2>/dev/null \
     || echo "999")
+  # mine-sim cluster sizing: one worker per CPU core of THIS host (1 ⇒ the image
+  # stays single-process). Recomputed on every deploy/update so it tracks the
+  # machine it runs on.
+  MINESIM_WORKERS=$(nproc 2>/dev/null || getconf _NPROCESSORS_ONLN 2>/dev/null || echo 1)
   cat > "$INSTALL_DIR/.env" <<ENV
 DOMAIN=${DOMAIN}
 PLAY_DOMAIN=${PLAY_DOMAIN}
@@ -221,9 +225,10 @@ MINESIM_IMAGE=${MINESIM_IMAGE}
 TRAEFIK_IMAGE=${TRAEFIK_IMAGE}
 POSTGRES_IMAGE=${POSTGRES_IMAGE}
 DOCKER_GID=${DOCKER_GID}
+MINESIM_WORKERS=${MINESIM_WORKERS}
 ENV
   chmod 600 "$INSTALL_DIR/.env"
-  success ".env written (DOCKER_GID=${DOCKER_GID})."
+  success ".env written (DOCKER_GID=${DOCKER_GID}, MINESIM_WORKERS=${MINESIM_WORKERS})."
 }
 
 # ── Write the mine-sim startup script ─────────────────────────────────────────
@@ -375,6 +380,7 @@ echo -e "  photo-book URL : ${BOLD}https://${DOMAIN}${RESET}"
 echo -e "  mine-sim URL   : ${BOLD}https://${PLAY_DOMAIN}${RESET}"
 echo -e "  Photos         : ${BOLD}${PHOTOS_DIR}${RESET}"
 echo -e "  mine-sim data  : ${BOLD}${MINESIM_DATA_DIR}${RESET}"
+echo -e "  mine-sim cores : ${BOLD}${MINESIM_WORKERS:-1} worker(s)${RESET}"
 echo -e "  TLS certificate: ${BOLD}${LETSENCRYPT_DIR}/acme.json${RESET}"
 echo -e "  Logs           : ${BOLD}journalctl -u ${SERVICE} -f${RESET}"
 echo -e "  Logs Postgres  : ${BOLD}cd ${INSTALL_DIR} && ${DC} logs -f postgres${RESET}"

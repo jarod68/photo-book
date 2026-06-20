@@ -84,6 +84,9 @@ services:
       - PORT=3200
       - DATA_DIR=/data
       - ALLOWED_ORIGINS=https://${PLAY_DOMAIN}
+      # Multi-core cluster: one worker per CPU core (set by deploy.sh from nproc;
+      # 1 ⇒ single-process). >1 enables the sharded gateway.
+      - WORKERS=${MINESIM_WORKERS:-1}
     volumes:
       # Persists the admin-password .env and the SQLite game DB across redeploys.
       - ./minesim-data:/data
