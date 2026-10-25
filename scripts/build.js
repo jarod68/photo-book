@@ -53,7 +53,7 @@ async function main() {
       bundle:   true,
       minify:   true,
       platform: 'node',
-      target:   'node24',
+      target:   'node26',
       format:   'cjs',
       packages: 'external',
       outfile:  'dist/server.js',
