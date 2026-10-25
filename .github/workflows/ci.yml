@@ -1,0 +1,93 @@
+name: CI
+
+# Same release flow as mine-sim: CI → :qa (QA, rolled out by Keel) → manual
+# "Promote to prod" (promote.yml) → :latest (prod, rolled out by Keel).
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Cancel superseded runs on the same ref to save minutes.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Blocking gate: unit + integration tests with coverage thresholds.
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run test:coverage
+
+  # Supply-chain gate: build the image locally (amd64, not pushed), generate a
+  # CycloneDX SBOM with Syft and scan it with Grype. Fails on any High/Critical
+  # CVE that has a fix available (`--only-fixed`); unfixable findings are still
+  # listed but don't block. Runs before `docker`, so a vulnerable image is never
+  # pushed.
+  sbom:
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci && npm run build      # the image copies dist/
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64
+          load: true
+          tags: photo-book:scan
+          cache-from: type=gha
+      - name: Install Syft & Grype
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh  | sh -s -- -b /usr/local/bin
+          curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b /usr/local/bin
+      - name: Generate CycloneDX SBOM (Syft)
+        run: syft "docker:photo-book:scan" -o cyclonedx-json@1.6=sbom.cdx.json
+      - name: Scan the SBOM (Grype)
+        run: grype "sbom:sbom.cdx.json" --fail-on high --only-fixed
+
+  # Build + push the multi-arch image to Docker Hub. Only on a push to main, and
+  # only once the `test` and `sbom` gates are green. Pushes :sha-<commit> (kept,
+  # for promotion / rollback) and :qa, which Keel rolls out to qa.book.holtz.fr.
+  # :latest (prod) is never touched here — see promote.yml.
+  docker:
+    runs-on: ubuntu-latest
+    needs: [test, sbom]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci && npm run build
+      - uses: docker/setup-qemu-action@v3        # emulation for the arm64 build
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          build-args: GIT_SHA=${{ github.sha }}
+          tags: |
+            jarod68/photo-book:sha-${{ github.sha }}
+            jarod68/photo-book:qa
+          provenance: mode=max
+          sbom: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

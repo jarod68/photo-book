@@ -11,11 +11,17 @@ COPY package.json package-lock.json ./
 RUN apk upgrade --no-cache \
   && npm ci --omit=dev \
   && rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx \
+            /usr/local/lib/node_modules/corepack /usr/local/bin/corepack \
   && apk add --no-cache su-exec
 
 # Bundled application — built by `npm run build` before docker build
 COPY dist/server.js ./server.js
 COPY dist/public/   ./public/
+
+# Build stamp shown in a page corner (utils/build-tag.js), so a tester knows
+# which commit they are looking at (QA) before promoting it to prod.
+ARG GIT_SHA=dev
+RUN printf '{"sha":"%s"}\n' "$GIT_SHA" > public/version.json
 
 # Create volume mount points and transfer full ownership to the node user (uid 1000)
 # node_modules/ was created by root during npm ci — chown covers it too

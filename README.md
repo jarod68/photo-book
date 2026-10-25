@@ -623,7 +623,27 @@ The `buildSegments` algorithm (`public/utils/map-math.js`) connects photos withi
 
 ---
 
+## Release flow on holtz.fr (CI → QA → prod)
+
+On the holtz.fr k3s cluster ([infra-26](https://github.com/jarod68/infra-26)), photo-book follows the same flow as mine-sim:
+
+```
+push main ─► CI: tests + coverage ─► Grype gate (High/Critical with a fix = blocked) ─► jarod68/photo-book:sha-<commit> + :qa
+                                                        │ Keel (polls every 2 min)
+                                                        ▼
+                                     QA   https://qa.book.holtz.fr   (deploy/photo-book-qa)
+"Promote to prod" (Actions, manual approval) ─► :latest = :sha-<commit>
+                                                        │ Keel
+                                                        ▼
+                                     prod https://book.holtz.fr      (deploy/photo-book, 1 replica)
+```
+
+- The CI never pushes `:latest`. Check the commit shown in the bottom-left corner of QA (`build abc1234`), then run **Actions → Promote to prod** with that commit (empty = whatever `:qa` serves now) and approve it: the exact image tested on QA is re-tagged `:latest`, no rebuild. To roll back, run it with an older commit.
+- **QA data**: its own PostgreSQL database and role (`photobook_qa`, selected with `POSTGRES_DB` / `POSTGRES_USER`) in the same PostgreSQL server; the **production photos mounted read-only** (QA can't upload, delete or modify them); its own preview / medium caches; no production Web Push keys (QA generates its own and only ever notifies its own subscribers). Its admin password is printed in the QA pod's log on first start.
+
 ## How to deploy
+
+The steps below deploy photo-book on its own on any VPS (docker compose).
 
 ### Prerequisites
 

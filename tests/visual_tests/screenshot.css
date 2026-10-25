@@ -1,0 +1,3 @@
+/* Applied to every toHaveScreenshot() (playwright.config.js → stylePath):
+   hide the build stamp, whose text changes with every commit. */
+.build-tag { visibility: hidden !important; }

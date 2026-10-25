@@ -1,4 +1,5 @@
 import { t, applyTranslations, initLangSwitcher } from '../utils/i18n.js';
+import { showBuildTag } from '../utils/build-tag.js';
 
 applyTranslations();
 initLangSwitcher('lang-switcher');
@@ -50,3 +51,5 @@ form.addEventListener('submit', async e => {
     btn.querySelector('.login-btn-text').textContent = t('login.submit');
   }
 });
+
+showBuildTag();

@@ -9,6 +9,7 @@ import { getUserToken }   from '../utils/user-token.js';
 import { getAlbums, getAlbum, getLiked, toggleLike, recordView, geocode, createShareToken } from '../api/client.js';
 import { formatViews, formatLikes } from '../utils/format.js';
 import { subscribeTo, unsubscribeFrom, getSubscription, getStoredAlbums } from '../utils/push.js';
+import { showBuildTag } from '../utils/build-tag.js';
 
 applyTranslations();
 initLangSwitcher('lang-switcher');
@@ -538,3 +539,5 @@ document.addEventListener('keydown', e => {
 
 // ── Start ─────────────────────────────────────────────────────────────────────
 init();
+
+showBuildTag();

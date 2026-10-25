@@ -36,6 +36,7 @@ module.exports = defineConfig({
       maxDiffPixels: 100,
       animations:    'disabled',
       caret:         'hide',
+      stylePath:     './tests/visual_tests/screenshot.css',   // hides the build stamp
     },
   },
 

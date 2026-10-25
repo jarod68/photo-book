@@ -6,6 +6,7 @@ import {
   haversineKm, catmullRom, cubicSample,
   centroid, buildSegments, clusterSegment,
 } from '../utils/map-math.js';
+import { showBuildTag } from '../utils/build-tag.js';
 
 applyTranslations();
 initLangSwitcher('lang-switcher');
@@ -203,3 +204,5 @@ function buildPopup(photo) {
 }
 
 init();
+
+showBuildTag();

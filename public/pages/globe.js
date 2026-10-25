@@ -7,6 +7,7 @@ import { LineMaterial }               from 'three/addons/lines/LineMaterial.js';
 import { t, applyTranslations, initLangSwitcher } from '../utils/i18n.js';
 import '../utils/admin-shortcut.js';
 import { getMapPhotos } from '../api/client.js';
+import { showBuildTag } from '../utils/build-tag.js';
 
 applyTranslations();
 initLangSwitcher('lang-switcher');
@@ -437,3 +438,5 @@ async function init() {
 }
 
 init();
+
+showBuildTag();

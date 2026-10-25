@@ -1,5 +1,6 @@
 import { t, applyTranslations, initLangSwitcher } from '../utils/i18n.js';
 import { createAlbumCard } from '../components/album-card.js';
+import { showBuildTag } from '../utils/build-tag.js';
 
 applyTranslations();
 initLangSwitcher('lang-switcher');
@@ -185,3 +186,5 @@ function _line(x1, y1, x2, y2) {
 }
 
 init();
+
+showBuildTag();

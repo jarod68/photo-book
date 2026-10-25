@@ -1,5 +1,6 @@
 import { t, getLang, applyTranslations, initLangSwitcher } from '../utils/i18n.js';
 import { requireLogin } from '../utils/auth-check.js';
+import { showBuildTag } from '../utils/build-tag.js';
 
 await requireLogin();
 
@@ -858,3 +859,5 @@ if (isAdmin) {
   loadUsers();
   loadLogs();
 }
+
+showBuildTag();
