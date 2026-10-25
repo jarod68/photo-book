@@ -35,7 +35,14 @@ const PORT = process.env.PORT || 3000;
 // Trust Traefik's X-Forwarded-For so req.ip reflects the real client IP.
 app.set('trust proxy', 1);
 
-app.use(helmet({ contentSecurityPolicy: false }));
+// Referrer-Policy: helmet's default (no-referrer) strips the Referer from the
+// OpenStreetMap tile requests, and OSM's tile usage policy blocks those
+// ("Access blocked"). strict-origin-when-cross-origin sends only the origin
+// (https://book.holtz.fr) cross-site — never a page path, album name or share link.
+app.use(helmet({
+  contentSecurityPolicy: false,
+  referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
+}));
 app.use(cookieParser());
 
 const IS_TEST = process.env.NODE_ENV === 'test';

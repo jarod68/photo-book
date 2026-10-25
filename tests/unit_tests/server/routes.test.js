@@ -698,3 +698,10 @@ describe('POST /api/push/subscribe', () => {
     expect(res.status).toBe(200);
   });
 });
+
+describe('security headers', () => {
+  it('sends the origin as Referer cross-site (OSM tile usage policy), never the full URL', async () => {
+    const res = await request(app).get('/login.html');
+    expect(res.headers['referrer-policy']).toBe('strict-origin-when-cross-origin');
+  });
+});

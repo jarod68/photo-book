@@ -79,13 +79,17 @@ export class PhotoMap {
 
     if (!this._miniMap) {
       this._miniMap = L.map(this._miniCanvas, {
-        zoomControl: false, attributionControl: false,
+        zoomControl: false,
         dragging: false, scrollWheelZoom: false,
         doubleClickZoom: false, boxZoom: false,
         keyboard: false, touchZoom: false,
       });
-      L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 })
-        .addTo(this._miniMap);
+      // OSM's tile usage policy requires the attribution on every map.
+      this._miniMap.attributionControl.setPrefix(false);
+      L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+      }).addTo(this._miniMap);
       this._miniMarker = L.marker([gps.lat, gps.lng]).addTo(this._miniMap);
       this._miniMap.setView([gps.lat, gps.lng], 13);
       requestAnimationFrame(() => this._miniMap.invalidateSize());
