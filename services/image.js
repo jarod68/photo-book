@@ -1,6 +1,6 @@
 const path  = require('path');
 const fs    = require('fs');
-const exifr = require('exifr');
+const exifr = require('./exif');   // exifr with the Node 26 fix
 const sharp = require('sharp');
 
 const APP_ROOT     = process.cwd();
