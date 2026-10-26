@@ -77,6 +77,11 @@ async function srcMtime(filePath, _fsp) {
   return (await _fsp.stat(filePath)).mtimeMs;
 }
 
+// Derivatives being written, by output path: the startup pre-generation and a
+// request for the same photo share one build instead of racing on the file.
+const building = new Map();
+let tmpSeq = 0;
+
 async function ensureDerivative(kind, albumName, filename, filePath, { is360 = false, mtimeMs, source } = {}, _deps = {}) {
   const _fsp   = _deps.fsPromises ?? fs.promises;
   const _sharp = _deps.sharp ?? sharp;
@@ -87,15 +92,26 @@ async function ensureDerivative(kind, albumName, filename, filePath, { is360 = f
 
   const outMs = await _fsp.stat(out).then((st) => st.mtimeMs, () => -1);
   if (outMs < srcMs) {
-    await _fsp.mkdir(outDir, { recursive: true });
-    const tmp = `${out}.${process.pid}.tmp`;
-    const { input, options } = await (source ?? lazySource(filePath))();
-    await _sharp(input, options)
-      .rotate()
-      .resize(spec.width(is360), null, { withoutEnlargement: true })
-      .jpeg({ quality: spec.quality, progressive: true })
-      .toFile(tmp);
-    await _fsp.rename(tmp, out);   // atomic: a reader never sees a half-written file
+    if (!building.has(out)) {
+      const build = (async () => {
+        await _fsp.mkdir(outDir, { recursive: true });
+        const tmp = `${out}.${process.pid}-${++tmpSeq}.tmp`;
+        const { input, options } = await (source ?? lazySource(filePath))();
+        try {
+          await _sharp(input, options)
+            .rotate()
+            .resize(spec.width(is360), null, { withoutEnlargement: true })
+            .jpeg({ quality: spec.quality, progressive: true })
+            .toFile(tmp);
+          await _fsp.rename(tmp, out);   // atomic: a reader never sees a half-written file
+        } catch (err) {
+          await _fsp.unlink(tmp).catch(() => {});
+          throw err;
+        }
+      })().finally(() => building.delete(out));
+      building.set(out, build);
+    }
+    await building.get(out);
   }
   return derivUrl(kind, albumName, filename, srcMs);
 }
@@ -371,6 +387,7 @@ async function deletePhotoFiles(album, filename, database, _deps = {}) {
   await q('DELETE FROM photo_view_log WHERE album = $1 AND filename = $2');
   await q('DELETE FROM photo_likes    WHERE album = $1 AND filename = $2');
   await q('DELETE FROM photo_views    WHERE album = $1 AND filename = $2');
+  await q('DELETE FROM photo_overrides WHERE album = $1 AND filename = $2');
 }
 
 module.exports = { PHOTOS_DIR, PREVIEWS_DIR, MEDIUM_DIR, IMAGE_EXT, VIDEO_EXT, isImage, isVideo, isMedia, isAlbumDir, ensurePreview, ensureMedium, ensureThumb, ensureDisplay, derivUrl, derivName, photoMeta, preGenerateAll, pruneDerivatives, withConcurrency, deletePhotoFiles };

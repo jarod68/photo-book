@@ -45,6 +45,19 @@ describe('derived images', () => {
     expect(fs.statSync(pathOf(m.thumbUrl)).size).toBeLessThan(fs.statSync(pathOf(m.previewUrl)).size);
   });
 
+  it('concurrent requests for one derivative share a single build (no rename race)', async () => {
+    await img('#ffff00', 'RACE.jpg');
+    let builds = 0;
+    const countingSharp = (...a) => { builds++; return sharp(...a); };
+    const file = path.join(album, 'RACE.jpg');
+    const urls = await Promise.all([1, 2, 3].map(() => image.ensureThumb('Perth', 'RACE.jpg', file, { sharp: countingSharp })));
+    expect(new Set(urls).size).toBe(1);
+    expect(builds).toBe(1);
+    expect(fs.existsSync(pathOf(urls[0]))).toBe(true);
+    expect(fs.readdirSync(path.join(PREVIEWS_DIR, 'Perth')).some((f) => f.endsWith('.tmp'))).toBe(false);
+    fs.rmSync(file);
+  });
+
   it('rebuilds derivatives and changes their URL when a photo is replaced', async () => {
     const before = await photoMeta('Perth', 'IMG_1.jpg', album);
     await new Promise((r) => setTimeout(r, 20));
