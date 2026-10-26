@@ -125,6 +125,24 @@ const MIGRATIONS = [
       `);
     },
   },
+  {
+    version: 2,
+    name: 'photo title / description / location overrides',
+    async up(q) {
+      // NULL = not overridden: the value read from the file is shown.
+      await q(`
+        CREATE TABLE photo_overrides (
+          album       VARCHAR(255) NOT NULL,
+          filename    VARCHAR(255) NOT NULL,
+          title       TEXT,
+          description TEXT,
+          location    TEXT,
+          updated_at  TIMESTAMPTZ  NOT NULL DEFAULT now(),
+          PRIMARY KEY (album, filename)
+        )
+      `);
+    },
+  },
 ];
 
 const LOCK_KEY = 726571;   // arbitrary, constant: pg_advisory_xact_lock key

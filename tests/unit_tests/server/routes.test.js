@@ -435,6 +435,7 @@ describe('GET /api/albums/:album', () => {
     fsMod.readdirSync.mockReturnValue(['photo.jpg']);
     mockQuery
       .mockResolvedValueOnce({ rows: [] })  // getAlbumVisibility (album_settings)
+      .mockResolvedValueOnce({ rows: [] })  // photo_overrides
       .mockResolvedValueOnce({ rows: [{ filename: 'photo.jpg', views: '7' }] })
       .mockResolvedValueOnce({ rows: [{ filename: 'photo.jpg', likes: '3' }] });
     database._setState({ query: mockQuery }, true);
@@ -460,12 +461,27 @@ describe('GET /api/albums/:album', () => {
     libraryMod.getAlbumPhotos.mockResolvedValue([cached]);
     mockQuery
       .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [{ filename: 'photo.jpg', views: '7' }] })
       .mockResolvedValueOnce({ rows: [] });
     database._setState({ query: mockQuery }, true);
     const res = await request(app).get('/api/albums/Paris');
     expect(res.body.photos[0].views).toBe(7);
     expect(cached.views).toBeUndefined();
+  });
+
+  it('applique les titres / légendes / lieux modifiés dans l\'admin (F2)', async () => {
+    fsMod.existsSync.mockReturnValue(true);
+    const cached = { filename: 'photo.jpg', name: 'IMG_1', description: 'exif', location: null };
+    libraryMod.getAlbumPhotos.mockResolvedValue([cached]);
+    mockQuery.mockImplementation(async (sql) => (
+      sql.includes('photo_overrides')
+        ? { rows: [{ album: 'Paris', filename: 'photo.jpg', title: 'Tour Eiffel', description: null, location: 'Paris, France' }] }
+        : { rows: [] }));
+    database._setState({ query: mockQuery }, true);
+    const res = await request(app).get('/api/albums/Paris');
+    expect(res.body.photos[0]).toMatchObject({ name: 'Tour Eiffel', description: 'exif', location: 'Paris, France' });
+    expect(cached.name).toBe('IMG_1');
   });
 
   it('retourne canDelete false quand DB prête et aucun utilisateur (album public)', async () => {

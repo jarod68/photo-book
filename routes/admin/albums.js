@@ -11,6 +11,8 @@ const { PHOTOS_DIR, PREVIEWS_DIR, MEDIUM_DIR, isMedia, preGenerateAll, deletePho
 const database = require('../../services/database');
 const activity = require('../../services/activity');
 const { getAlbumAccess } = require('../../services/access');
+const library   = require('../../services/library');
+const overrides = require('../../services/overrides');
 
 const router = express.Router();
 
@@ -37,6 +39,7 @@ async function deleteAlbumFromDb(album) {
   await q('DELETE FROM album_settings     WHERE album = $1');
   await q('DELETE FROM share_tokens       WHERE album = $1');
   await q('DELETE FROM push_subscriptions WHERE album = $1');
+  await q('DELETE FROM photo_overrides    WHERE album = $1');
 }
 
 // POST /api/admin/albums
@@ -86,6 +89,7 @@ router.patch('/:album', requireAdmin, express.json(), async (req, res) => {
         await client.query('UPDATE album_users        SET album=$1 WHERE album=$2', [newName, oldName]);
         await client.query('UPDATE share_tokens       SET album=$1 WHERE album=$2', [newName, oldName]);
         await client.query('UPDATE push_subscriptions SET album=$1 WHERE album=$2', [newName, oldName]);
+        await client.query('UPDATE photo_overrides    SET album=$1 WHERE album=$2', [newName, oldName]);
         await client.query('COMMIT');
       } catch (err) {
         await client.query('ROLLBACK');
@@ -136,6 +140,46 @@ router.delete('/:album/photos/:filename', requireAdmin, async (req, res) => {
     await deletePhotoFiles(album, filename, database);
     res.json({ ok: true });
     activity.log('photo_delete', { username: req.user?.username ?? null, ip: req.ip, details: { album, filename } });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// GET /api/admin/albums/:album/photos — every photo with its file metadata
+// and its admin overrides (photo editor).
+router.get('/:album/photos', requireAdmin, async (req, res) => {
+  try {
+    safeAlbumPath(req.params.album);
+    const photos = await library.getAlbumPhotos(req.params.album);
+    if (!photos) return res.status(404).json({ error: 'Album not found' });
+    const ovs = await overrides.loadOverrides([req.params.album]);
+    res.json({
+      photos: photos.map((p) => overrides.applyOverride(p, ovs.get(`${req.params.album}/${p.filename}`), { withOriginal: true })),
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// PUT /api/admin/albums/:album/photos/:filename/meta — { title, description, location }
+// A null or empty field reverts to the value stored in the file.
+router.put('/:album/photos/:filename/meta', requireAdmin, express.json(), async (req, res) => {
+  const { album, filename } = req.params;
+  const { values, error } = overrides.parseOverride(req.body);
+  if (error) return res.status(400).json({ error });
+  if (!database.dbReady) return res.status(503).json({ error: 'Service unavailable' });
+  try {
+    const albumPath = safeAlbumPath(album);
+    if (!isMedia(filename)) return res.status(400).json({ error: 'Not a photo or video' });
+    const filePath = path.resolve(path.join(albumPath, filename));
+    if (!filePath.startsWith(albumPath + path.sep)) return res.status(400).json({ error: 'Invalid filename' });
+    const fileExists = await fs.promises.access(filePath).then(() => true).catch(() => false);
+    if (!fileExists) return res.status(404).json({ error: 'Photo not found' });
+    await overrides.saveOverride(album, filename, values);
+    res.json({ ok: true, override: values });
+    activity.log('photo_edit', { username: req.user?.username ?? null, ip: req.ip, details: { album, filename } });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Internal server error' });

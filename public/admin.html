@@ -160,6 +160,7 @@
             <option value="photo_like" data-i18n="admin.log.photo_like">Like</option>
             <option value="photo_upload" data-i18n="admin.log.photo_upload">Upload</option>
             <option value="photo_delete" data-i18n="admin.log.photo_delete">Delete photo</option>
+            <option value="photo_edit" data-i18n="admin.log.photo_edit">Edit photo</option>
             <option value="album_create" data-i18n="admin.log.album_create">Create album</option>
             <option value="album_rename" data-i18n="admin.log.album_rename">Rename album</option>
             <option value="album_delete" data-i18n="admin.log.album_delete">Delete album</option>
@@ -226,6 +227,18 @@
         <span id="album-settings-error" class="admin-error pwd-error-text"></span>
         <button id="album-settings-save-btn" class="admin-action-btn" data-i18n="admin.save">Save</button>
       </div>
+    </div>
+  </div>
+
+  <!-- Photo editor modal (title / description / location) -->
+  <div id="photos-overlay" class="upload-overlay" hidden>
+    <div class="upload-modal photos-modal">
+      <div class="upload-modal-header">
+        <h3 class="upload-modal-title"><span data-i18n="admin.photos">Photos</span> — <strong id="photos-album-name"></strong></h3>
+        <button id="photos-close-btn" class="upload-close-btn" data-i18n-aria="viewer.close">✕</button>
+      </div>
+      <p class="photos-hint admin-dim" data-i18n="admin.photosHint">Empty fields show the value stored in the file.</p>
+      <div id="photos-editor" class="photos-editor"></div>
     </div>
   </div>
 

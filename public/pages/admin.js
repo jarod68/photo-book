@@ -78,6 +78,8 @@ async function loadAlbums() {
       btn.addEventListener('click', () => deleteAlbum(btn.dataset.delete)));
     body.querySelectorAll('[data-upload]').forEach(btn =>
       btn.addEventListener('click', () => openUploadModal(btn.dataset.upload)));
+    body.querySelectorAll('[data-photos]').forEach(btn =>
+      btn.addEventListener('click', () => openPhotosEditor(btn.dataset.photos)));
   } catch (_) {
     body.innerHTML = `<tr><td colspan="5" class="admin-error">${t('admin.failedLoad')}</td></tr>`;
   }
@@ -96,6 +98,7 @@ function renderAlbumRow(a) {
       <td class="num">${a.likes.toLocaleString()}</td>
       <td class="admin-row-actions">
         <button class="admin-icon-btn" data-settings="${esc(a.album)}" title="${t('admin.settings')}">${iconGear()}</button>
+        <button class="admin-icon-btn" data-photos="${esc(a.album)}" title="${t('admin.editPhotos')}">${iconImages()}</button>
         <button class="admin-icon-btn" data-upload="${esc(a.album)}" title="${t('admin.uploadPhotos')}">${iconUpload()}</button>
         <button class="admin-icon-btn" data-rename="${esc(a.album)}" title="${t('admin.rename')}">${iconPencil()}</button>
         <button class="admin-icon-btn admin-icon-btn--danger" data-delete="${esc(a.album)}" title="${t('admin.log.album_delete')}">${iconTrash()}</button>
@@ -386,6 +389,109 @@ dropZone.addEventListener('drop', e => {
   addFiles([...e.dataTransfer.files]);
 });
 
+// ── Photo editor (title / description / location) ────────────────────────────
+const photosOverlay = document.getElementById('photos-overlay');
+const photosEditor  = document.getElementById('photos-editor');
+
+const EDIT_FIELDS = [
+  { key: 'title',       label: 'admin.photoTitle',       max: 200,  multiline: false },
+  { key: 'description', label: 'admin.photoDescription', max: 2000, multiline: true  },
+  { key: 'location',    label: 'admin.photoLocation',    max: 200,  multiline: false },
+];
+
+async function openPhotosEditor(album) {
+  document.getElementById('photos-album-name').textContent = album;
+  photosEditor.innerHTML = `<p class="admin-loading">${t('admin.loading')}</p>`;
+  photosOverlay.hidden = false;
+  try {
+    const res = await fetch(`/api/admin/albums/${encodeURIComponent(album)}/photos`);
+    if (!res.ok) throw new Error();
+    const { photos } = await res.json();
+    if (!photos.length) {
+      photosEditor.innerHTML = `<p class="admin-empty">${t('album.empty')}</p>`;
+      return;
+    }
+    photosEditor.innerHTML = photos.map(renderPhotoEditRow).join('');
+    photosEditor.querySelectorAll('.photo-edit-row').forEach(row => bindPhotoEditRow(album, row));
+  } catch {
+    photosEditor.innerHTML = `<p class="admin-error">${t('admin.failedLoad')}</p>`;
+  }
+}
+
+function renderPhotoEditRow(p) {
+  const thumb = p.thumbUrl
+    ? `<img class="photo-edit-thumb" src="${esc(p.thumbUrl)}" alt="" loading="lazy">`
+    : `<div class="photo-edit-thumb photo-edit-thumb--video">▶</div>`;
+  const fields = EDIT_FIELDS.map(f => {
+    const value = esc(p.override?.[f.key] ?? '');
+    const ph    = esc(p.original?.[f.key] ?? '');
+    const attrs = `class="admin-inline-input" data-field="${f.key}" maxlength="${f.max}" placeholder="${ph}"`;
+    const input = f.multiline
+      ? `<textarea ${attrs} rows="2">${value}</textarea>`
+      : `<input ${attrs} type="text" value="${value}">`;
+    return `<label class="photo-edit-field"><span>${t(f.label)}</span>${input}</label>`;
+  }).join('');
+  return `
+    <div class="photo-edit-row" data-file="${esc(p.filename)}">
+      ${thumb}
+      <div class="photo-edit-fields">
+        <div class="photo-edit-filename admin-mono admin-dim">${esc(p.filename)}</div>
+        ${fields}
+        <div class="photo-edit-actions">
+          <span class="photo-edit-status admin-dim"></span>
+          <button class="admin-action-btn admin-action-btn--small" data-save disabled>${t('admin.save')}</button>
+        </div>
+      </div>
+    </div>`;
+}
+
+function bindPhotoEditRow(album, row) {
+  const saveBtn = row.querySelector('[data-save]');
+  const status  = row.querySelector('.photo-edit-status');
+  const inputs  = [...row.querySelectorAll('[data-field]')];
+  let saved = Object.fromEntries(inputs.map(i => [i.dataset.field, i.value]));
+  const dirty = () => inputs.some(i => i.value !== saved[i.dataset.field]);
+  inputs.forEach(i => i.addEventListener('input', () => {
+    saveBtn.disabled = !dirty();
+    status.textContent = '';
+  }));
+  saveBtn.addEventListener('click', async () => {
+    saveBtn.disabled = true;
+    const body = Object.fromEntries(inputs.map(i => [i.dataset.field, i.value]));
+    try {
+      const res = await fetch(
+        `/api/admin/albums/${encodeURIComponent(album)}/photos/${encodeURIComponent(row.dataset.file)}/meta`,
+        { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) },
+      );
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error);
+      inputs.forEach(i => { i.value = data.override?.[i.dataset.field] ?? ''; });
+      saved = Object.fromEntries(inputs.map(i => [i.dataset.field, i.value]));
+      status.textContent = t('admin.saved');
+    } catch (err) {
+      status.textContent = err.message || t('admin.saveFailed');
+      saveBtn.disabled = false;
+    }
+  });
+}
+
+function closePhotosEditor() {
+  photosOverlay.hidden = true;
+  photosEditor.innerHTML = '';
+}
+document.getElementById('photos-close-btn').addEventListener('click', closePhotosEditor);
+photosOverlay.addEventListener('click', e => { if (e.target === photosOverlay) closePhotosEditor(); });
+
+function iconImages() {
+  return `<svg viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+    <path d="M4.502 9a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3z"/>
+    <path d="M14.002 13a2 2 0 0 1-2 2h-10a2 2 0 0 1-2-2V5A2 2 0 0 1 2 3a2 2 0 0 1 2-2h10a2
+      2 0 0 1 2 2v8a2 2 0 0 1-1.998 2zM14 2H4a1 1 0 0 0-1 1h9.002a2 2 0 0 1 2 2v7A1 1 0 0 0
+      15 11V3a1 1 0 0 0-1-1zM2.002 4a1 1 0 0 0-1 1v8l2.646-2.354a.5.5 0 0 1 .63-.062l2.66
+      1.773 3.71-3.71a.5.5 0 0 1 .577-.094l1.777 1.947V5a1 1 0 0 0-1-1h-10z"/>
+  </svg>`;
+}
+
 function iconUpload() {
   return `<svg viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
     <path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5
@@ -419,7 +525,7 @@ function iconTrash() {
 }
 
 function esc(str) {
-  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
 // ── Users management ──────────────────────────────────────────────────────────
@@ -776,6 +882,7 @@ const LOG_LABELS = {
   photo_like:   { label: () => t('admin.log.photo_like'),   color: 'pink'   },
   photo_upload: { label: () => t('admin.log.photo_upload'), color: 'blue'   },
   photo_delete: { label: () => t('admin.log.photo_delete'), color: 'red'    },
+  photo_edit:   { label: () => t('admin.log.photo_edit'),   color: 'blue'   },
   album_create: { label: () => t('admin.log.album_create'), color: 'blue'   },
   album_rename: { label: () => t('admin.log.album_rename'), color: 'blue'   },
   album_delete: { label: () => t('admin.log.album_delete'), color: 'red'    },
@@ -788,7 +895,8 @@ function renderLogDetails(action, details) {
   switch (action) {
     case 'photo_like':   return `${esc(details.album)}/${esc(details.filename)} (${details.liked ? '♥ liked' : '♡ unliked'})`;
     case 'photo_upload': return `${details.count} photo(s) → ${esc(details.album)}`;
-    case 'photo_delete': return `${esc(details.album)}/${esc(details.filename)}`;
+    case 'photo_delete':
+    case 'photo_edit':   return `${esc(details.album)}/${esc(details.filename)}`;
     case 'album_create': return esc(details.album);
     case 'album_rename': return `${esc(details.from)} → ${esc(details.to)}`;
     case 'album_delete': return esc(details.album);

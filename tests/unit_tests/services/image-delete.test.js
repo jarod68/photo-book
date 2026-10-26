@@ -102,9 +102,10 @@ describe('deletePhotoFiles', () => {
     ).resolves.toBeUndefined();
   });
 
-  it('nettoie les 3 tables DB quand dbReady=true', async () => {
+  it('nettoie les 4 tables DB quand dbReady=true', async () => {
     await deletePhotoFiles('Paris', 'photo.jpg', mockDb, { fsPromises: { unlink: mockUnlink } });
-    expect(mockQuery).toHaveBeenCalledTimes(3);
+    expect(mockQuery).toHaveBeenCalledTimes(4);
+    expect(mockQuery.mock.calls.some(c => c[0].includes('photo_overrides'))).toBe(true);
     const sqls = mockQuery.mock.calls.map(c => c[0]);
     expect(sqls.some(s => s.includes('photo_view_log'))).toBe(true);
     expect(sqls.some(s => s.includes('photo_likes'))).toBe(true);

@@ -425,8 +425,8 @@ describe('PATCH /api/admin/albums/:album', () => {
     expect(res.status).toBe(200);
     expect(res.body.ok).toBe(true);
     expect(renameSpy).toHaveBeenCalledTimes(1);
-    // BEGIN + 7 UPDATEs + COMMIT = 9
-    expect(clientQuery).toHaveBeenCalledTimes(9);
+    // BEGIN + 8 UPDATEs + COMMIT = 10
+    expect(clientQuery).toHaveBeenCalledTimes(10);
     expect(clientRelease).toHaveBeenCalledTimes(1);
   });
 
@@ -493,8 +493,8 @@ describe('DELETE /api/admin/albums/:album', () => {
     // album dir + previews + medium
     expect(rmSpy).toHaveBeenCalledTimes(3);
     // 7 DELETE queries (view_log, likes, views, album_users, album_settings,
-    // share_tokens, push_subscriptions) + 1 INSERT activity_log
-    expect(mockQuery).toHaveBeenCalledTimes(8);
+    // share_tokens, push_subscriptions, photo_overrides) + 1 INSERT activity_log
+    expect(mockQuery).toHaveBeenCalledTimes(9);
   });
 
   it('supprime sans erreur si DB non prête', async () => {
@@ -554,8 +554,8 @@ describe('DELETE /api/admin/albums/:album/photos/:filename', () => {
     expect(res.body.ok).toBe(true);
     // original + preview (ignored by .catch) + medium (ignored by .catch)
     expect(unlinkSpy).toHaveBeenCalledWith(expect.stringContaining('shot.jpg'));
-    // 3 DELETE queries (view_log, likes, views) + 1 INSERT activity_log
-    expect(mockQuery).toHaveBeenCalledTimes(4);
+    // 4 DELETE queries (view_log, likes, views, overrides) + 1 INSERT activity_log
+    expect(mockQuery).toHaveBeenCalledTimes(5);
   });
 
   it('supprime sans erreur si DB non prête', async () => {
@@ -1227,5 +1227,84 @@ describe('DELETE /api/admin/logs', () => {
     vi.spyOn(console, 'error').mockImplementation(() => {});
     const res = await request(app).delete('/api/admin/logs');
     expect(res.status).toBe(500);
+  });
+});
+
+// ── Photo editor: titles / captions / places (F2) ─────────────────────────────
+
+describe('GET /api/admin/albums/:album/photos', () => {
+  const libraryMod = _require('../../../services/library.js');
+  afterEach(() => vi.restoreAllMocks());
+
+  it('renvoie chaque photo avec les valeurs du fichier et les surcharges', async () => {
+    vi.spyOn(libraryMod, 'getAlbumPhotos').mockResolvedValue([
+      { filename: 'a.jpg', name: 'IMG_1', description: 'exif desc', location: null },
+      { filename: 'b.jpg', name: 'IMG_2', description: '', location: 'Porto' },
+    ]);
+    mockQuery.mockResolvedValue({ rows: [{ album: 'Paris', filename: 'a.jpg', title: 'Louvre', description: null, location: null }] });
+    database._setState({ query: mockQuery }, true);
+    const res = await request(app).get('/api/admin/albums/Paris/photos');
+    expect(res.status).toBe(200);
+    expect(res.body.photos[0]).toMatchObject({
+      name: 'Louvre',
+      original: { title: 'IMG_1', description: 'exif desc', location: null },
+      override: { title: 'Louvre', description: null, location: null },
+    });
+    expect(res.body.photos[1]).toMatchObject({ name: 'IMG_2', override: { title: null } });
+  });
+
+  it('retourne 404 si l\'album n\'existe pas', async () => {
+    vi.spyOn(libraryMod, 'getAlbumPhotos').mockResolvedValue(null);
+    const res = await request(app).get('/api/admin/albums/Nope/photos');
+    expect(res.status).toBe(404);
+  });
+});
+
+describe('PUT /api/admin/albums/:album/photos/:filename/meta', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it('enregistre la surcharge (champs vides → NULL)', async () => {
+    vi.spyOn(fsMod.promises, 'access').mockResolvedValue(undefined);
+    mockQuery.mockResolvedValue({ rows: [] });
+    database._setState({ query: mockQuery }, true);
+    const res = await request(app).put('/api/admin/albums/Paris/photos/a.jpg/meta')
+      .send({ title: '  Louvre ', description: '', location: 'Paris' });
+    expect(res.status).toBe(200);
+    expect(res.body.override).toEqual({ title: 'Louvre', description: null, location: 'Paris' });
+    const [sql, params] = mockQuery.mock.calls[0];
+    expect(sql).toMatch(/INSERT INTO photo_overrides/);
+    expect(params).toEqual(['Paris', 'a.jpg', 'Louvre', null, 'Paris']);
+  });
+
+  it('supprime la ligne quand tous les champs sont vides', async () => {
+    vi.spyOn(fsMod.promises, 'access').mockResolvedValue(undefined);
+    mockQuery.mockResolvedValue({ rows: [] });
+    database._setState({ query: mockQuery }, true);
+    const res = await request(app).put('/api/admin/albums/Paris/photos/a.jpg/meta').send({ title: '' });
+    expect(res.status).toBe(200);
+    expect(mockQuery.mock.calls[0][0]).toMatch(/DELETE FROM photo_overrides/);
+  });
+
+  it('refuse un champ trop long ou d\'un mauvais type', async () => {
+    database._setState({ query: mockQuery }, true);
+    let res = await request(app).put('/api/admin/albums/Paris/photos/a.jpg/meta').send({ title: 'x'.repeat(201) });
+    expect(res.status).toBe(400);
+    res = await request(app).put('/api/admin/albums/Paris/photos/a.jpg/meta').send({ location: 42 });
+    expect(res.status).toBe(400);
+    expect(mockQuery).not.toHaveBeenCalled();
+  });
+
+  it('retourne 404 si la photo n\'existe pas, 400 si ce n\'est pas un média', async () => {
+    vi.spyOn(fsMod.promises, 'access').mockRejectedValue(new Error('ENOENT'));
+    database._setState({ query: mockQuery }, true);
+    let res = await request(app).put('/api/admin/albums/Paris/photos/a.jpg/meta').send({ title: 'x' });
+    expect(res.status).toBe(404);
+    res = await request(app).put('/api/admin/albums/Paris/photos/notes.txt/meta').send({ title: 'x' });
+    expect(res.status).toBe(400);
+  });
+
+  it('retourne 503 si la DB est indisponible', async () => {
+    const res = await request(app).put('/api/admin/albums/Paris/photos/a.jpg/meta').send({ title: 'x' });
+    expect(res.status).toBe(503);
   });
 });

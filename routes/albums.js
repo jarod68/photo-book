@@ -7,6 +7,7 @@ const { ZipArchive } = require('archiver');
 
 const { PHOTOS_DIR, isImage, isMedia, ensurePreview, ensureThumb, deletePhotoFiles } = require('../services/image');
 const library  = require('../services/library');
+const overrides = require('../services/overrides');
 const database = require('../services/database');
 const auth     = require('../services/auth');
 const activity = require('../services/activity');
@@ -120,8 +121,12 @@ router.get('/:album', async (req, res) => {
     const { allowed, canDelete } = access;
     if (!allowed) return res.status(401).json({ error: 'Unauthorized' });
 
-    // Cached per photo (services/library.js); copied because counters are added below.
-    const photos = ((await library.getAlbumPhotos(req.params.album)) ?? []).map((p) => ({ ...p }));
+    // Cached per photo (services/library.js); copied (applyOverride) because
+    // titles edited in the admin and counters are added below.
+    const ovs = await overrides.loadOverrides([req.params.album])
+      .catch((err) => { console.error('Failed to load photo overrides:', err.message); return new Map(); });
+    const photos = ((await library.getAlbumPhotos(req.params.album)) ?? [])
+      .map((p) => overrides.applyOverride(p, ovs.get(`${req.params.album}/${p.filename}`)));
 
     if (database.dbReady) {
       try {

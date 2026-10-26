@@ -128,6 +128,10 @@ Derivatives persist across restarts on their own volumes (`PREVIEWS_DIR`, `MEDIU
 - Original files are served with `?v=<mtime>` too, so a file replaced under the same name is reloaded.
 - Uploads accept up to 200 MB per file.
 
+### Titles, captions and places
+
+A photo's title, caption and place come from its file (XMP / IPTC / EXIF; the title falls back to the file name). Admins can change them without touching the file: **Admin → Albums → photos button** lists every photo of the album with the file's values as placeholders. A saved value is stored in `photo_overrides` and shown everywhere (viewer, map popups); clearing a field reverts to the file's value. Overrides follow album renames and are deleted with their photo or album.
+
 ---
 
 ## Authentication & access control
@@ -238,6 +242,8 @@ All `/api/admin/*` routes first pass through `requireAuth` (→ `401` if no sess
 | `DELETE /api/admin/albums/:album` | `401` | `403` | ✓ |
 | `POST /api/admin/albums/:album/photos` | `401` | `403` | ✓ |
 | `DELETE /api/admin/albums/:album/photos/:filename` | `401` | `403` | ✓ |
+| `GET /api/admin/albums/:album/photos` | `401` | `403` | ✓ |
+| `PUT /api/admin/albums/:album/photos/:filename/meta` | `401` | `403` | ✓ |
 | `GET /api/admin/albums/:album/settings` | `401` | `403` | ✓ |
 | `PUT /api/admin/albums/:album/settings` | `401` | `403` | ✓ |
 | `GET /api/admin/users` | `401` | `403` | ✓ |
@@ -396,6 +402,17 @@ CREATE TABLE album_users (
   album   VARCHAR(255) NOT NULL,
   user_id INTEGER      NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   PRIMARY KEY (album, user_id)
+);
+
+-- Title / caption / place edited in the admin (migration 2); NULL = use the file's value
+CREATE TABLE photo_overrides (
+  album       VARCHAR(255) NOT NULL,
+  filename    VARCHAR(255) NOT NULL,
+  title       TEXT,
+  description TEXT,
+  location    TEXT,
+  updated_at  TIMESTAMPTZ  NOT NULL DEFAULT now(),
+  PRIMARY KEY (album, filename)
 );
 ```
 

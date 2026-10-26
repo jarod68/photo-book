@@ -1845,7 +1845,7 @@ body {
 .log-badge--blue   { background: rgba(96,165,250,0.15);  color: #60a5fa; }
 .log-badge--red    { background: rgba(248,113,113,0.15); color: #f87171; }
 
-.admin-dim  { color: var(--text-dim, #888); }
+.admin-dim  { color: var(--text-dim); }
 .admin-mono { font-family: monospace; font-size: 11.5px; }
 
 .admin-pagination {
@@ -1854,7 +1854,7 @@ body {
   gap: 12px;
   margin-top: 14px;
 }
-.admin-pagination-info { font-size: 12px; color: var(--text-dim, #888); }
+.admin-pagination-info { font-size: 12px; color: var(--text-dim); }
 
 /* ── System info ──────────────────────────────────────────────────────────── */
 .admin-system-meta {
@@ -2717,3 +2717,47 @@ a#zip-btn { text-decoration: none; }
 .thumb video { width: 100%; height: 100%; object-fit: cover; display: block; opacity: 0; transition: opacity .2s; }
 .thumb video.loaded { opacity: 1; }
 .thumb-badge.thumb-video { left: 50%; top: 50%; right: auto; bottom: auto; transform: translate(-50%, -50%); font-size: 18px; padding: 4px 9px; }
+
+/* ── Admin photo editor (title / description / location) ───────────────── */
+.photos-modal { max-width: 760px; }
+.photos-hint { padding: 10px 20px 0; font-size: 12px; }
+.photos-editor {
+  overflow-y: auto;
+  padding: 10px 20px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.photo-edit-row {
+  display: flex;
+  gap: 14px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--border);
+}
+.photo-edit-row:last-child { border-bottom: none; }
+.photo-edit-thumb {
+  width: 120px;
+  height: 90px;
+  object-fit: cover;
+  border-radius: 6px;
+  flex-shrink: 0;
+  background: #000;
+}
+.photo-edit-thumb--video {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-dim);
+  font-size: 24px;
+}
+.photo-edit-fields { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.photo-edit-filename { font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.photo-edit-field { display: grid; grid-template-columns: 70px 1fr; align-items: start; gap: 8px; font-size: 12px; }
+.photo-edit-field span { padding-top: 6px; color: var(--text-dim); }
+.photo-edit-field .admin-inline-input { min-width: 0; width: 100%; font-family: inherit; resize: vertical; }
+.photo-edit-actions { display: flex; justify-content: flex-end; align-items: center; gap: 10px; font-size: 12px; }
+@media (max-width: 560px) {
+  .photo-edit-row { flex-direction: column; }
+  .photo-edit-thumb { width: 100%; height: 160px; }
+  .photo-edit-field { grid-template-columns: 1fr; gap: 2px; }
+}
