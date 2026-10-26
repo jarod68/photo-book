@@ -100,17 +100,20 @@ The database schema is managed entirely by `services/database.js`, which runs `C
 
 ### Preview pipeline
 
-On first access to an album, `ensurePreview` is called for each photo:
+For each photo, three derived JPEGs are made by sharp (EXIF orientation applied):
 
-```
-Original JPEG/PNG/WEBP
-  └─► sharp.rotate()           ← apply EXIF orientation
-      .resize(1024 or 1536)    ← 1536 px for 360° photos
-      .jpeg({ quality: 76 })
-      .toFile(public/previews/AlbumName/photo.jpg)
-```
+| Derivative | Path | Width | Used by |
+|---|---|---|---|
+| thumbnail | `public/previews/<album>/<file>.thumb.jpg` | 480 px | thumbnail strip, album cards, map / globe popups (lazy-loaded) |
+| preview | `public/previews/<album>/<file>.jpg` | 1024 px (1536 px for 360°) | 360° viewer preview |
+| medium | `public/medium/<album>/<file>.jpg` | 1280 px | shown while the full image loads |
 
-Previews are served as static files by Express and persist across container restarts via a bind-mounted volume.
+- Named after the **full** source filename (`IMG_1.png` → `IMG_1.png.jpg`), so two photos that differ only by extension never share a derivative.
+- Rebuilt whenever the source is newer than the derivative (a photo replaced under the same name). Written to a temporary file and renamed, so a reader never sees a half-written image.
+- URLs carry the source's modification time (`?v=…`): derivatives are served as immutable for a year, and a replaced photo gets a new URL.
+- At startup the server generates whatever is missing or stale, then removes orphans (deleted photos and albums, files from the old naming scheme).
+
+Derivatives persist across restarts on their own volumes (`PREVIEWS_DIR`, `MEDIUM_DIR`; default `public/previews`, `public/medium`).
 
 ---
 
@@ -470,7 +473,8 @@ tests/
 └── services/
     ├── database.test.js      connectDb, syncPhotosToDb
     ├── image.test.js         isImage, isAlbumDir, EXIF extension handling
-    └── image-meta.test.js    ensurePreview, photoMeta, preGenerateAll
+    ├── image-meta.test.js    photoMeta metadata mapping
+    └── derivatives.test.js   derived images on real files (naming, rebuild, cleanup)
 ```
 
 ### Design patterns

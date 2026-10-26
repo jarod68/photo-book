@@ -12,8 +12,10 @@ export function createAlbumCard(album) {
   if (album.cover) {
     const img = document.createElement('img');
     img.alt = album.name;
+    img.loading  = 'lazy';
+    img.decoding = 'async';
     img.onload = () => img.classList.add('loaded');
-    img.src = album.coverPreview || album.cover;
+    img.src = album.coverThumb || album.coverPreview || album.cover;
     card.appendChild(img);
   } else {
     const empty = document.createElement('div');

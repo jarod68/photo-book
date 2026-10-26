@@ -7,58 +7,70 @@ const APP_ROOT     = process.cwd();
 const PHOTOS_DIR   = process.env.PHOTOS_DIR
   ? path.resolve(process.env.PHOTOS_DIR)
   : path.join(APP_ROOT, 'photos');
-const PREVIEWS_DIR = path.join(APP_ROOT, 'public', 'previews');
-const MEDIUM_DIR   = path.join(APP_ROOT, 'public', 'medium');
+// Overridable (tests use temporary directories); server.js serves these paths.
+const PREVIEWS_DIR = path.resolve(process.env.PREVIEWS_DIR || path.join(APP_ROOT, 'public', 'previews'));
+const MEDIUM_DIR   = path.resolve(process.env.MEDIUM_DIR   || path.join(APP_ROOT, 'public', 'medium'));
 
 const IMAGE_EXT  = new Set(['.jpg', '.jpeg', '.png', '.webp', '.tiff', '.tif']);
 const isImage    = f => IMAGE_EXT.has(path.extname(f).toLowerCase());
 const isAlbumDir = e => e.isDirectory() && /^[A-Za-z0-9]/.test(e.name);
 
-// ── Preview generation ────────────────────────────────────────────────────────
-// public/previews/ — thumbnail strip (1024 px standard, 1536 px 360°)
-// public/medium/   — 720p intermediate shown while the full image loads (1280 px)
+// ── Derived images ────────────────────────────────────────────────────────────
+// public/previews/<album>/<file>.jpg        viewer preview (1024 px, 1536 px for 360°)
+// public/previews/<album>/<file>.thumb.jpg  thumbnail strip, album cards, map popups (480 px: sharp at 2× on cards)
+// public/medium/<album>/<file>.jpg          720p shown while the full image loads (1280 px)
+//
+// Named after the FULL source filename ("IMG_1.JPG" → "IMG_1.JPG.jpg") so that
+// IMG_1.jpg and IMG_1.png in one album no longer share a derivative, and
+// rebuilt whenever the source is newer (a photo replaced under the same name).
+// URLs carry the source's mtime (?v=…): the routes serve derivatives as
+// immutable for a year, so a new version must have a new URL.
+const DERIVATIVES = {
+  preview: { dir: () => PREVIEWS_DIR, suffix: '.jpg',       width: (is360) => (is360 ? 1536 : 1024), quality: 76, route: 'previews' },
+  thumb:   { dir: () => PREVIEWS_DIR, suffix: '.thumb.jpg', width: () => 480,                          quality: 72, route: 'previews' },
+  medium:  { dir: () => MEDIUM_DIR,   suffix: '.jpg',       width: () => 1280,                         quality: 82, route: 'medium' },
+};
 
-async function ensurePreview(albumName, filename, filePath, is360, _deps = {}) {
-  const _fs    = _deps.fs    ?? fs;
+const derivName = (kind, filename) => filename + DERIVATIVES[kind].suffix;
+
+function derivUrl(kind, albumName, filename, srcMtimeMs) {
+  const { route } = DERIVATIVES[kind];
+  const v = srcMtimeMs ? `?v=${Math.floor(srcMtimeMs)}` : '';
+  return `/${route}/${encodeURIComponent(albumName)}/${encodeURIComponent(derivName(kind, filename))}${v}`;
+}
+
+async function srcMtime(filePath, _fsp) {
+  return (await _fsp.stat(filePath)).mtimeMs;
+}
+
+async function ensureDerivative(kind, albumName, filename, filePath, { is360 = false, mtimeMs } = {}, _deps = {}) {
+  const _fsp   = _deps.fsPromises ?? fs.promises;
   const _sharp = _deps.sharp ?? sharp;
+  const spec   = DERIVATIVES[kind];
+  const srcMs  = mtimeMs ?? await srcMtime(filePath, _fsp);
+  const outDir = path.join(spec.dir(), albumName);
+  const out    = path.join(outDir, derivName(kind, filename));
 
-  const albumDir    = path.join(PREVIEWS_DIR, albumName);
-  const previewName = path.parse(filename).name + '.jpg';
-  const previewPath = path.join(albumDir, previewName);
-
-  if (!_fs.existsSync(previewPath)) {
-    _fs.mkdirSync(albumDir, { recursive: true });
-    const width = is360 ? 1536 : 1024;
+  const outMs = await _fsp.stat(out).then((st) => st.mtimeMs, () => -1);
+  if (outMs < srcMs) {
+    await _fsp.mkdir(outDir, { recursive: true });
+    const tmp = `${out}.${process.pid}.tmp`;
     await _sharp(filePath)
       .rotate()
-      .resize(width, null, { withoutEnlargement: true })
-      .jpeg({ quality: 76, progressive: true })
-      .toFile(previewPath);
+      .resize(spec.width(is360), null, { withoutEnlargement: true })
+      .jpeg({ quality: spec.quality, progressive: true })
+      .toFile(tmp);
+    await _fsp.rename(tmp, out);   // atomic: a reader never sees a half-written file
   }
-
-  return `/previews/${encodeURIComponent(albumName)}/${encodeURIComponent(previewName)}`;
+  return derivUrl(kind, albumName, filename, srcMs);
 }
 
-async function ensureMedium(albumName, filename, filePath, _deps = {}) {
-  const _fs    = _deps.fs    ?? fs;
-  const _sharp = _deps.sharp ?? sharp;
-
-  const albumDir  = path.join(MEDIUM_DIR, albumName);
-  const medName   = path.parse(filename).name + '.jpg';
-  const medPath   = path.join(albumDir, medName);
-  const mediumUrl = `/medium/${encodeURIComponent(albumName)}/${encodeURIComponent(medName)}`;
-
-  if (_fs.existsSync(medPath)) return mediumUrl;
-
-  _fs.mkdirSync(albumDir, { recursive: true });
-  await _sharp(filePath)
-    .rotate()
-    .resize(1280, null, { withoutEnlargement: true })
-    .jpeg({ quality: 82, progressive: true })
-    .toFile(medPath);
-
-  return mediumUrl;
-}
+const ensurePreview = (albumName, filename, filePath, is360, _deps = {}, mtimeMs) =>
+  ensureDerivative('preview', albumName, filename, filePath, { is360, mtimeMs }, _deps);
+const ensureThumb = (albumName, filename, filePath, _deps = {}, mtimeMs) =>
+  ensureDerivative('thumb', albumName, filename, filePath, { mtimeMs }, _deps);
+const ensureMedium = (albumName, filename, filePath, _deps = {}, mtimeMs) =>
+  ensureDerivative('medium', albumName, filename, filePath, { mtimeMs }, _deps);
 
 // ── EXIF metadata extraction ──────────────────────────────────────────────────
 
@@ -152,12 +164,12 @@ async function photoMeta(albumName, file, albumPath, _deps = {}) {
     }
   } catch (_) { /* use filename defaults */ }
 
-  const [previewUrl, mediumUrl] = await Promise.all([
-    ensurePreview(albumName, file, filePath, is360, _deps).catch(() => null),
-    ensureMedium(albumName, file, filePath, _deps).catch(err => {
-      console.error('ensureMedium failed:', albumName, file, err.message);
-      return null;
-    }),
+  const mtimeMs = await srcMtime(filePath, _deps.fsPromises ?? fs.promises).catch(() => undefined);
+  const logFail = (kind) => (err) => { console.error(`${kind} failed:`, albumName, file, err.message); return null; };
+  const [previewUrl, mediumUrl, thumbUrl] = await Promise.all([
+    ensurePreview(albumName, file, filePath, is360, _deps, mtimeMs).catch(() => null),
+    ensureMedium(albumName, file, filePath, _deps, mtimeMs).catch(logFail('ensureMedium')),
+    ensureThumb(albumName, file, filePath, _deps, mtimeMs).catch(logFail('ensureThumb')),
   ]);
 
   let gps = null;
@@ -173,6 +185,8 @@ async function photoMeta(albumName, file, albumPath, _deps = {}) {
     url:         `/photos/${encodeURIComponent(albumName)}/${encodeURIComponent(file)}`,
     previewUrl,
     mediumUrl,
+    thumbUrl,
+    mtimeMs:     mtimeMs ?? null,
     name:        String(name).trim(),
     description: String(description).trim(),
     is360,
@@ -202,26 +216,64 @@ async function withConcurrency(fns, concurrency = 6) {
 }
 
 async function preGenerateAll(_deps = {}) {
-  const _fs = _deps.fs ?? fs;
+  const _fs  = _deps.fs ?? fs;
+  const _fsp = _deps.fsPromises ?? fs.promises;
 
   if (!_fs.existsSync(PHOTOS_DIR)) return;
   const albums = _fs.readdirSync(PHOTOS_DIR, { withFileTypes: true }).filter(isAlbumDir);
 
-  const tasks = albums.flatMap(album => {
+  // A photo needs work when any of its derivatives is missing or older than it.
+  const stale = async (album, file) => {
+    const src = await _fsp.stat(path.join(PHOTOS_DIR, album, file)).then((st) => st.mtimeMs, () => null);
+    if (src == null) return false;
+    for (const kind of Object.keys(DERIVATIVES)) {
+      const out = path.join(DERIVATIVES[kind].dir(), album, derivName(kind, file));
+      const ms = await _fsp.stat(out).then((st) => st.mtimeMs, () => -1);
+      if (ms < src) return true;
+    }
+    return false;
+  };
+
+  const tasks = [];
+  for (const album of albums) {
     const albumPath = path.join(PHOTOS_DIR, album.name);
-    const files     = _fs.readdirSync(albumPath).filter(isImage).sort();
-    return files
-      .filter(file => {
-        const base = path.parse(file).name + '.jpg';
-        return !_fs.existsSync(path.join(PREVIEWS_DIR, album.name, base))
-            || !_fs.existsSync(path.join(MEDIUM_DIR,   album.name, base));
-      })
-      .map(file => () => photoMeta(album.name, file, albumPath, _deps).catch(e =>
-        console.error('Preview error:', file, e.message),
-      ));
-  });
+    for (const file of _fs.readdirSync(albumPath).filter(isImage).sort()) {
+      if (await stale(album.name, file)) {
+        tasks.push(() => photoMeta(album.name, file, albumPath, _deps).catch((e) =>
+          console.error('Preview error:', file, e.message)));
+      }
+    }
+  }
   await withConcurrency(tasks);
   if (tasks.length > 0) console.log(`  ✓ ${tasks.length} thumbnail${tasks.length > 1 ? 's' : ''} generated.`);
+  await pruneDerivatives(_deps).catch((e) => console.error('Derivative cleanup failed:', e.message));
+}
+
+// Remove derived images whose source is gone: deleted photos and albums, and
+// files from the previous naming scheme ("IMG_1.jpg" for "IMG_1.JPG").
+async function pruneDerivatives(_deps = {}) {
+  const _fsp = _deps.fsPromises ?? fs.promises;
+  const albums = new Map();   // album → Set of expected derivative names
+  for (const e of await _fsp.readdir(PHOTOS_DIR, { withFileTypes: true }).catch(() => [])) {
+    if (!isAlbumDir(e)) continue;
+    const files = (await _fsp.readdir(path.join(PHOTOS_DIR, e.name)).catch(() => [])).filter(isImage);
+    albums.set(e.name, new Set(files.flatMap((f) => Object.keys(DERIVATIVES).map((k) => derivName(k, f)))));
+  }
+  let removed = 0;
+  for (const root of new Set(Object.values(DERIVATIVES).map((d) => d.dir()))) {
+    for (const e of await _fsp.readdir(root, { withFileTypes: true }).catch(() => [])) {
+      if (!e.isDirectory()) continue;
+      const expected = albums.get(e.name);
+      const dir = path.join(root, e.name);
+      for (const f of await _fsp.readdir(dir).catch(() => [])) {
+        if (!f.endsWith('.jpg') || expected?.has(f)) continue;
+        await _fsp.unlink(path.join(dir, f)).then(() => removed++, () => {});
+      }
+      if (!expected) await _fsp.rmdir(dir).catch(() => {});
+    }
+  }
+  if (removed) console.log(`  ✓ ${removed} orphaned derivative${removed > 1 ? 's' : ''} removed.`);
+  return removed;
 }
 
 // ── Photo deletion ────────────────────────────────────────────────────────────
@@ -245,9 +297,8 @@ async function deletePhotoFiles(album, filename, database, _deps = {}) {
   const filePath  = path.resolve(path.join(albumPath, filename));
   await _fsPromises.unlink(filePath);
 
-  const previewName = path.parse(filename).name + '.jpg';
-  for (const base of [PREVIEWS_DIR, MEDIUM_DIR]) {
-    const p = path.join(base, album, previewName);
+  for (const kind of Object.keys(DERIVATIVES)) {
+    const p = path.join(DERIVATIVES[kind].dir(), album, derivName(kind, filename));
     await _fsPromises.unlink(p).catch(() => {});
   }
 
@@ -259,4 +310,4 @@ async function deletePhotoFiles(album, filename, database, _deps = {}) {
   await q('DELETE FROM photo_views    WHERE album = $1 AND filename = $2');
 }
 
-module.exports = { PHOTOS_DIR, PREVIEWS_DIR, MEDIUM_DIR, IMAGE_EXT, isImage, isAlbumDir, ensurePreview, ensureMedium, photoMeta, preGenerateAll, withConcurrency, deletePhotoFiles };
+module.exports = { PHOTOS_DIR, PREVIEWS_DIR, MEDIUM_DIR, IMAGE_EXT, isImage, isAlbumDir, ensurePreview, ensureMedium, ensureThumb, derivUrl, derivName, photoMeta, preGenerateAll, pruneDerivatives, withConcurrency, deletePhotoFiles };

@@ -538,18 +538,22 @@ describe('GET /api/map', () => {
     expect(photo.url).toBe('/photos/Paris/img.jpg');
     expect(photo.albumIndex).toBe(0);
     expect(photo.date).toBe('2024-06-15T12:00:00.000Z');
-    expect(photo.previewUrl).toBeNull();
+    // links to the derivatives (named after the full filename); unversioned here
+    // because the mocked file has no mtime
+    expect(photo.previewUrl).toBe('/previews/Paris/img.jpg.jpg');
+    expect(photo.thumbUrl).toBe('/previews/Paris/img.jpg.thumb.jpg');
   });
 
-  it('inclut previewUrl si le fichier de preview existe sur le disque', async () => {
-    fsMod.existsSync.mockReturnValue(true); // PHOTOS_DIR + preview
+  it('versionne les URL des dérivés avec la date de modification de la photo', async () => {
+    fsMod.existsSync.mockReturnValue(true);
     fsMod.readdirSync
       .mockReturnValueOnce([albumDir])
       .mockReturnValueOnce(['img.jpg']);
     exifrMod.gps.mockResolvedValue({ latitude: 48.8566, longitude: 2.3522 });
+    vi.spyOn(fsMod.promises, 'stat').mockResolvedValue({ mtimeMs: 1700000000123.4 });
 
     const res = await request(app).get('/api/map');
-    expect(res.body[0].previewUrl).toBe('/previews/Paris/img.jpg');
+    expect(res.body[0].previewUrl).toBe('/previews/Paris/img.jpg.jpg?v=1700000000123');
   });
 
   it('ignore les photos sans coordonnées GPS', async () => {

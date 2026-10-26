@@ -5,7 +5,7 @@ const path      = require('path');
 const fs        = require('fs');
 const { ZipArchive } = require('archiver');
 
-const { PHOTOS_DIR, PREVIEWS_DIR, MEDIUM_DIR, isImage, ensurePreview, photoMeta, deletePhotoFiles } = require('../services/image');
+const { PHOTOS_DIR, isImage, ensurePreview, ensureThumb, photoMeta, deletePhotoFiles } = require('../services/image');
 const database = require('../services/database');
 const auth     = require('../services/auth');
 const activity = require('../services/activity');
@@ -37,14 +37,18 @@ router.get('/', async (req, res) => {
       const firstFile = files[0];
       let cover = null;
       let coverPreview = null;
+      let coverThumb = null;
       if (firstFile) {
         cover = `/photos/${encodeURIComponent(e.name)}/${encodeURIComponent(firstFile)}`;
         const coverPath = path.join(PHOTOS_DIR, e.name, firstFile);
-        coverPreview = await ensurePreview(e.name, firstFile, coverPath, false).catch(() => null);
+        [coverPreview, coverThumb] = await Promise.all([
+          ensurePreview(e.name, firstFile, coverPath, false).catch(() => null),
+          ensureThumb(e.name, firstFile, coverPath).catch(() => null),
+        ]);
       }
       const visibility = visibilityMap.get(e.name) ?? 'public';
       const canDelete  = user?.role === 'admin' || (user?.role === 'basic' && authorizedSet.has(e.name));
-      return { name: e.name, count: files.length, cover, coverPreview, visibility, canDelete };
+      return { name: e.name, count: files.length, cover, coverPreview, coverThumb, visibility, canDelete };
     }));
 
     res.json(albums);

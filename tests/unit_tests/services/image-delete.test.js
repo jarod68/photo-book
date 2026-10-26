@@ -70,29 +70,32 @@ describe('deletePhotoFiles', () => {
 
   it('appelle unlink sur le preview dans PREVIEWS_DIR', async () => {
     await deletePhotoFiles('Paris', 'photo.jpg', mockDb, { fsPromises: { unlink: mockUnlink } });
-    const expectedPreview = path.join(PREVIEWS_DIR, 'Paris', 'photo.jpg');
+    const expectedPreview = path.join(PREVIEWS_DIR, 'Paris', 'photo.jpg.jpg');
     const calls = mockUnlink.mock.calls.map(c => c[0]);
     expect(calls).toContain(expectedPreview);
   });
 
   it('appelle unlink sur le medium dans MEDIUM_DIR', async () => {
     await deletePhotoFiles('Paris', 'photo.jpg', mockDb, { fsPromises: { unlink: mockUnlink } });
-    const expectedMedium = path.join(MEDIUM_DIR, 'Paris', 'photo.jpg');
+    const expectedMedium = path.join(MEDIUM_DIR, 'Paris', 'photo.jpg.jpg');
     const calls = mockUnlink.mock.calls.map(c => c[0]);
     expect(calls).toContain(expectedMedium);
   });
 
-  it('utilise le basename sans extension + .jpg pour les previews', async () => {
+  it('derivatives are named after the full filename (photo.png → photo.png.jpg), incl. the thumbnail', async () => {
     await deletePhotoFiles('Paris', 'photo.png', mockDb, { fsPromises: { unlink: mockUnlink } });
     const calls = mockUnlink.mock.calls.map(c => c[0]);
-    expect(calls.some(p => p.endsWith('photo.jpg'))).toBe(true);
-    expect(calls.some(p => p.endsWith('photo.png') && !p.includes(PHOTOS_DIR))).toBe(false);
+    expect(calls).toContain(path.join(PREVIEWS_DIR, 'Paris', 'photo.png.jpg'));
+    expect(calls).toContain(path.join(PREVIEWS_DIR, 'Paris', 'photo.png.thumb.jpg'));
+    expect(calls).toContain(path.join(MEDIUM_DIR, 'Paris', 'photo.png.jpg'));
+    expect(calls.some(p => p.endsWith(path.sep + 'photo.jpg'))).toBe(false);   // never another photo's derivative
   });
 
   it('ignore les erreurs de suppression des fichiers preview', async () => {
     mockUnlink
       .mockResolvedValueOnce(undefined)   // original — ok
       .mockRejectedValueOnce(new Error('ENOENT')) // preview — missing
+      .mockRejectedValueOnce(new Error('ENOENT')) // thumbnail — missing
       .mockRejectedValueOnce(new Error('ENOENT')); // medium — missing
     await expect(
       deletePhotoFiles('Paris', 'photo.jpg', mockDb, { fsPromises: { unlink: mockUnlink } }),
@@ -121,8 +124,8 @@ describe('deletePhotoFiles', () => {
     expect(mockQuery).not.toHaveBeenCalled();
   });
 
-  it('appelle unlink exactement 3 fois (original + 2 previews)', async () => {
+  it('appelle unlink exactement 4 fois (original + preview, vignette, medium)', async () => {
     await deletePhotoFiles('Paris', 'photo.jpg', mockDb, { fsPromises: { unlink: mockUnlink } });
-    expect(mockUnlink).toHaveBeenCalledTimes(3);
+    expect(mockUnlink).toHaveBeenCalledTimes(4);
   });
 });

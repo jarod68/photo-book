@@ -69,10 +69,10 @@ export class PhotoViewer {
       this._show360(photo.url, photo.previewUrl);
     } else {
       // photo.mediumUrl can be null if the server failed to generate the file.
-      // Derive it from photo.url as a fallback: /photos/A/f.EXT → /medium/A/f.jpg
+      // Derive it from photo.url as a fallback: /photos/A/f.EXT → /medium/A/f.EXT.jpg
       // _showStandard's onerror handler will fall back to full if the file is absent.
       const mediumUrl = photo.mediumUrl
-        ?? photo.url.replace(/^\/photos\//, '/medium/').replace(/\.[^./?#]+$/, '.jpg');
+        ?? photo.url.replace(/^\/photos\//, '/medium/') + '.jpg';
       this._showStandard(photo.url, mediumUrl, onDetect360);
     }
   }

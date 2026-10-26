@@ -169,7 +169,7 @@ export class PhotoMap {
 
     if (photo.previewUrl) {
       const img = document.createElement('img');
-      img.src = photo.previewUrl;
+      img.src = photo.thumbUrl || photo.previewUrl;
       img.alt = photo.name;
       wrap.appendChild(img);
     }

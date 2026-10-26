@@ -5,7 +5,7 @@ const path     = require('path');
 const fs       = require('fs');
 const exifr    = require('../services/exif');   // photo metadata (ExifReader, exifr-compatible API)
 
-const { PHOTOS_DIR, PREVIEWS_DIR, isImage } = require('../services/image');
+const { PHOTOS_DIR, isImage, derivUrl } = require('../services/image');
 const { resolveUser, filterVisibleAlbums }  = require('../services/access');
 
 const router = express.Router();
@@ -35,11 +35,11 @@ router.get('/', async (req, res) => {
           ]);
           if (!g?.latitude) return;
 
-          const previewName = path.parse(file).name + '.jpg';
-          const previewPath = path.join(PREVIEWS_DIR, dir.name, previewName);
-          const previewUrl  = fs.existsSync(previewPath)
-            ? `/previews/${encodeURIComponent(dir.name)}/${encodeURIComponent(previewName)}`
-            : null;
+          // Derivatives are produced when the album is browsed or at startup;
+          // the map only links to them (versioned by the source's mtime).
+          const { mtimeMs } = await fs.promises.stat(filePath).catch(() => ({}));
+          const previewUrl  = derivUrl('preview', dir.name, file, mtimeMs);
+          const thumbUrl    = derivUrl('thumb', dir.name, file, mtimeMs);
 
           const rawDate = tags?.DateTimeOriginal ?? tags?.CreateDate ?? null;
 
@@ -49,6 +49,7 @@ router.get('/', async (req, res) => {
             name:       path.basename(file, path.extname(file)),
             filename:   file,
             previewUrl,
+            thumbUrl,
             url:        `/photos/${encodeURIComponent(dir.name)}/${encodeURIComponent(file)}`,
             album:      dir.name,
             albumIndex,

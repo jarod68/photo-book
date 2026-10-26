@@ -5,7 +5,7 @@ const cookieParser = require('cookie-parser');
 const rateLimit    = require('express-rate-limit');
 const helmet       = require('helmet');
 
-const { PHOTOS_DIR, PREVIEWS_DIR, isImage, isAlbumDir, preGenerateAll } = require('./services/image');
+const { PHOTOS_DIR, PREVIEWS_DIR, MEDIUM_DIR, isImage, isAlbumDir, preGenerateAll } = require('./services/image');
 const database = require('./services/database'); // database.db, database.dbReady (getters)
 const auth     = require('./services/auth');
 const activity = require('./services/activity');
@@ -80,16 +80,16 @@ app.use('/api/geocode', rateLimit({
 
 // ─── Static files ─────────────────────────────────────────────────────────────
 
-// Medium (720p): generated once, never mutated → immutable 1 year
-app.use('/medium', albumAccessGuard(), express.static(path.join(__dirname, 'public', 'medium'), {
+// Medium (720p) and previews: URLs carry the source's mtime (?v=…), so each
+// version is immutable → cache for a year.
+app.use('/medium', albumAccessGuard(), express.static(MEDIUM_DIR, {
   maxAge: '1y',
   immutable: true,
   etag: false,
   lastModified: false,
 }));
 
-// Previews: generated once, never mutated → immutable 1 year
-app.use('/previews', albumAccessGuard(), express.static(path.join(__dirname, 'public', 'previews'), {
+app.use('/previews', albumAccessGuard(), express.static(PREVIEWS_DIR, {
   maxAge: '1y',
   immutable: true,
   etag: false,

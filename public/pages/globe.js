@@ -310,7 +310,7 @@ async function init() {
     }
 
     if (photo.previewUrl) {
-      popupImg.src = photo.previewUrl;
+      popupImg.src = photo.thumbUrl || photo.previewUrl;
       popupImg.style.display = '';
     } else {
       popupImg.style.display = 'none';

@@ -255,8 +255,11 @@ export class ThumbnailStrip {
 
     const img  = document.createElement('img');
     img.alt    = photo.name;
+    // Small dedicated thumbnail, fetched only when it scrolls into view.
+    img.loading  = 'lazy';
+    img.decoding = 'async';
     img.onload = () => img.classList.add('loaded');
-    img.src    = photo.previewUrl || photo.url;
+    img.src    = photo.thumbUrl || photo.previewUrl || photo.url;
     thumb.appendChild(img);
 
     if (photo.is360) {
