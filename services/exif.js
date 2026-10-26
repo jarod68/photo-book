@@ -88,6 +88,12 @@ const num = (t) => {
     : Array.isArray(t?.value) ? t.value[0] : t?.value;
   return typeof v === 'number' && Number.isFinite(v) ? v : undefined;
 };
+// UserComment: ExifReader describes an empty / unknown-charset comment as a
+// placeholder like "[Undefined encoding]" — that is not a caption.
+const comment = (t) => {
+  const s = text(t)?.replace(/\0/g, '').trim();
+  return s && !/^\[[^\]]*encod[^\]]*\]$/i.test(s) ? s : undefined;
+};
 const bool = (t) => (t == null ? undefined : t.value === true || /^true$/i.test(String(t.value)));
 // "YYYY:MM:DD HH:MM:SS" → Date in the local time zone (as exifr did).
 const date = (t) => {
@@ -123,6 +129,16 @@ function toExifrShape(t) {
     ProjectionType: text(xmp.ProjectionType),
     UsePanoramaViewer: bool(xmp.UsePanoramaViewer),
     Lens: text(xmp.Lens),
+    // Fields image.js has always looked for under these names, which exifr
+    // never produced (it named them title / description / Caption / State /
+    // Country / FocalLengthIn35mmFormat, and dropped UserComment).
+    Title: text(xmp.title),
+    Description: text(xmp.description),
+    'Caption-Abstract': text(iptc['Caption/Abstract']),
+    UserComment: comment(exif.UserComment),
+    'Province-State': text(iptc['Province/State']),
+    'Country-PrimaryLocationName': text(iptc['Country/Primary Location Name']),
+    FocalLengthIn35mmFilm: num(exif.FocalLengthIn35mmFilm),
     // GPS (decimal degrees, signed by the N/S, E/W refs)
     latitude: typeof gps.Latitude === 'number' ? gps.Latitude : undefined,
     longitude: typeof gps.Longitude === 'number' ? gps.Longitude : undefined,

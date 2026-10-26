@@ -41,6 +41,17 @@ describe('services/exif', () => {
     expect(d.latitude).toBeCloseTo(-31.9523, 4);
   });
 
+  it('exposes the XMP / IPTC / EXIF fields image.js reads under its own names', async () => {
+    // rich.jpg: XMP dc:title / dc:description, IPTC caption + city / state /
+    // country, EXIF UserComment + 35 mm focal length (exifr never surfaced these).
+    const d = await exif.parse(path.join(import.meta.dirname, '../fixtures/rich.jpg'), {});
+    expect(d).toMatchObject({
+      Title: 'XMP title', Description: 'XMP description', 'Caption-Abstract': 'Caption from IPTC',
+      UserComment: 'Shot from the bridge', City: 'Porto', 'Province-State': 'Norte',
+      'Country-PrimaryLocationName': 'Portugal', FocalLengthIn35mmFilm: 24, Make: 'DJI',
+    });
+  });
+
   it('parse(file, [keys]) returns only those keys, or undefined', async () => {
     expect(Object.keys(await exif.parse(FIXTURE, ['DateTimeOriginal', 'CreateDate']))).toEqual(['DateTimeOriginal']);
     expect(await exif.parse(at('bare.jpg'), ['DateTimeOriginal', 'CreateDate'])).toBeUndefined();
