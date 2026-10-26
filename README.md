@@ -96,7 +96,7 @@ All three containers share a `proxy` bridge network. Traefik and photo-book comm
 
 `deploy.sh` generates the three files marked *generated*; everything else lives in the repository.
 
-The database schema is managed entirely by `services/database.js`, which runs `CREATE TABLE IF NOT EXISTS` on every startup. There is no external SQL init file — this ensures schema consistency across fresh installs, container restarts, and upgrades.
+The database schema is managed by **versioned migrations** in `services/migrations.js`. At startup, every migration not yet recorded in `schema_migrations` runs in order, each in its own transaction, under a PostgreSQL advisory lock (two instances never migrate at once); a failing migration is rolled back and stops the startup sequence. Never edit a released migration — add a new one. Migration 1 is the schema as it stood before migrations existed (all `IF NOT EXISTS`), so existing databases record it without any change.
 
 ### Preview pipeline
 
@@ -386,7 +386,7 @@ CREATE TABLE album_users (
 );
 ```
 
-Views are deduplicated: a user token can only increment the counter once per photo. Likes are toggleable. The schema is managed entirely in `services/database.js` via `CREATE TABLE IF NOT EXISTS` on every startup — there is no external SQL init file.
+Views are deduplicated: a user token can only increment the counter once per photo. Likes are toggleable. The schema is managed by the versioned migrations in `services/migrations.js`.
 
 #### Diagramme Merise (MCD)
 
