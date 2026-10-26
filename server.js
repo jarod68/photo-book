@@ -109,15 +109,17 @@ app.get('/version.json', (_req, res) => {
 });
 
 // App assets: login.html is public; other HTML pages require auth.
+// Code and data (HTML, JS, CSS, JSON — e.g. the i18n files) keep their names
+// across releases, so they must be revalidated on every load: `no-cache` + ETag
+// costs a 304 when unchanged, and after a deploy the browser picks up the new
+// code at once (a day-long max-age left new HTML running old JS). Images and
+// fonts rarely change and keep a one-day cache.
+const REVALIDATE = /\.(html|js|mjs|css|json|webmanifest)$/i;
 app.use(express.static(path.join(__dirname, 'public'), {
   etag: true,
   lastModified: true,
   setHeaders(res, filePath) {
-    if (filePath.endsWith('.html')) {
-      res.setHeader('Cache-Control', 'no-cache');
-    } else {
-      res.setHeader('Cache-Control', 'public, max-age=86400');
-    }
+    res.setHeader('Cache-Control', REVALIDATE.test(filePath) ? 'no-cache' : 'public, max-age=86400');
   },
 }));
 
