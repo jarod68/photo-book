@@ -40,7 +40,7 @@ const _require  = createRequire(import.meta.url);
 const database  = _require('../../../services/database.js');
 const authMod   = _require('../../../services/auth.js');
 const fsMod     = _require('fs');    // vi.fn() instances from vi.mock('fs', …)
-const exifrMod  = _require('exifr'); // real module — we will use vi.spyOn
+const exifrMod  = _require('../../../services/exif.js'); // metadata module used by routes/map.js — vi.spyOn
 
 // Bypass auth for all route tests (vi.mock cannot intercept CJS require)
 authMod._setBypass(true);
@@ -483,7 +483,7 @@ describe('GET /api/albums/:album', () => {
 });
 
 // ── /api/map ──────────────────────────────────────────────────────────────────
-// exifr is mocked via vi.spyOn on the module loaded by server.js.
+// services/exif.js is mocked via vi.spyOn on the module loaded by server.js.
 // vi.restoreAllMocks() in afterEach restores the original after each test.
 
 describe('GET /api/map', () => {
@@ -623,7 +623,7 @@ describe('GET /api/map', () => {
     expect(res.body).toEqual([]); // authorized but no GPS photos
   });
 
-  it('date est null si exifr.parse lève une exception (catch ligne 628)', async () => {
+  it('date est null si exif.parse lève une exception', async () => {
     fsMod.existsSync
       .mockReturnValueOnce(true)   // PHOTOS_DIR exists
       .mockReturnValue(false);     // preview absent

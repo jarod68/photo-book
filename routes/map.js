@@ -3,7 +3,7 @@
 const express  = require('express');
 const path     = require('path');
 const fs       = require('fs');
-const exifr    = require('../services/exif');   // exifr with the Node 26 fix
+const exifr    = require('../services/exif');   // photo metadata (ExifReader, exifr-compatible API)
 
 const { PHOTOS_DIR, PREVIEWS_DIR, isImage } = require('../services/image');
 const { resolveUser, filterVisibleAlbums }  = require('../services/access');
