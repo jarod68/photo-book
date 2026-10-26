@@ -1,5 +1,5 @@
 /**
- * @typedef {{ name: string, count: number, cover: string|null, coverPreview: string|null }} Album
+ * @typedef {{ name: string, count: number, cover: string|null, coverPreview: string|null, coverThumb: string|null }} Album
  */
 
 /**
@@ -20,9 +20,15 @@
 
 /**
  * @typedef {{
+ *   type:        'photo'|'video',
+ *   mimeType?:   string,                // videos
  *   filename:    string,
- *   url:         string,
+ *   url:         string,                // original (versioned ?v=mtime)
  *   previewUrl:  string|null,
+ *   mediumUrl:   string|null,
+ *   thumbUrl:    string|null,           // 480 px thumbnail
+ *   displayUrl:  string|null,           // full-size JPEG for HEIC / TIFF originals
+ *   takenAt:     string|null,           // capture date (ISO)
  *   name:        string,
  *   description: string,
  *   is360:       boolean,

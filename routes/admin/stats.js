@@ -5,7 +5,7 @@ const fs       = require('fs');
 const path     = require('path');
 
 const { requireAdmin } = require('../../services/auth');
-const { PHOTOS_DIR, isImage, isAlbumDir } = require('../../services/image');
+const { PHOTOS_DIR, isMedia, isAlbumDir } = require('../../services/image');
 const database   = require('../../services/database');
 const dockerInfo = require('../../services/docker-info');
 
@@ -19,7 +19,7 @@ router.get('/stats', requireAdmin, async (req, res) => {
       : [];
     const fsMap = new Map(entries.map(e => [
       e.name,
-      fs.readdirSync(path.join(PHOTOS_DIR, e.name)).filter(isImage).length,
+      fs.readdirSync(path.join(PHOTOS_DIR, e.name)).filter(isMedia).length,
     ]));
 
     let viewMap = new Map();

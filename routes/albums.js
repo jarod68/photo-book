@@ -5,7 +5,7 @@ const path      = require('path');
 const fs        = require('fs');
 const { ZipArchive } = require('archiver');
 
-const { PHOTOS_DIR, isImage, ensurePreview, ensureThumb, deletePhotoFiles } = require('../services/image');
+const { PHOTOS_DIR, isImage, isMedia, ensurePreview, ensureThumb, deletePhotoFiles } = require('../services/image');
 const library  = require('../services/library');
 const database = require('../services/database');
 const auth     = require('../services/auth');
@@ -34,8 +34,8 @@ router.get('/', async (req, res) => {
     const { filtered, visibilityMap, authorizedSet } = await filterVisibleAlbums(entries, user);
 
     const albums = await Promise.all(filtered.map(async e => {
-      const files = fs.readdirSync(path.join(PHOTOS_DIR, e.name)).filter(isImage).sort();
-      const firstFile = files[0];
+      const files = fs.readdirSync(path.join(PHOTOS_DIR, e.name)).filter(isMedia).sort();
+      const firstFile = files.find(isImage);   // a video cannot be a cover
       let cover = null;
       let coverPreview = null;
       let coverThumb = null;
@@ -76,7 +76,7 @@ router.get('/:album/download/zip', async (req, res) => {
     }
     if (!access.allowed) return res.status(401).json({ error: 'Unauthorized' });
 
-    const files = fs.readdirSync(albumPath).filter(isImage).sort();
+    const files = fs.readdirSync(albumPath).filter(isMedia).sort();
     if (!files.length) return res.status(404).json({ error: 'Album is empty' });
 
     const albumName   = req.params.album;
@@ -173,7 +173,7 @@ router.delete('/:album/photos/:filename', auth.requireAuth, async (req, res) => 
     if (!canDelete) return res.status(403).json({ error: 'Forbidden' });
 
     const albumPath = safeAlbumPath(album);
-    if (!isImage(filename)) return res.status(400).json({ error: 'Not an image' });
+    if (!isMedia(filename)) return res.status(400).json({ error: 'Not a photo or video' });
     const filePath = path.resolve(path.join(albumPath, filename));
     if (!filePath.startsWith(albumPath + path.sep)) return res.status(400).json({ error: 'Invalid filename' });
     const fileExists = await fs.promises.access(filePath).then(() => true).catch(() => false);

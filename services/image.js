@@ -11,8 +11,18 @@ const PHOTOS_DIR   = process.env.PHOTOS_DIR
 const PREVIEWS_DIR = path.resolve(process.env.PREVIEWS_DIR || path.join(APP_ROOT, 'public', 'previews'));
 const MEDIUM_DIR   = path.resolve(process.env.MEDIUM_DIR   || path.join(APP_ROOT, 'public', 'medium'));
 
-const IMAGE_EXT  = new Set(['.jpg', '.jpeg', '.png', '.webp', '.tiff', '.tif']);
-const isImage    = f => IMAGE_EXT.has(path.extname(f).toLowerCase());
+// Media accepted in albums (F1): still images (incl. iPhone HEIC/HEIF and AVIF)
+// and short videos. Browsers cannot show HEIC/HEIF (bar Safari) or TIFF, so
+// those also get a full-size JPEG "display" derivative.
+const IMAGE_EXT  = new Set(['.jpg', '.jpeg', '.png', '.webp', '.tiff', '.tif', '.heic', '.heif', '.avif']);
+const VIDEO_EXT  = new Set(['.mp4', '.m4v', '.mov', '.webm']);
+const NEEDS_DISPLAY = new Set(['.heic', '.heif', '.tiff', '.tif']);
+const HEIF_EXT   = new Set(['.heic', '.heif']);
+const ext        = f => path.extname(f).toLowerCase();
+const isImage    = f => IMAGE_EXT.has(ext(f));
+const isVideo    = f => VIDEO_EXT.has(ext(f));
+const isMedia    = f => isImage(f) || isVideo(f);
+const VIDEO_MIME = { '.mp4': 'video/mp4', '.m4v': 'video/mp4', '.mov': 'video/quicktime', '.webm': 'video/webm' };
 const isAlbumDir = e => e.isDirectory() && /^[A-Za-z0-9]/.test(e.name);
 
 // ── Derived images ────────────────────────────────────────────────────────────
@@ -29,7 +39,31 @@ const DERIVATIVES = {
   preview: { dir: () => PREVIEWS_DIR, suffix: '.jpg',       width: (is360) => (is360 ? 1536 : 1024), quality: 76, route: 'previews' },
   thumb:   { dir: () => PREVIEWS_DIR, suffix: '.thumb.jpg', width: () => 480,                          quality: 72, route: 'previews' },
   medium:  { dir: () => MEDIUM_DIR,   suffix: '.jpg',       width: () => 1280,                         quality: 82, route: 'medium' },
+  // full-size JPEG for formats browsers cannot display (HEIC/HEIF, TIFF)
+  display: { dir: () => MEDIUM_DIR,   suffix: '.full.jpg',  width: () => 6000,                         quality: 90, route: 'medium', only: (f) => NEEDS_DISPLAY.has(ext(f)) },
 };
+const kindsFor = (filename) => Object.keys(DERIVATIVES).filter((k) => !DERIVATIVES[k].only || DERIVATIVES[k].only(filename));
+
+// HEIC/HEIF (HEVC) is not decodable by the prebuilt sharp: heic-decode
+// (libheif in WebAssembly) produces raw RGBA that sharp then resizes. A 12 MP
+// iPhone photo decodes to ~48 MB, so at most two decodes run at once, and one
+// photo is decoded once for all its derivatives (lazySource).
+const heicDecode = require('heic-decode');
+let heifSlots = 2;
+const heifWaiters = [];
+async function withHeifSlot(fn) {
+  if (heifSlots === 0) await new Promise((r) => heifWaiters.push(r));
+  heifSlots--;
+  try { return await fn(); } finally { heifSlots++; heifWaiters.shift()?.(); }
+}
+function lazySource(filePath) {
+  if (!HEIF_EXT.has(ext(filePath))) return () => Promise.resolve({ input: filePath });
+  let p;
+  return () => (p ??= withHeifSlot(async () => {
+    const { width, height, data } = await heicDecode({ buffer: await fs.promises.readFile(filePath) });
+    return { input: Buffer.from(data.buffer, data.byteOffset, data.length), options: { raw: { width, height, channels: 4 } } };
+  }));
+}
 
 const derivName = (kind, filename) => filename + DERIVATIVES[kind].suffix;
 
@@ -43,7 +77,7 @@ async function srcMtime(filePath, _fsp) {
   return (await _fsp.stat(filePath)).mtimeMs;
 }
 
-async function ensureDerivative(kind, albumName, filename, filePath, { is360 = false, mtimeMs } = {}, _deps = {}) {
+async function ensureDerivative(kind, albumName, filename, filePath, { is360 = false, mtimeMs, source } = {}, _deps = {}) {
   const _fsp   = _deps.fsPromises ?? fs.promises;
   const _sharp = _deps.sharp ?? sharp;
   const spec   = DERIVATIVES[kind];
@@ -55,7 +89,8 @@ async function ensureDerivative(kind, albumName, filename, filePath, { is360 = f
   if (outMs < srcMs) {
     await _fsp.mkdir(outDir, { recursive: true });
     const tmp = `${out}.${process.pid}.tmp`;
-    await _sharp(filePath)
+    const { input, options } = await (source ?? lazySource(filePath))();
+    await _sharp(input, options)
       .rotate()
       .resize(spec.width(is360), null, { withoutEnlargement: true })
       .jpeg({ quality: spec.quality, progressive: true })
@@ -65,12 +100,14 @@ async function ensureDerivative(kind, albumName, filename, filePath, { is360 = f
   return derivUrl(kind, albumName, filename, srcMs);
 }
 
-const ensurePreview = (albumName, filename, filePath, is360, _deps = {}, mtimeMs) =>
-  ensureDerivative('preview', albumName, filename, filePath, { is360, mtimeMs }, _deps);
-const ensureThumb = (albumName, filename, filePath, _deps = {}, mtimeMs) =>
-  ensureDerivative('thumb', albumName, filename, filePath, { mtimeMs }, _deps);
-const ensureMedium = (albumName, filename, filePath, _deps = {}, mtimeMs) =>
-  ensureDerivative('medium', albumName, filename, filePath, { mtimeMs }, _deps);
+const ensurePreview = (albumName, filename, filePath, is360, _deps = {}, mtimeMs, source) =>
+  ensureDerivative('preview', albumName, filename, filePath, { is360, mtimeMs, source }, _deps);
+const ensureThumb = (albumName, filename, filePath, _deps = {}, mtimeMs, source) =>
+  ensureDerivative('thumb', albumName, filename, filePath, { mtimeMs, source }, _deps);
+const ensureMedium = (albumName, filename, filePath, _deps = {}, mtimeMs, source) =>
+  ensureDerivative('medium', albumName, filename, filePath, { mtimeMs, source }, _deps);
+const ensureDisplay = (albumName, filename, filePath, _deps = {}, mtimeMs, source) =>
+  ensureDerivative('display', albumName, filename, filePath, { mtimeMs, source }, _deps);
 
 // ── EXIF metadata extraction ──────────────────────────────────────────────────
 
@@ -80,10 +117,25 @@ function formatShutterSpeed(t) {
   return `1/${den}`;
 }
 
+// A video: played natively by the browser (no derivatives; the strip shows
+// its first frame). No EXIF; takenAt stays null.
+async function videoMeta(albumName, file, filePath, _deps = {}) {
+  const mtimeMs = await srcMtime(filePath, _deps.fsPromises ?? fs.promises).catch(() => undefined);
+  const url = `/photos/${encodeURIComponent(albumName)}/${encodeURIComponent(file)}`;
+  return {
+    type: 'video', mimeType: VIDEO_MIME[ext(file)], filename: file,
+    url: mtimeMs ? `${url}?v=${Math.floor(mtimeMs)}` : url,
+    previewUrl: null, mediumUrl: null, thumbUrl: null, displayUrl: null, mtimeMs: mtimeMs ?? null,
+    name: path.basename(file, path.extname(file)), description: '', is360: false,
+    gps: null, location: null, takenAt: null, exif: null,
+  };
+}
+
 async function photoMeta(albumName, file, albumPath, _deps = {}) {
   const _exifr = _deps.exifr ?? exifr;
 
   const filePath = path.join(albumPath, file);
+  if (isVideo(file)) return videoMeta(albumName, file, filePath, _deps);
   let name         = path.basename(file, path.extname(file));
   let description  = '';
   let is360        = false;
@@ -169,10 +221,14 @@ async function photoMeta(albumName, file, albumPath, _deps = {}) {
 
   const mtimeMs = await srcMtime(filePath, _deps.fsPromises ?? fs.promises).catch(() => undefined);
   const logFail = (kind) => (err) => { console.error(`${kind} failed:`, albumName, file, err.message); return null; };
-  const [previewUrl, mediumUrl, thumbUrl] = await Promise.all([
-    ensurePreview(albumName, file, filePath, is360, _deps, mtimeMs).catch(() => null),
-    ensureMedium(albumName, file, filePath, _deps, mtimeMs).catch(logFail('ensureMedium')),
-    ensureThumb(albumName, file, filePath, _deps, mtimeMs).catch(logFail('ensureThumb')),
+  const source = lazySource(filePath);   // HEIC: decoded once for every derivative
+  const [previewUrl, mediumUrl, thumbUrl, displayUrl] = await Promise.all([
+    ensurePreview(albumName, file, filePath, is360, _deps, mtimeMs, source).catch(() => null),
+    ensureMedium(albumName, file, filePath, _deps, mtimeMs, source).catch(logFail('ensureMedium')),
+    ensureThumb(albumName, file, filePath, _deps, mtimeMs, source).catch(logFail('ensureThumb')),
+    NEEDS_DISPLAY.has(ext(file))
+      ? ensureDisplay(albumName, file, filePath, _deps, mtimeMs, source).catch(logFail('ensureDisplay'))
+      : null,
   ]);
 
   let gps = null;
@@ -185,10 +241,13 @@ async function photoMeta(albumName, file, albumPath, _deps = {}) {
 
   return {
     filename:    file,
-    url:         `/photos/${encodeURIComponent(albumName)}/${encodeURIComponent(file)}`,
+    // originals are served as immutable too: version the URL like the derivatives
+    url:         `/photos/${encodeURIComponent(albumName)}/${encodeURIComponent(file)}${mtimeMs ? `?v=${Math.floor(mtimeMs)}` : ''}`,
+    type:        'photo',
     previewUrl,
     mediumUrl,
     thumbUrl,
+    displayUrl,                // full-size JPEG when the original is HEIC / TIFF
     mtimeMs:     mtimeMs ?? null,
     name:        String(name).trim(),
     description: String(description).trim(),
@@ -230,7 +289,7 @@ async function preGenerateAll(_deps = {}) {
   const stale = async (album, file) => {
     const src = await _fsp.stat(path.join(PHOTOS_DIR, album, file)).then((st) => st.mtimeMs, () => null);
     if (src == null) return false;
-    for (const kind of Object.keys(DERIVATIVES)) {
+    for (const kind of kindsFor(file)) {
       const out = path.join(DERIVATIVES[kind].dir(), album, derivName(kind, file));
       const ms = await _fsp.stat(out).then((st) => st.mtimeMs, () => -1);
       if (ms < src) return true;
@@ -261,7 +320,7 @@ async function pruneDerivatives(_deps = {}) {
   for (const e of await _fsp.readdir(PHOTOS_DIR, { withFileTypes: true }).catch(() => [])) {
     if (!isAlbumDir(e)) continue;
     const files = (await _fsp.readdir(path.join(PHOTOS_DIR, e.name)).catch(() => [])).filter(isImage);
-    albums.set(e.name, new Set(files.flatMap((f) => Object.keys(DERIVATIVES).map((k) => derivName(k, f)))));
+    albums.set(e.name, new Set(files.flatMap((f) => kindsFor(f).map((k) => derivName(k, f)))));
   }
   let removed = 0;
   for (const root of new Set(Object.values(DERIVATIVES).map((d) => d.dir()))) {
@@ -301,7 +360,7 @@ async function deletePhotoFiles(album, filename, database, _deps = {}) {
   const filePath  = path.resolve(path.join(albumPath, filename));
   await _fsPromises.unlink(filePath);
 
-  for (const kind of Object.keys(DERIVATIVES)) {
+  for (const kind of kindsFor(filename)) {
     const p = path.join(DERIVATIVES[kind].dir(), album, derivName(kind, filename));
     await _fsPromises.unlink(p).catch(() => {});
   }
@@ -314,4 +373,4 @@ async function deletePhotoFiles(album, filename, database, _deps = {}) {
   await q('DELETE FROM photo_views    WHERE album = $1 AND filename = $2');
 }
 
-module.exports = { PHOTOS_DIR, PREVIEWS_DIR, MEDIUM_DIR, IMAGE_EXT, isImage, isAlbumDir, ensurePreview, ensureMedium, ensureThumb, derivUrl, derivName, photoMeta, preGenerateAll, pruneDerivatives, withConcurrency, deletePhotoFiles };
+module.exports = { PHOTOS_DIR, PREVIEWS_DIR, MEDIUM_DIR, IMAGE_EXT, VIDEO_EXT, isImage, isVideo, isMedia, isAlbumDir, ensurePreview, ensureMedium, ensureThumb, ensureDisplay, derivUrl, derivName, photoMeta, preGenerateAll, pruneDerivatives, withConcurrency, deletePhotoFiles };

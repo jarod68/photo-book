@@ -65,3 +65,30 @@ describe('derived images', () => {
     expect(await pruneDerivatives()).toBe(0);                            // idempotent
   });
 });
+
+describe('HEIC and video (F1)', () => {
+  const HEIC = path.join(import.meta.dirname, '../fixtures/iphone.heic');   // HEVC, red, GPS Paris, iPhone 15
+
+  it('decodes an iPhone HEIC: derivatives, a full-size JPEG to display, and its EXIF', async () => {
+    fs.copyFileSync(HEIC, path.join(album, 'IMG_0001.HEIC'));
+    const m = await photoMeta('Perth', 'IMG_0001.HEIC', album);
+    expect(m.type).toBe('photo');
+    expect(m.displayUrl.split('?')[0]).toBe('/medium/Perth/IMG_0001.HEIC.full.jpg');
+    const full = await sharp(pathOf(m.displayUrl)).metadata();
+    expect([full.format, full.width, full.height]).toEqual(['jpeg', 1200, 900]);
+    expect(await pixel(pathOf(m.thumbUrl))).toBeGreaterThan(150);   // red, decoded correctly
+    expect(m.gps).toEqual({ lat: 48.8566, lng: 2.3522 });
+    expect(m.exif.model).toBe('iPhone 15');
+  });
+
+  it('JPEGs get no display derivative', async () => {
+    expect((await photoMeta('Perth', 'IMG_1.png', album)).displayUrl).toBeNull();
+  });
+
+  it('a video is listed as media without derivatives', async () => {
+    fs.writeFileSync(path.join(album, 'clip.mp4'), Buffer.alloc(1024));
+    const v = await photoMeta('Perth', 'clip.mp4', album);
+    expect(v).toMatchObject({ type: 'video', mimeType: 'video/mp4', thumbUrl: null, gps: null, name: 'clip' });
+    expect(v.url).toMatch(/^\/photos\/Perth\/clip\.mp4\?v=\d+$/);
+  });
+});

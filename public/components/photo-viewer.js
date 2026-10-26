@@ -65,15 +65,24 @@ export class PhotoViewer {
     this._descEl.textContent = photo.description;
     this._badge.classList.toggle('visible', photo.is360);
 
+    if (photo.type === 'video') {
+      this._showVideo(photo);
+      return;
+    }
+    this._hideVideo();
+
+    // HEIC / TIFF originals cannot be shown by most browsers: use the
+    // full-size JPEG the server made for them (the download keeps the original).
+    const fullUrl = photo.displayUrl || photo.url;
     if (photo.is360) {
-      this._show360(photo.url, photo.previewUrl);
+      this._show360(fullUrl, photo.previewUrl);
     } else {
       // photo.mediumUrl can be null if the server failed to generate the file.
       // Derive it from photo.url as a fallback: /photos/A/f.EXT → /medium/A/f.EXT.jpg
       // _showStandard's onerror handler will fall back to full if the file is absent.
       const mediumUrl = photo.mediumUrl
-        ?? photo.url.replace(/^\/photos\//, '/medium/') + '.jpg';
-      this._showStandard(photo.url, mediumUrl, onDetect360);
+        ?? photo.url.split('?')[0].replace(/^\/photos\//, '/medium/') + '.jpg';
+      this._showStandard(fullUrl, mediumUrl, onDetect360);
     }
   }
 
@@ -225,6 +234,34 @@ export class PhotoViewer {
       cancelAnimationFrame(this._gyroRaf);
       this._gyroRaf = null;
     }
+  }
+
+  // ── Video ──────────────────────────────────────────────────────────────────
+
+  _showVideo(photo) {
+    this._destroyPannellum();
+    this._pnl.style.display = 'none';
+    this._img.style.display = 'none';
+    this._controls.wrapper.style.display = 'none';
+    if (!this._video) {
+      this._video = document.createElement('video');
+      this._video.className = 'viewer-video';
+      this._video.controls = true;
+      this._video.playsInline = true;
+      this._video.preload = 'metadata';
+      this._img.after(this._video);
+    }
+    this._video.style.display = 'block';
+    if (this._video.dataset.src !== photo.url) {
+      this._video.dataset.src = photo.url;
+      this._video.src = photo.url;
+    }
+  }
+
+  _hideVideo() {
+    if (!this._video) return;
+    this._video.pause();
+    this._video.style.display = 'none';
   }
 
   // ── Standard photo ─────────────────────────────────────────────────────────

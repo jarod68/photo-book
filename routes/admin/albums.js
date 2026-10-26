@@ -7,7 +7,7 @@ const fs       = require('fs');
 const multer   = require('multer');
 
 const { requireAdmin } = require('../../services/auth');
-const { PHOTOS_DIR, PREVIEWS_DIR, MEDIUM_DIR, isImage, preGenerateAll, deletePhotoFiles } = require('../../services/image');
+const { PHOTOS_DIR, PREVIEWS_DIR, MEDIUM_DIR, isMedia, preGenerateAll, deletePhotoFiles } = require('../../services/image');
 const database = require('../../services/database');
 const activity = require('../../services/activity');
 const { getAlbumAccess } = require('../../services/access');
@@ -128,7 +128,7 @@ router.delete('/:album/photos/:filename', requireAdmin, async (req, res) => {
   try {
     const { album, filename } = req.params;
     const albumPath = safeAlbumPath(album);
-    if (!isImage(filename)) return res.status(400).json({ error: 'Not an image' });
+    if (!isMedia(filename)) return res.status(400).json({ error: 'Not a photo or video' });
     const filePath = path.resolve(path.join(albumPath, filename));
     if (!filePath.startsWith(albumPath + path.sep)) return res.status(400).json({ error: 'Invalid filename' });
     const fileExists = await fs.promises.access(filePath).then(() => true).catch(() => false);
@@ -159,7 +159,7 @@ router.post('/:album/photos', requireAdmin, async (req, res) => {
       // basename strips any client-supplied path components (e.g. "../../x.jpg")
       filename:    (_req, file,  cb) => cb(null, path.basename(file.originalname)),
     }),
-    fileFilter: (_req, file, cb) => cb(null, isImage(file.originalname)),
+    fileFilter: (_req, file, cb) => cb(null, isMedia(file.originalname)),
     limits: { fileSize: 200 * 1024 * 1024 },
   }).array('photos', 500)(req, res, err => {
     if (err) return res.status(400).json({ error: err.message });

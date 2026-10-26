@@ -56,7 +56,7 @@ describe('photoMeta', () => {
     expect(meta.is360).toBe(false);
     expect(meta.gps).toBeNull();
     expect(meta.location).toBeNull();
-    expect(meta.url).toBe('/photos/Paris/photo.jpg');
+    expect(meta.url).toBe('/photos/Paris/photo.jpg?v=1000');   // originals are versioned too
     // derivatives are named after the full filename and versioned by the source mtime
     expect(meta.previewUrl).toBe('/previews/Paris/photo.jpg.jpg?v=1000');
     expect(meta.thumbUrl).toBe('/previews/Paris/photo.jpg.thumb.jpg?v=1000');
@@ -155,7 +155,7 @@ describe('photoMeta', () => {
     };
     const meta = await photoMeta('Été 2024', 'ma photo.jpg', '/albums', deps);
 
-    expect(meta.url).toBe('/photos/%C3%89t%C3%A9%202024/ma%20photo.jpg');
+    expect(meta.url).toBe('/photos/%C3%89t%C3%A9%202024/ma%20photo.jpg?v=1000');
   });
 });
 

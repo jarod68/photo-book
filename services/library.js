@@ -9,7 +9,7 @@
 // requests for one photo share a single computation.
 const path = require('path');
 const fs = require('fs');
-const { PHOTOS_DIR, isImage, isAlbumDir, photoMeta, withConcurrency } = require('./image');
+const { PHOTOS_DIR, isMedia, isAlbumDir, photoMeta, withConcurrency } = require('./image');
 
 const cache = new Map();      // "album/file" → { mtimeMs, size, meta }
 const inflight = new Map();   // "album/file" → Promise<meta>
@@ -28,7 +28,7 @@ async function listAlbums() {
 
 async function listPhotos(album) {
   const files = await fs.promises.readdir(albumPath(album)).catch(() => null);
-  return files ? files.filter(isImage).sort() : null;
+  return files ? files.filter(isMedia).sort() : null;
 }
 
 async function getPhoto(album, file) {

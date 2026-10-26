@@ -5,7 +5,7 @@ const cookieParser = require('cookie-parser');
 const rateLimit    = require('express-rate-limit');
 const helmet       = require('helmet');
 
-const { PHOTOS_DIR, PREVIEWS_DIR, MEDIUM_DIR, isImage, isAlbumDir, preGenerateAll } = require('./services/image');
+const { PHOTOS_DIR, PREVIEWS_DIR, MEDIUM_DIR, isImage, isMedia, isAlbumDir, preGenerateAll } = require('./services/image');
 const database = require('./services/database'); // database.db, database.dbReady (getters)
 const auth     = require('./services/auth');
 const activity = require('./services/activity');
@@ -259,7 +259,7 @@ function watchPhotosDir() {
   const watchAlbum = (albumPath, albumName) => {
     try {
       fs.watch(albumPath, (_event, name) => {
-        if (!name || !isImage(name)) return;
+        if (!name || !isMedia(name)) return;
         library.invalidate(albumName, name);   // drop the cached metadata right away
         const full = path.join(albumPath, name);
         if (fs.existsSync(full)) {

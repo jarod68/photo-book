@@ -115,6 +115,19 @@ For each photo, three derived JPEGs are made by sharp (EXIF orientation applied)
 
 Derivatives persist across restarts on their own volumes (`PREVIEWS_DIR`, `MEDIUM_DIR`; default `public/previews`, `public/medium`).
 
+### Supported formats
+
+| Kind | Extensions | How it is shown |
+|---|---|---|
+| Photo | jpg, jpeg, png, webp, avif | original, with the derivatives above |
+| Photo (not shown natively by browsers) | heic, heif, tiff, tif | an extra display JPEG `public/medium/<album>/<file>.full.jpg` (up to 6000 px, quality 90) replaces the original in the viewer; download still returns the original |
+| Video | mp4, m4v, mov, webm | played by the browser's `<video>` element (range requests supported); no server-side poster, so ffmpeg is not needed |
+
+- HEIC/HEIF (iPhone) files are decoded with `heic-decode` (libheif compiled to WebAssembly, LGPL-3.0), because the prebuilt sharp has no HEVC decoder. At most two decodes run at once, and each file is decoded once for all its derivatives.
+- Videos have no EXIF date or GPS: they appear in the album and the zip export, but not on the map.
+- Original files are served with `?v=<mtime>` too, so a file replaced under the same name is reloaded.
+- Uploads accept up to 200 MB per file.
+
 ---
 
 ## Authentication & access control

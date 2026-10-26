@@ -3,7 +3,7 @@
 const path  = require('path');
 const fs    = require('fs');
 const { Pool } = require('pg');
-const { PHOTOS_DIR, isImage, isAlbumDir } = require('./image');
+const { PHOTOS_DIR, isMedia, isAlbumDir } = require('./image');
 const { runMigrations } = require('./migrations');
 
 let db      = null;
@@ -70,7 +70,7 @@ async function syncPhotosToDb() {
   if (!dbReady || !fs.existsSync(PHOTOS_DIR)) return;
   const albums = fs.readdirSync(PHOTOS_DIR, { withFileTypes: true }).filter(isAlbumDir);
   const allPhotos = albums.flatMap(album => {
-    const files = fs.readdirSync(path.join(PHOTOS_DIR, album.name)).filter(isImage);
+    const files = fs.readdirSync(path.join(PHOTOS_DIR, album.name)).filter(isMedia);
     return files.map(file => ({ album: album.name, file }));
   });
   await Promise.all(allPhotos.map(({ album, file }) =>

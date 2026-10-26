@@ -2709,3 +2709,11 @@ a#zip-btn { text-decoration: none; }
   font: 700 11px/1.3 system-ui, sans-serif; letter-spacing: 0.08em;
 }
 .env-nonprod .build-tag { background: #ff6a00; }
+
+/* Videos (F1): viewer player and strip tiles */
+.viewer-video {
+  display: none; width: 100%; height: 100%; object-fit: contain; background: #000;
+}
+.thumb video { width: 100%; height: 100%; object-fit: cover; display: block; opacity: 0; transition: opacity .2s; }
+.thumb video.loaded { opacity: 1; }
+.thumb-badge.thumb-video { left: 50%; top: 50%; right: auto; bottom: auto; transform: translate(-50%, -50%); font-size: 18px; padding: 4px 9px; }

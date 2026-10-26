@@ -253,14 +253,30 @@ export class ThumbnailStrip {
     thumb.dataset.i = i;
     thumb.onclick   = () => this._onSelect?.(i);
 
-    const img  = document.createElement('img');
-    img.alt    = photo.name;
-    // Small dedicated thumbnail, fetched only when it scrolls into view.
-    img.loading  = 'lazy';
-    img.decoding = 'async';
-    img.onload = () => img.classList.add('loaded');
-    img.src    = photo.thumbUrl || photo.previewUrl || photo.url;
-    thumb.appendChild(img);
+    if (photo.type === 'video') {
+      // No server-side poster: the browser shows the first frame (#t=0.1).
+      const vid = document.createElement('video');
+      vid.muted = true;
+      vid.playsInline = true;
+      vid.preload = 'metadata';
+      vid.setAttribute('aria-label', photo.name);
+      vid.onloadeddata = () => vid.classList.add('loaded');
+      vid.src = `${photo.url.split('?')[0]}#t=0.1`;
+      thumb.appendChild(vid);
+      const play = document.createElement('span');
+      play.className = 'thumb-badge thumb-video';
+      play.textContent = '▶';
+      thumb.appendChild(play);
+    } else {
+      const img  = document.createElement('img');
+      img.alt    = photo.name;
+      // Small dedicated thumbnail, fetched only when it scrolls into view.
+      img.loading  = 'lazy';
+      img.decoding = 'async';
+      img.onload = () => img.classList.add('loaded');
+      img.src    = photo.thumbUrl || photo.previewUrl || photo.url;
+      thumb.appendChild(img);
+    }
 
     if (photo.is360) {
       const badge = document.createElement('span');

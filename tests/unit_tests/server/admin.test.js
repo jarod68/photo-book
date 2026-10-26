@@ -533,7 +533,7 @@ describe('DELETE /api/admin/albums/:album/photos/:filename', () => {
   it('retourne 400 si le fichier n\'est pas une image', async () => {
     const res = await request(app).delete('/api/admin/albums/Paris/photos/script.sh');
     expect(res.status).toBe(400);
-    expect(res.body.error).toBe('Not an image');
+    expect(res.body.error).toBe('Not a photo or video');
   });
 
   it('retourne 404 si la photo n\'existe pas', async () => {
@@ -1186,7 +1186,7 @@ describe('DELETE /api/albums/:album/photos/:filename', () => {
     database._setState({ query: mockQuery }, true);
     const res = await request(app).delete('/api/albums/Paris/photos/script.sh');
     expect(res.status).toBe(400);
-    expect(res.body.error).toBe('Not an image');
+    expect(res.body.error).toBe('Not a photo or video');
   });
 
   it('retourne 500 si unlink lève une exception (route utilisateur)', async () => {
