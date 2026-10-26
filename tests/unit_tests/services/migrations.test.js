@@ -64,3 +64,21 @@ describe('migrations (T5)', () => {
     expect(MIGRATIONS[0].up.toString()).not.toMatch(/CREATE TABLE (?!IF NOT EXISTS)/);
   });
 });
+
+describe('cleanup table lists', () => {
+  const { PHOTO_TABLES, ALBUM_TABLES } = require('../../../services/cleanup.js');
+
+  it('every table with an album column is cleaned / renamed with its album', async () => {
+    const created = [];
+    const q = async (sql) => {
+      const m = sql.match(/CREATE TABLE (?:IF NOT EXISTS )?(\w+) \(([\s\S]*)\)/);
+      if (m) created.push({ table: m[1], album: /^\s*album\s/m.test(m[2]), filename: /^\s*filename\s/m.test(m[2]) });
+      return { rows: [] };
+    };
+    for (const m of MIGRATIONS) await m.up(q);
+    for (const { table, album, filename } of created) {
+      if (album) expect(ALBUM_TABLES, table).toContain(table);
+      if (album && filename) expect(PHOTO_TABLES, table).toContain(table);
+    }
+  });
+});

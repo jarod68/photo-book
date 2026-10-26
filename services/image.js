@@ -2,6 +2,7 @@ const path  = require('path');
 const fs    = require('fs');
 const exifr = require('./exif');   // photo metadata (ExifReader, exifr-compatible API)
 const sharp = require('sharp');
+const cleanup = require('./cleanup');
 
 const APP_ROOT     = process.cwd();
 const PHOTOS_DIR   = process.env.PHOTOS_DIR
@@ -383,11 +384,7 @@ async function deletePhotoFiles(album, filename, database, _deps = {}) {
 
   if (!database.dbReady) return;
   console.log(`  ✕ Photo deleted — DB cleanup: ${album}/${filename}`);
-  const q = (sql) => database.db.query(sql, [album, filename]);
-  await q('DELETE FROM photo_view_log WHERE album = $1 AND filename = $2');
-  await q('DELETE FROM photo_likes    WHERE album = $1 AND filename = $2');
-  await q('DELETE FROM photo_views    WHERE album = $1 AND filename = $2');
-  await q('DELETE FROM photo_overrides WHERE album = $1 AND filename = $2');
+  await cleanup.deletePhotoRows(database.db, album, filename);
 }
 
 module.exports = { PHOTOS_DIR, PREVIEWS_DIR, MEDIUM_DIR, IMAGE_EXT, VIDEO_EXT, isImage, isVideo, isMedia, isAlbumDir, ensurePreview, ensureMedium, ensureThumb, ensureDisplay, derivUrl, derivName, photoMeta, preGenerateAll, pruneDerivatives, withConcurrency, deletePhotoFiles };

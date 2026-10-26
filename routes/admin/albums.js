@@ -13,6 +13,7 @@ const activity = require('../../services/activity');
 const { getAlbumAccess } = require('../../services/access');
 const library   = require('../../services/library');
 const overrides = require('../../services/overrides');
+const cleanup   = require('../../services/cleanup');
 
 const router = express.Router();
 
@@ -31,15 +32,7 @@ function safeAlbumPath(name) {
 async function deleteAlbumFromDb(album) {
   if (!database.dbReady) return;
   console.log(`  ✕ Album deleted — DB cleanup: ${album}`);
-  const q = (sql) => database.db.query(sql, [album]);
-  await q('DELETE FROM photo_view_log     WHERE album = $1');
-  await q('DELETE FROM photo_likes        WHERE album = $1');
-  await q('DELETE FROM photo_views        WHERE album = $1');
-  await q('DELETE FROM album_users        WHERE album = $1');
-  await q('DELETE FROM album_settings     WHERE album = $1');
-  await q('DELETE FROM share_tokens       WHERE album = $1');
-  await q('DELETE FROM push_subscriptions WHERE album = $1');
-  await q('DELETE FROM photo_overrides    WHERE album = $1');
+  await cleanup.deleteAlbumRows(database.db, album);
 }
 
 // POST /api/admin/albums
@@ -82,14 +75,7 @@ router.patch('/:album', requireAdmin, express.json(), async (req, res) => {
       const client = await database.db.connect();
       try {
         await client.query('BEGIN');
-        await client.query('UPDATE photo_views        SET album=$1 WHERE album=$2', [newName, oldName]);
-        await client.query('UPDATE photo_view_log     SET album=$1 WHERE album=$2', [newName, oldName]);
-        await client.query('UPDATE photo_likes        SET album=$1 WHERE album=$2', [newName, oldName]);
-        await client.query('UPDATE album_settings     SET album=$1 WHERE album=$2', [newName, oldName]);
-        await client.query('UPDATE album_users        SET album=$1 WHERE album=$2', [newName, oldName]);
-        await client.query('UPDATE share_tokens       SET album=$1 WHERE album=$2', [newName, oldName]);
-        await client.query('UPDATE push_subscriptions SET album=$1 WHERE album=$2', [newName, oldName]);
-        await client.query('UPDATE photo_overrides    SET album=$1 WHERE album=$2', [newName, oldName]);
+        await cleanup.renameAlbumRows(client, oldName, newName);
         await client.query('COMMIT');
       } catch (err) {
         await client.query('ROLLBACK');

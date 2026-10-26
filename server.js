@@ -11,6 +11,7 @@ const auth     = require('./services/auth');
 const activity = require('./services/activity');
 const push     = require('./services/push');
 const maintenance = require('./services/maintenance');
+const cleanup     = require('./services/cleanup');
 const library  = require('./services/library');
 
 // Route modules
@@ -225,23 +226,13 @@ app.use('/api/admin/logs',   adminLogsRouter);
 async function deletePhotoFromDb(album, filename) {
   if (!database.dbReady) return;
   console.log(`  ✕ Photo deleted — DB cleanup: ${album}/${filename}`);
-  const q = (sql) => database.db.query(sql, [album, filename]);
-  await q('DELETE FROM photo_view_log WHERE album = $1 AND filename = $2');
-  await q('DELETE FROM photo_likes    WHERE album = $1 AND filename = $2');
-  await q('DELETE FROM photo_views    WHERE album = $1 AND filename = $2');
+  await cleanup.deletePhotoRows(database.db, album, filename);
 }
 
 async function deleteAlbumFromDb(album) {
   if (!database.dbReady) return;
   console.log(`  ✕ Album deleted — DB cleanup: ${album}`);
-  const q = (sql) => database.db.query(sql, [album]);
-  await q('DELETE FROM photo_view_log     WHERE album = $1');
-  await q('DELETE FROM photo_likes        WHERE album = $1');
-  await q('DELETE FROM photo_views        WHERE album = $1');
-  await q('DELETE FROM album_users        WHERE album = $1');
-  await q('DELETE FROM album_settings     WHERE album = $1');
-  await q('DELETE FROM share_tokens       WHERE album = $1');
-  await q('DELETE FROM push_subscriptions WHERE album = $1');
+  await cleanup.deleteAlbumRows(database.db, album);
 }
 
 function watchPhotosDir() {

@@ -77,14 +77,14 @@ describe('deletePhotoFromDb', () => {
     expect(mockQuery).not.toHaveBeenCalled();
   });
 
-  it('supprime les entrées dans les 3 tables', async () => {
+  it('supprime les entrées dans chaque table par photo', async () => {
     database._setState({ query: mockQuery }, true);
     await deletePhotoFromDb('Paris', 'sunset.jpg');
-    expect(mockQuery).toHaveBeenCalledTimes(3);
     const sqls = mockQuery.mock.calls.map(c => c[0]);
-    expect(sqls.some(s => s.includes('photo_view_log'))).toBe(true);
-    expect(sqls.some(s => s.includes('photo_likes'))).toBe(true);
-    expect(sqls.some(s => s.includes('photo_views'))).toBe(true);
+    expect(sqls).toHaveLength(4);
+    for (const t of ['photo_view_log', 'photo_likes', 'photo_views', 'photo_overrides']) {
+      expect(sqls.some(s => s.includes(`DELETE FROM ${t} `))).toBe(true);
+    }
   });
 
   it('passe album et filename en paramètres', async () => {
@@ -104,18 +104,15 @@ describe('deleteAlbumFromDb', () => {
     expect(mockQuery).not.toHaveBeenCalled();
   });
 
-  it('supprime les entrées dans les 7 tables', async () => {
+  it('supprime les entrées dans chaque table par album', async () => {
     database._setState({ query: mockQuery }, true);
     await deleteAlbumFromDb('Paris');
-    expect(mockQuery).toHaveBeenCalledTimes(7);
     const sqls = mockQuery.mock.calls.map(c => c[0]);
-    expect(sqls.some(s => s.includes('photo_view_log'))).toBe(true);
-    expect(sqls.some(s => s.includes('photo_likes'))).toBe(true);
-    expect(sqls.some(s => s.includes('photo_views'))).toBe(true);
-    expect(sqls.some(s => s.includes('album_users'))).toBe(true);
-    expect(sqls.some(s => s.includes('album_settings'))).toBe(true);
-    expect(sqls.some(s => s.includes('share_tokens'))).toBe(true);
-    expect(sqls.some(s => s.includes('push_subscriptions'))).toBe(true);
+    expect(sqls).toHaveLength(8);
+    for (const t of ['photo_view_log', 'photo_likes', 'photo_views', 'photo_overrides',
+      'album_users', 'album_settings', 'share_tokens', 'push_subscriptions']) {
+      expect(sqls.some(s => s.includes(`DELETE FROM ${t} `))).toBe(true);
+    }
   });
 
   it('passe le nom d\'album en paramètre', async () => {
