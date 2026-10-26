@@ -143,6 +143,15 @@ const MIGRATIONS = [
       `);
     },
   },
+  {
+    version: 3,
+    name: 'album cover and description',
+    async up(q) {
+      // cover: a file name in the album; NULL = first readable photo.
+      await q('ALTER TABLE album_settings ADD COLUMN cover VARCHAR(255)');
+      await q('ALTER TABLE album_settings ADD COLUMN description TEXT');
+    },
+  },
 ];
 
 const LOCK_KEY = 726571;   // arbitrary, constant: pg_advisory_xact_lock key

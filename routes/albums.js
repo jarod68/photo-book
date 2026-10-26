@@ -5,9 +5,10 @@ const path      = require('path');
 const fs        = require('fs');
 const { ZipArchive } = require('archiver');
 
-const { PHOTOS_DIR, isImage, isMedia, ensurePreview, ensureThumb, deletePhotoFiles } = require('../services/image');
+const { PHOTOS_DIR, isMedia, deletePhotoFiles } = require('../services/image');
 const library  = require('../services/library');
 const overrides = require('../services/overrides');
+const albumInfo = require('../services/album-info');
 const database = require('../services/database');
 const auth     = require('../services/auth');
 const activity = require('../services/activity');
@@ -34,23 +35,15 @@ router.get('/', async (req, res) => {
     const user = await resolveUser(req.cookies?.pb_session);
     const { filtered, visibilityMap, authorizedSet } = await filterVisibleAlbums(entries, user);
 
+    const info = await albumInfo.loadAlbumInfo()
+      .catch((err) => { console.error('Failed to load album info:', err.message); return new Map(); });
+    // Photo metadata comes from the cached library index (cover, date range).
     const albums = await Promise.all(filtered.map(async e => {
-      const files = fs.readdirSync(path.join(PHOTOS_DIR, e.name)).filter(isMedia).sort();
-      const firstFile = files.find(isImage);   // a video cannot be a cover
-      let cover = null;
-      let coverPreview = null;
-      let coverThumb = null;
-      if (firstFile) {
-        cover = `/photos/${encodeURIComponent(e.name)}/${encodeURIComponent(firstFile)}`;
-        const coverPath = path.join(PHOTOS_DIR, e.name, firstFile);
-        [coverPreview, coverThumb] = await Promise.all([
-          ensurePreview(e.name, firstFile, coverPath, false).catch(() => null),
-          ensureThumb(e.name, firstFile, coverPath).catch(() => null),
-        ]);
-      }
+      const photos = (await library.getAlbumPhotos(e.name)) ?? [];
+      const { coverFile, ...summary } = albumInfo.summarize(photos, info.get(e.name));
       const visibility = visibilityMap.get(e.name) ?? 'public';
       const canDelete  = user?.role === 'admin' || (user?.role === 'basic' && authorizedSet.has(e.name));
-      return { name: e.name, count: files.length, cover, coverPreview, coverThumb, visibility, canDelete };
+      return { name: e.name, ...summary, visibility, canDelete };
     }));
 
     res.json(albums);
@@ -153,17 +146,13 @@ router.get('/:album', async (req, res) => {
 // GET /api/albums/:album/cover
 router.get('/:album/cover', async (req, res) => {
   try {
-    const albumPath = safeAlbumPath(req.params.album);
-    if (!fs.existsSync(albumPath)) return res.status(404).json({ error: 'Not found' });
-    const files = fs.readdirSync(albumPath).filter(isImage).sort();
-    if (!files.length) return res.status(404).json({ error: 'No photos' });
-    const firstFile = files[0];
-    const coverPath = path.join(PHOTOS_DIR, req.params.album, firstFile);
-    const preview   = await ensurePreview(req.params.album, firstFile, coverPath, false).catch(() => null);
-    res.json({
-      cover:        `/photos/${encodeURIComponent(req.params.album)}/${encodeURIComponent(firstFile)}`,
-      coverPreview: preview,
-    });
+    safeAlbumPath(req.params.album);
+    const photos = await library.getAlbumPhotos(req.params.album);
+    if (!photos) return res.status(404).json({ error: 'Not found' });
+    const info = await albumInfo.loadAlbumInfo().catch(() => new Map());
+    const { cover, coverPreview, coverThumb } = albumInfo.summarize(photos, info.get(req.params.album));
+    if (!cover) return res.status(404).json({ error: 'No photos' });
+    res.json({ cover, coverPreview, coverThumb });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Internal server error' });

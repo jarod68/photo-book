@@ -7,13 +7,14 @@ const fs       = require('fs');
 const multer   = require('multer');
 
 const { requireAdmin } = require('../../services/auth');
-const { PHOTOS_DIR, PREVIEWS_DIR, MEDIUM_DIR, isMedia, preGenerateAll, deletePhotoFiles } = require('../../services/image');
+const { PHOTOS_DIR, PREVIEWS_DIR, MEDIUM_DIR, isImage, isMedia, preGenerateAll, deletePhotoFiles } = require('../../services/image');
 const database = require('../../services/database');
 const activity = require('../../services/activity');
 const { getAlbumAccess } = require('../../services/access');
 const library   = require('../../services/library');
 const overrides = require('../../services/overrides');
 const cleanup   = require('../../services/cleanup');
+const albumInfo = require('../../services/album-info');
 
 const router = express.Router();
 
@@ -139,8 +140,10 @@ router.get('/:album/photos', requireAdmin, async (req, res) => {
     safeAlbumPath(req.params.album);
     const photos = await library.getAlbumPhotos(req.params.album);
     if (!photos) return res.status(404).json({ error: 'Album not found' });
-    const ovs = await overrides.loadOverrides([req.params.album]);
+    const [ovs, info] = await Promise.all([overrides.loadOverrides([req.params.album]), albumInfo.loadAlbumInfo()]);
+    const { coverFile, description } = albumInfo.summarize(photos, info.get(req.params.album));
     res.json({
+      album:  { cover: coverFile, chosenCover: info.get(req.params.album)?.cover ?? null, description },
       photos: photos.map((p) => overrides.applyOverride(p, ovs.get(`${req.params.album}/${p.filename}`), { withOriginal: true })),
     });
   } catch (err) {
@@ -166,6 +169,32 @@ router.put('/:album/photos/:filename/meta', requireAdmin, express.json(), async 
     await overrides.saveOverride(album, filename, values);
     res.json({ ok: true, override: values });
     activity.log('photo_edit', { username: req.user?.username ?? null, ip: req.ip, details: { album, filename } });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// PUT /api/admin/albums/:album/details — { cover, description }
+// cover: a photo of the album, or null for the first readable photo.
+router.put('/:album/details', requireAdmin, express.json(), async (req, res) => {
+  const { album } = req.params;
+  const { cover = null, description = null } = req.body ?? {};
+  if (cover !== null && (typeof cover !== 'string' || !isImage(cover))) return res.status(400).json({ error: 'cover must be a photo' });
+  if (description !== null && typeof description !== 'string') return res.status(400).json({ error: 'description must be a string' });
+  const desc = description?.trim() || null;
+  if (desc && desc.length > albumInfo.DESCRIPTION_MAX) return res.status(400).json({ error: 'description is too long' });
+  if (!database.dbReady) return res.status(503).json({ error: 'Service unavailable' });
+  try {
+    const albumPath = safeAlbumPath(album);
+    if (!await fs.promises.access(albumPath).then(() => true, () => false)) return res.status(404).json({ error: 'Album not found' });
+    if (cover) {
+      const coverPath = path.resolve(albumPath, cover);
+      if (path.dirname(coverPath) !== albumPath) return res.status(400).json({ error: 'Invalid cover' });
+      if (!await fs.promises.access(coverPath).then(() => true, () => false)) return res.status(404).json({ error: 'Photo not found' });
+    }
+    await albumInfo.saveAlbumInfo(album, { cover, description: desc });
+    res.json({ ok: true, cover, description: desc });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Internal server error' });

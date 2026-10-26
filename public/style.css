@@ -228,6 +228,17 @@ body {
   letter-spacing: 0.01em;
 }
 
+.album-card-desc {
+  margin-top: 4px;
+  font-size: 11.5px;
+  color: rgba(255,255,255,0.7);
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
 .album-card-lock {
   position: absolute;
   top: 9px;
@@ -2756,6 +2767,10 @@ a#zip-btn { text-decoration: none; }
 .photo-edit-field span { padding-top: 6px; color: var(--text-dim); }
 .photo-edit-field .admin-inline-input { min-width: 0; width: 100%; font-family: inherit; resize: vertical; }
 .photo-edit-actions { display: flex; justify-content: flex-end; align-items: center; gap: 10px; font-size: 12px; }
+.photo-edit-actions .photo-cover-btn { margin-right: auto; }
+.photo-cover-btn.is-cover { color: #facc15; border-color: rgba(250,204,21,0.4); }
+.album-info-edit { padding-bottom: 14px; border-bottom: 1px solid var(--border); display: flex; flex-direction: column; gap: 6px; }
+.album-info-edit .photo-edit-field { grid-template-columns: 110px 1fr; }
 @media (max-width: 560px) {
   .photo-edit-row { flex-direction: column; }
   .photo-edit-thumb { width: 100%; height: 160px; }

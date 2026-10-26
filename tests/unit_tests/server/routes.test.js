@@ -333,6 +333,26 @@ describe('GET /api/albums', () => {
     expect(res.body[0].canDelete).toBe(false);
   });
 
+  it('renvoie couverture choisie, description et plage de dates (F3)', async () => {
+    vi.spyOn(fsMod, 'existsSync').mockReturnValue(true);
+    vi.spyOn(fsMod, 'readdirSync').mockReturnValueOnce([{ name: 'Paris', isDirectory: () => true }]);
+    vi.spyOn(libraryMod, 'getAlbumPhotos').mockResolvedValue([
+      { filename: 'a.jpg', type: 'photo', url: '/photos/Paris/a.jpg', thumbUrl: '/t/a', previewUrl: '/p/a', takenAt: '2024-05-01T10:00:00.000Z' },
+      { filename: 'b.jpg', type: 'photo', url: '/photos/Paris/b.jpg', thumbUrl: '/t/b', previewUrl: '/p/b', takenAt: '2024-04-01T10:00:00.000Z' },
+    ]);
+    mockQuery.mockImplementation(async (sql) => (
+      sql.includes('cover, description')
+        ? { rows: [{ album: 'Paris', cover: 'b.jpg', description: 'Printemps' }] }
+        : { rows: [] }));
+    database._setState({ query: mockQuery }, true);
+    const res = await request(app).get('/api/albums');
+    expect(res.body[0]).toMatchObject({
+      name: 'Paris', count: 2, cover: '/photos/Paris/b.jpg', coverThumb: '/t/b', description: 'Printemps',
+      dateFrom: '2024-04-01T10:00:00.000Z', dateTo: '2024-05-01T10:00:00.000Z',
+    });
+    expect(res.body[0].coverFile).toBeUndefined();
+  });
+
   it('exclut un album restricted quand aucun utilisateur authentifié', async () => {
     const dirs = [
       { name: 'Public', isDirectory: () => true },

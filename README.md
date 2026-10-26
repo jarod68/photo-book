@@ -132,6 +132,12 @@ Derivatives persist across restarts on their own volumes (`PREVIEWS_DIR`, `MEDIU
 
 A photo's title, caption and place come from its file (XMP / IPTC / EXIF; the title falls back to the file name). Admins can change them without touching the file: **Admin → Albums → photos button** lists every photo of the album with the file's values as placeholders. A saved value is stored in `photo_overrides` and shown everywhere (viewer, map popups); clearing a field reverts to the file's value. Overrides follow album renames and are deleted with their photo or album.
 
+### Album cover, description and dates
+
+The same editor sets the album's **description** and its **cover** (☆ button on a photo). Both are stored in `album_settings` (migration 3). Without a chosen cover — or when the chosen photo was deleted — the cover is the first photo whose thumbnail could be made, so a video or a corrupt file never becomes the cover. The album card shows the description and the capture-date range (first to last `DateTimeOriginal`), computed from the cached photo index; the index is filled once at startup, after the derivatives are generated.
+
+Tables keyed by album / photo are listed in one place, `services/cleanup.js`, which removes their rows with a deleted photo or album and moves them on an album rename; a test fails if a migration adds such a table without listing it.
+
 ---
 
 ## Authentication & access control
@@ -244,6 +250,7 @@ All `/api/admin/*` routes first pass through `requireAuth` (→ `401` if no sess
 | `DELETE /api/admin/albums/:album/photos/:filename` | `401` | `403` | ✓ |
 | `GET /api/admin/albums/:album/photos` | `401` | `403` | ✓ |
 | `PUT /api/admin/albums/:album/photos/:filename/meta` | `401` | `403` | ✓ |
+| `PUT /api/admin/albums/:album/details` | `401` | `403` | ✓ |
 | `GET /api/admin/albums/:album/settings` | `401` | `403` | ✓ |
 | `PUT /api/admin/albums/:album/settings` | `401` | `403` | ✓ |
 | `GET /api/admin/users` | `401` | `403` | ✓ |
@@ -395,7 +402,9 @@ CREATE TABLE user_sessions (
 -- Per-album access control
 CREATE TABLE album_settings (
   album       VARCHAR(255) PRIMARY KEY,
-  visibility  VARCHAR(50)  NOT NULL DEFAULT 'public'
+  visibility  VARCHAR(50)  NOT NULL DEFAULT 'public',
+  cover       VARCHAR(255),          -- migration 3; NULL = first readable photo
+  description TEXT                   -- migration 3
 );
 
 CREATE TABLE album_users (

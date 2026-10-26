@@ -20,7 +20,7 @@ vi.mock('../../../public/utils/i18n.js', () => {
   };
 });
 
-const { formatViews, formatLikes } = await import('../../../public/utils/format.js');
+const { formatViews, formatLikes, formatDateRange } = await import('../../../public/utils/format.js');
 
 describe('formatViews', () => {
   it('affiche "1 vue" au singulier', () => {
@@ -75,5 +75,21 @@ describe('formatLikes', () => {
   it('supprime le .0 inutile', () => {
     expect(formatLikes(3_000)).toBe('3 k');
     expect(formatLikes(4_000_000)).toBe('4 M');
+  });
+});
+
+describe('formatDateRange (F3)', () => {
+  it('vide sans date', () => {
+    expect(formatDateRange(null, null)).toBe('');
+  });
+  it('un seul mois', () => {
+    expect(formatDateRange('2024-03-02T10:00:00.000Z', '2024-03-28T10:00:00.000Z', 'en')).toBe('Mar 2024');
+  });
+  it('plage de mois, sur deux années', () => {
+    expect(formatDateRange('2024-03-02T10:00:00.000Z', '2024-04-10T10:00:00.000Z', 'en')).toMatch(/^Mar.+Apr 2024$/);
+    expect(formatDateRange('2023-12-30T10:00:00.000Z', '2024-01-02T10:00:00.000Z', 'fr')).toMatch(/déc\. 2023.+janv\. 2024/);
+  });
+  it('les dates sont lues en UTC (heure locale de l\'appareil photo)', () => {
+    expect(formatDateRange('2024-03-31T23:30:00.000Z', null, 'en')).toBe('Mar 2024');
   });
 });

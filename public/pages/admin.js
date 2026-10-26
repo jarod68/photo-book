@@ -406,19 +406,70 @@ async function openPhotosEditor(album) {
   try {
     const res = await fetch(`/api/admin/albums/${encodeURIComponent(album)}/photos`);
     if (!res.ok) throw new Error();
-    const { photos } = await res.json();
-    if (!photos.length) {
-      photosEditor.innerHTML = `<p class="admin-empty">${t('album.empty')}</p>`;
-      return;
-    }
-    photosEditor.innerHTML = photos.map(renderPhotoEditRow).join('');
+    const { album: info, photos } = await res.json();
+    photosEditor.innerHTML = renderAlbumInfo(info)
+      + (photos.length ? photos.map(p => renderPhotoEditRow(p, info.cover)).join('') : `<p class="admin-empty">${t('album.empty')}</p>`);
+    bindAlbumInfo(album, info);
     photosEditor.querySelectorAll('.photo-edit-row').forEach(row => bindPhotoEditRow(album, row));
   } catch {
     photosEditor.innerHTML = `<p class="admin-error">${t('admin.failedLoad')}</p>`;
   }
 }
 
-function renderPhotoEditRow(p) {
+// Album description and cover (F3), at the top of the photo editor.
+function renderAlbumInfo(info) {
+  return `
+    <div class="album-info-edit">
+      <label class="photo-edit-field"><span>${t('admin.albumDescription')}</span>
+        <textarea class="admin-inline-input" id="album-desc-input" maxlength="2000" rows="2">${esc(info.description ?? '')}</textarea>
+      </label>
+      <div class="photo-edit-actions">
+        <span class="photo-edit-status admin-dim" id="album-desc-status"></span>
+        <button class="admin-action-btn admin-action-btn--small" id="album-desc-save" disabled>${t('admin.save')}</button>
+      </div>
+    </div>`;
+}
+
+function bindAlbumInfo(album, info) {
+  const input  = document.getElementById('album-desc-input');
+  const btn    = document.getElementById('album-desc-save');
+  const status = document.getElementById('album-desc-status');
+  let saved = input.value;
+  input.addEventListener('input', () => { btn.disabled = input.value === saved; status.textContent = ''; });
+  btn.addEventListener('click', async () => {
+    btn.disabled = true;
+    try {
+      const data = await saveAlbumDetails(album, { cover: info.chosenCover, description: input.value });
+      input.value = saved = data.description ?? '';
+      status.textContent = t('admin.saved');
+    } catch (err) {
+      status.textContent = err.message || t('admin.saveFailed');
+      btn.disabled = false;
+    }
+  });
+  photosEditor.querySelectorAll('[data-cover]').forEach(b => b.addEventListener('click', async () => {
+    try {
+      const data = await saveAlbumDetails(album, { cover: b.dataset.cover, description: saved });
+      info.chosenCover = data.cover;
+      photosEditor.querySelectorAll('[data-cover]').forEach(o => {
+        const on = o === b;
+        o.classList.toggle('is-cover', on);
+        o.textContent = on ? `★ ${t('admin.cover')}` : `☆ ${t('admin.setCover')}`;
+      });
+    } catch (err) { alert(err.message || t('admin.saveFailed')); }
+  }));
+}
+
+async function saveAlbumDetails(album, body) {
+  const res = await fetch(`/api/admin/albums/${encodeURIComponent(album)}/details`, {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error);
+  return data;
+}
+
+function renderPhotoEditRow(p, coverFile) {
   const thumb = p.thumbUrl
     ? `<img class="photo-edit-thumb" src="${esc(p.thumbUrl)}" alt="" loading="lazy">`
     : `<div class="photo-edit-thumb photo-edit-thumb--video">▶</div>`;
@@ -438,6 +489,8 @@ function renderPhotoEditRow(p) {
         <div class="photo-edit-filename admin-mono admin-dim">${esc(p.filename)}</div>
         ${fields}
         <div class="photo-edit-actions">
+          ${p.type === 'photo' && p.thumbUrl ? `<button class="admin-action-btn admin-action-btn--ghost admin-action-btn--small photo-cover-btn${p.filename === coverFile ? ' is-cover' : ''}"
+            data-cover="${esc(p.filename)}">${p.filename === coverFile ? `★ ${t('admin.cover')}` : `☆ ${t('admin.setCover')}`}</button>` : ''}
           <span class="photo-edit-status admin-dim"></span>
           <button class="admin-action-btn admin-action-btn--small" data-save disabled>${t('admin.save')}</button>
         </div>

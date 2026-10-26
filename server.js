@@ -305,7 +305,7 @@ if (require.main === module) {
       .then(() => database.syncPhotosToDb())
       .then(() => push.initVapid(database.db))
       .catch(console.error);
-    preGenerateAll().catch(console.error);
+    preGenerateAll().then(() => library.warmAll()).catch(console.error);
     watchPhotosDir();
   });
 

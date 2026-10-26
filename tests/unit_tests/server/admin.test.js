@@ -1308,3 +1308,36 @@ describe('PUT /api/admin/albums/:album/photos/:filename/meta', () => {
     expect(res.status).toBe(503);
   });
 });
+
+describe('PUT /api/admin/albums/:album/details (F3)', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it('enregistre la couverture et la description', async () => {
+    vi.spyOn(fsMod.promises, 'access').mockResolvedValue(undefined);
+    mockQuery.mockResolvedValue({ rows: [] });
+    database._setState({ query: mockQuery }, true);
+    const res = await request(app).put('/api/admin/albums/Paris/details').send({ cover: 'b.jpg', description: ' Été 2024 ' });
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ cover: 'b.jpg', description: 'Été 2024' });
+    const [sql, params] = mockQuery.mock.calls[0];
+    expect(sql).toMatch(/INSERT INTO album_settings[\s\S]*ON CONFLICT \(album\) DO UPDATE SET cover/);
+    expect(params).toEqual(['Paris', 'b.jpg', 'Été 2024']);
+  });
+
+  it('refuse une couverture qui n\'est pas une photo de l\'album', async () => {
+    vi.spyOn(fsMod.promises, 'access').mockResolvedValue(undefined);
+    database._setState({ query: mockQuery }, true);
+    for (const cover of ['clip.mp4', '../Other/a.jpg', 42]) {
+      const res = await request(app).put('/api/admin/albums/Paris/details').send({ cover });
+      expect(res.status, String(cover)).toBe(400);
+    }
+    expect(mockQuery).not.toHaveBeenCalled();
+  });
+
+  it('404 si l\'album ou la photo n\'existe pas', async () => {
+    vi.spyOn(fsMod.promises, 'access').mockRejectedValue(new Error('ENOENT'));
+    database._setState({ query: mockQuery }, true);
+    const res = await request(app).put('/api/admin/albums/Paris/details').send({ cover: null, description: 'x' });
+    expect(res.status).toBe(404);
+  });
+});

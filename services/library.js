@@ -63,6 +63,12 @@ async function getAlbumPhotos(album, concurrency = 6) {
   return out;
 }
 
+// Read every album once (after the startup pre-generation), so the first
+// home page or map load does not have to.
+async function warmAll() {
+  for (const album of await listAlbums()) await getAlbumPhotos(album).catch(() => null);
+}
+
 function invalidate(album, file) {
   if (file) { cache.delete(key(album, file)); return; }
   for (const k of cache.keys()) if (k.startsWith(`${album}/`)) cache.delete(k);
@@ -71,4 +77,4 @@ function invalidate(album, file) {
 function clear() { cache.clear(); }
 const size = () => cache.size;
 
-module.exports = { listAlbums, listPhotos, getPhoto, getAlbumPhotos, invalidate, clear, size, albumPath };
+module.exports = { listAlbums, listPhotos, getPhoto, getAlbumPhotos, warmAll, invalidate, clear, size, albumPath };
