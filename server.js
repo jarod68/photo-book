@@ -96,6 +96,18 @@ app.use('/previews', albumAccessGuard(), express.static(path.join(__dirname, 'pu
   lastModified: false,
 }));
 
+// Build + environment stamp for the UI (public/utils/build-tag.js): the commit
+// baked into the image (public/version.json, written by the Docker build) and
+// APP_ENV ("qa" on the QA deployment; unset = production). Same image in QA and
+// prod, so the environment has to come from the server, not the file.
+const BUILD_SHA = (() => {
+  try { return JSON.parse(fs.readFileSync(path.join(__dirname, 'public', 'version.json'), 'utf8')).sha || 'dev'; }
+  catch { return 'dev'; }
+})();
+app.get('/version.json', (_req, res) => {
+  res.set('Cache-Control', 'no-store').json({ sha: BUILD_SHA, env: process.env.APP_ENV || 'production' });
+});
+
 // App assets: login.html is public; other HTML pages require auth.
 app.use(express.static(path.join(__dirname, 'public'), {
   etag: true,

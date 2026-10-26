@@ -705,3 +705,22 @@ describe('security headers', () => {
     expect(res.headers['referrer-policy']).toBe('strict-origin-when-cross-origin');
   });
 });
+
+describe('GET /version.json', () => {
+  afterEach(() => { delete process.env.APP_ENV; });
+
+  it('reports production when APP_ENV is unset, never cached', async () => {
+    delete process.env.APP_ENV;
+    const res = await request(app).get('/version.json');
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ env: 'production' });
+    expect(typeof res.body.sha).toBe('string');
+    expect(res.headers['cache-control']).toBe('no-store');
+  });
+
+  it('reports the QA environment from APP_ENV', async () => {
+    process.env.APP_ENV = 'qa';
+    const res = await request(app).get('/version.json');
+    expect(res.body.env).toBe('qa');
+  });
+});
