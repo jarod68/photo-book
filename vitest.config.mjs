@@ -4,9 +4,17 @@ export default defineConfig({
   test: {
     exclude: ['tests/visual_tests/**', 'node_modules/**'],
     env: { NODE_ENV: 'test' },
-    environment: 'node',
-    environmentMatchGlobs: [
-      ['tests/unit_tests/client/**', 'happy-dom'],
+    // Two projects: server-side code in Node, browser modules in happy-dom
+    // (replaces environmentMatchGlobs, which Vitest 5 dropped silently).
+    projects: [
+      {
+        extends: true,
+        test: { name: 'server', environment: 'node', include: ['tests/**/*.test.js'], exclude: ['tests/unit_tests/client/**', 'tests/visual_tests/**', 'node_modules/**'] },
+      },
+      {
+        extends: true,
+        test: { name: 'client', environment: 'happy-dom', include: ['tests/unit_tests/client/**/*.test.js'] },
+      },
     ],
     coverage: {
       provider: 'v8',
