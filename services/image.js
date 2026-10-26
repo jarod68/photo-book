@@ -89,6 +89,7 @@ async function photoMeta(albumName, file, albumPath, _deps = {}) {
   let is360        = false;
   let iptcLocation = null;
   let exifOut      = null;
+  let takenAt      = null;   // capture date (ISO), for the map, timeline, sorting, search
 
   try {
     const exifData = await _exifr.parse(filePath, {
@@ -139,6 +140,8 @@ async function photoMeta(albumName, file, albumPath, _deps = {}) {
     const dateTime = dtRaw instanceof Date
       ? dtRaw.toISOString()
       : typeof dtRaw === 'string' ? dtRaw : null;
+    const created = exifData.CreateDate;
+    takenAt = dateTime ?? (created instanceof Date ? created.toISOString() : null);
     const iso        = exifData.ISO ?? exifData.ISOSpeedRatings ?? null;
     const fnumber    = exifData.FNumber ?? null;
     const expTime    = exifData.ExposureTime ?? null;
@@ -192,6 +195,7 @@ async function photoMeta(albumName, file, albumPath, _deps = {}) {
     is360,
     gps,
     location:    iptcLocation,
+    takenAt,
     exif:        exifOut,
   };
 }

@@ -11,6 +11,7 @@ const auth     = require('./services/auth');
 const activity = require('./services/activity');
 const push     = require('./services/push');
 const maintenance = require('./services/maintenance');
+const library  = require('./services/library');
 
 // Route modules
 const authRouter         = require('./routes/auth');
@@ -259,6 +260,7 @@ function watchPhotosDir() {
     try {
       fs.watch(albumPath, (_event, name) => {
         if (!name || !isImage(name)) return;
+        library.invalidate(albumName, name);   // drop the cached metadata right away
         const full = path.join(albumPath, name);
         if (fs.existsSync(full)) {
           scheduleRegenerate();

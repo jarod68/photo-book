@@ -5,7 +5,8 @@ const path      = require('path');
 const fs        = require('fs');
 const { ZipArchive } = require('archiver');
 
-const { PHOTOS_DIR, isImage, ensurePreview, ensureThumb, photoMeta, deletePhotoFiles } = require('../services/image');
+const { PHOTOS_DIR, isImage, ensurePreview, ensureThumb, deletePhotoFiles } = require('../services/image');
+const library  = require('../services/library');
 const database = require('../services/database');
 const auth     = require('../services/auth');
 const activity = require('../services/activity');
@@ -119,8 +120,8 @@ router.get('/:album', async (req, res) => {
     const { allowed, canDelete } = access;
     if (!allowed) return res.status(401).json({ error: 'Unauthorized' });
 
-    const files  = fs.readdirSync(albumPath).filter(isImage).sort();
-    const photos = await Promise.all(files.map(f => photoMeta(req.params.album, f, albumPath)));
+    // Cached per photo (services/library.js); copied because counters are added below.
+    const photos = ((await library.getAlbumPhotos(req.params.album)) ?? []).map((p) => ({ ...p }));
 
     if (database.dbReady) {
       try {

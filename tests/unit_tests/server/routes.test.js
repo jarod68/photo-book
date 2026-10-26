@@ -40,7 +40,7 @@ const _require  = createRequire(import.meta.url);
 const database  = _require('../../../services/database.js');
 const authMod   = _require('../../../services/auth.js');
 const fsMod     = _require('fs');    // vi.fn() instances from vi.mock('fs', …)
-const exifrMod  = _require('../../../services/exif.js'); // metadata module used by routes/map.js — vi.spyOn
+const libraryMod = _require('../../../services/library.js'); // photo index used by the album and map routes — vi.spyOn
 
 // Bypass auth for all route tests (vi.mock cannot intercept CJS require)
 authMod._setBypass(true);
@@ -406,6 +406,9 @@ describe('GET /api/albums/:album', () => {
   beforeEach(() => {
     vi.spyOn(fsMod, 'existsSync').mockReturnValue(false);
     vi.spyOn(fsMod, 'readdirSync').mockReturnValue([]);
+    // the cached photo index lists what the mocked directory contains
+    vi.spyOn(libraryMod, 'getAlbumPhotos').mockImplementation(async (album) =>
+      fsMod.readdirSync().map((filename) => ({ filename, url: `/photos/${album}/${filename}` })));
   });
 
   afterEach(() => vi.restoreAllMocks());
@@ -442,12 +445,27 @@ describe('GET /api/albums/:album', () => {
     expect(res.body.photos[0].likes).toBe(3);
   });
 
-  it('retourne 500 si readdirSync lève une exception', async () => {
+  it('retourne 500 si la lecture de l\'album échoue', async () => {
     fsMod.existsSync.mockReturnValue(true);
     fsMod.readdirSync.mockImplementation(() => { throw new Error('disk error'); });
+    vi.spyOn(console, 'error').mockImplementation(() => {});
 
     const res = await request(app).get('/api/albums/Paris');
     expect(res.status).toBe(500);
+  });
+
+  it('ne modifie pas les objets du cache en ajoutant views / likes', async () => {
+    fsMod.existsSync.mockReturnValue(true);
+    const cached = { filename: 'photo.jpg' };
+    libraryMod.getAlbumPhotos.mockResolvedValue([cached]);
+    mockQuery
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [{ filename: 'photo.jpg', views: '7' }] })
+      .mockResolvedValueOnce({ rows: [] });
+    database._setState({ query: mockQuery }, true);
+    const res = await request(app).get('/api/albums/Paris');
+    expect(res.body.photos[0].views).toBe(7);
+    expect(cached.views).toBeUndefined();
   });
 
   it('retourne canDelete false quand DB prête et aucun utilisateur (album public)', async () => {
@@ -487,159 +505,90 @@ describe('GET /api/albums/:album', () => {
 // vi.restoreAllMocks() in afterEach restores the original after each test.
 
 describe('GET /api/map', () => {
-  const albumDir = { name: 'Paris', isDirectory: () => true };
+  // Photos as the cached library returns them (services/library.js).
+  const photo = (filename, extra = {}) => ({
+    filename, url: `/photos/Paris/${filename}`,
+    previewUrl: `/previews/Paris/${filename}.jpg?v=1`, thumbUrl: `/previews/Paris/${filename}.thumb.jpg?v=1`,
+    gps: null, takenAt: null, ...extra,
+  });
 
   beforeEach(() => {
-    vi.spyOn(fsMod, 'existsSync').mockReturnValue(false);
-    vi.spyOn(fsMod, 'readdirSync').mockReturnValue([]);
-    vi.spyOn(exifrMod, 'gps').mockResolvedValue(null);
-    vi.spyOn(exifrMod, 'parse').mockResolvedValue(null);
+    vi.spyOn(libraryMod, 'listAlbums').mockResolvedValue([]);
+    vi.spyOn(libraryMod, 'getAlbumPhotos').mockResolvedValue([]);
   });
 
   afterEach(() => vi.restoreAllMocks());
 
-  it('retourne [] si PHOTOS_DIR est absent', async () => {
-    // fsMod.existsSync returns false by default
-    const res = await request(app).get('/api/map');
-    expect(res.status).toBe(200);
-    expect(res.body).toEqual([]);
-  });
-
-  it("retourne [] si aucune photo n'a de coordonnées GPS", async () => {
-    fsMod.existsSync.mockReturnValue(true);
-    fsMod.readdirSync
-      .mockReturnValueOnce([albumDir])
-      .mockReturnValueOnce(['photo.jpg']);
-    // exifrMod.gps returns null by default → photo skipped
-
+  it("retourne [] s'il n'y a aucun album", async () => {
     const res = await request(app).get('/api/map');
     expect(res.status).toBe(200);
     expect(res.body).toEqual([]);
   });
 
   it('retourne les photos GPS avec tous les champs attendus', async () => {
-    fsMod.existsSync
-      .mockReturnValueOnce(true)   // PHOTOS_DIR existe
-      .mockReturnValue(false);     // preview not generated
-    fsMod.readdirSync
-      .mockReturnValueOnce([albumDir])
-      .mockReturnValueOnce(['img.jpg']);
-    exifrMod.gps.mockResolvedValue({ latitude: 48.8566, longitude: 2.3522 });
-    exifrMod.parse.mockResolvedValue({ DateTimeOriginal: new Date('2024-06-15T12:00:00Z') });
-
+    libraryMod.listAlbums.mockResolvedValue(['Paris']);
+    libraryMod.getAlbumPhotos.mockResolvedValue([
+      photo('img.jpg', { gps: { lat: 48.8566, lng: 2.3522 }, takenAt: '2024-06-15T12:00:00.000Z' }),
+    ]);
     const res = await request(app).get('/api/map');
     expect(res.status).toBe(200);
-    expect(res.body).toHaveLength(1);
-    const photo = res.body[0];
-    expect(photo.gps).toEqual({ lat: 48.8566, lng: 2.3522 });
-    expect(photo.album).toBe('Paris');
-    expect(photo.filename).toBe('img.jpg');
-    expect(photo.name).toBe('img');
-    expect(photo.url).toBe('/photos/Paris/img.jpg');
-    expect(photo.albumIndex).toBe(0);
-    expect(photo.date).toBe('2024-06-15T12:00:00.000Z');
-    // links to the derivatives (named after the full filename); unversioned here
-    // because the mocked file has no mtime
-    expect(photo.previewUrl).toBe('/previews/Paris/img.jpg.jpg');
-    expect(photo.thumbUrl).toBe('/previews/Paris/img.jpg.thumb.jpg');
+    expect(res.body).toEqual([{
+      gps: { lat: 48.8566, lng: 2.3522 }, date: '2024-06-15T12:00:00.000Z', name: 'img', filename: 'img.jpg',
+      previewUrl: '/previews/Paris/img.jpg.jpg?v=1', thumbUrl: '/previews/Paris/img.jpg.thumb.jpg?v=1',
+      url: '/photos/Paris/img.jpg', album: 'Paris', albumIndex: 0,
+    }]);
   });
 
-  it('versionne les URL des dérivés avec la date de modification de la photo', async () => {
-    fsMod.existsSync.mockReturnValue(true);
-    fsMod.readdirSync
-      .mockReturnValueOnce([albumDir])
-      .mockReturnValueOnce(['img.jpg']);
-    exifrMod.gps.mockResolvedValue({ latitude: 48.8566, longitude: 2.3522 });
-    vi.spyOn(fsMod.promises, 'stat').mockResolvedValue({ mtimeMs: 1700000000123.4 });
-
-    const res = await request(app).get('/api/map');
-    expect(res.body[0].previewUrl).toBe('/previews/Paris/img.jpg.jpg?v=1700000000123');
-  });
-
-  it('ignore les photos sans coordonnées GPS', async () => {
-    fsMod.existsSync.mockReturnValueOnce(true).mockReturnValue(false);
-    fsMod.readdirSync
-      .mockReturnValueOnce([albumDir])
-      .mockReturnValueOnce(['avec-gps.jpg', 'sans-gps.jpg']);
-    exifrMod.gps
-      .mockResolvedValueOnce({ latitude: 48.8566, longitude: 2.3522 })
-      .mockResolvedValueOnce(null);
-
+  it("ignore les photos sans GPS mais garde l'index de la photo dans l'album", async () => {
+    libraryMod.listAlbums.mockResolvedValue(['Paris']);
+    libraryMod.getAlbumPhotos.mockResolvedValue([photo('sans-gps.jpg'), photo('avec-gps.jpg', { gps: { lat: 1, lng: 2 } })]);
     const res = await request(app).get('/api/map');
     expect(res.body).toHaveLength(1);
-    expect(res.body[0].filename).toBe('avec-gps.jpg');
+    expect(res.body[0]).toMatchObject({ filename: 'avec-gps.jpg', albumIndex: 1, date: null });
   });
 
   it('filtre un album restricted quand DB prête et aucun utilisateur authentifié', async () => {
-    const restrictedDir = { name: 'Secret', isDirectory: () => true };
-    fsMod.existsSync.mockReturnValue(true);
-    fsMod.readdirSync.mockReturnValueOnce([restrictedDir]);
+    libraryMod.listAlbums.mockResolvedValue(['Secret']);
+    libraryMod.getAlbumPhotos.mockResolvedValue([photo('x.jpg', { gps: { lat: 1, lng: 2 } })]);
     mockQuery
       .mockResolvedValueOnce({ rows: [{ album: 'Secret', visibility: 'restricted' }] }) // album_settings
-      .mockResolvedValueOnce({ rows: [] }); // album_users (no basic user)
+      .mockResolvedValueOnce({ rows: [] }); // album_users
     database._setState({ query: mockQuery }, true);
     const res = await request(app).get('/api/map');
     expect(res.status).toBe(200);
     expect(res.body).toEqual([]);
+    expect(libraryMod.getAlbumPhotos).not.toHaveBeenCalled();
   });
 
-  it('retourne 500 si readdirSync lève une exception', async () => {
-    fsMod.existsSync.mockReturnValue(true);
-    fsMod.readdirSync.mockImplementation(() => { throw new Error('disk error'); });
+  it('inclut les albums restricted pour un utilisateur admin', async () => {
+    libraryMod.listAlbums.mockResolvedValue(['VIP']);
+    libraryMod.getAlbumPhotos.mockResolvedValue([photo('x.jpg', { gps: { lat: 1, lng: 2 } })]);
+    mockQuery
+      .mockResolvedValueOnce({ rows: [{ album: 'VIP', visibility: 'restricted' }] })
+      .mockResolvedValueOnce({ rows: [] });
+    database._setState({ query: mockQuery }, true);
+    vi.spyOn(authMod, 'getSessionUser').mockResolvedValue({ id: 1, role: 'admin' });
+    const res = await request(app).get('/api/map').set('Cookie', 'pb_session=' + 'a'.repeat(64));
+    expect(res.body.map((p) => p.album)).toEqual(['VIP']);
+  });
+
+  it('inclut les albums restricted pour un utilisateur basic autorisé', async () => {
+    libraryMod.listAlbums.mockResolvedValue(['VIP']);
+    libraryMod.getAlbumPhotos.mockResolvedValue([photo('x.jpg', { gps: { lat: 1, lng: 2 } })]);
+    mockQuery
+      .mockResolvedValueOnce({ rows: [{ album: 'VIP', visibility: 'restricted' }] })
+      .mockResolvedValueOnce({ rows: [{ album: 'VIP' }] }); // user 5 authorized
+    database._setState({ query: mockQuery }, true);
+    vi.spyOn(authMod, 'getSessionUser').mockResolvedValue({ id: 5, role: 'basic' });
+    const res = await request(app).get('/api/map').set('Cookie', 'pb_session=' + 'a'.repeat(64));
+    expect(res.body.map((p) => p.album)).toEqual(['VIP']);
+  });
+
+  it("retourne 500 si l'index échoue", async () => {
+    libraryMod.listAlbums.mockRejectedValue(new Error('disk error'));
     vi.spyOn(console, 'error').mockImplementation(() => {});
     const res = await request(app).get('/api/map');
     expect(res.status).toBe(500);
-  });
-
-  it('inclut les albums restricted pour un utilisateur admin (ligne 613)', async () => {
-    const restrictedDir = { name: 'VIP', isDirectory: () => true };
-    fsMod.existsSync.mockReturnValue(true);
-    fsMod.readdirSync
-      .mockReturnValueOnce([restrictedDir])
-      .mockReturnValueOnce([]); // album has no photos
-    mockQuery
-      .mockResolvedValueOnce({ rows: [{ album: 'VIP', visibility: 'restricted' }] }) // album_settings
-      .mockResolvedValueOnce({ rows: [] }); // album_users (admin: role check only, no user_id query)
-    database._setState({ query: mockQuery }, true);
-    vi.spyOn(authMod, 'getSessionUser').mockResolvedValue({ id: 1, role: 'admin' });
-    const res = await request(app)
-      .get('/api/map')
-      .set('Cookie', 'pb_session=' + 'a'.repeat(64));
-    expect(res.status).toBe(200);
-    expect(res.body).toEqual([]); // album included but no GPS photos → empty flat
-  });
-
-  it('inclut les albums restricted pour un utilisateur basic autorisé (ligne 614)', async () => {
-    const restrictedDir = { name: 'VIP', isDirectory: () => true };
-    fsMod.existsSync.mockReturnValue(true);
-    fsMod.readdirSync
-      .mockReturnValueOnce([restrictedDir])
-      .mockReturnValueOnce([]); // album has no photos
-    mockQuery
-      .mockResolvedValueOnce({ rows: [{ album: 'VIP', visibility: 'restricted' }] }) // album_settings
-      .mockResolvedValueOnce({ rows: [{ album: 'VIP' }] }); // album_users: user 5 authorized
-    database._setState({ query: mockQuery }, true);
-    vi.spyOn(authMod, 'getSessionUser').mockResolvedValue({ id: 5, role: 'basic' });
-    const res = await request(app)
-      .get('/api/map')
-      .set('Cookie', 'pb_session=' + 'a'.repeat(64));
-    expect(res.status).toBe(200);
-    expect(res.body).toEqual([]); // authorized but no GPS photos
-  });
-
-  it('date est null si exif.parse lève une exception', async () => {
-    fsMod.existsSync
-      .mockReturnValueOnce(true)   // PHOTOS_DIR exists
-      .mockReturnValue(false);     // preview absent
-    fsMod.readdirSync
-      .mockReturnValueOnce([albumDir])
-      .mockReturnValueOnce(['img.jpg']);
-    exifrMod.gps.mockResolvedValue({ latitude: 48.8566, longitude: 2.3522 });
-    exifrMod.parse.mockRejectedValue(new Error('parse failed')); // triggers catch → null
-    const res = await request(app).get('/api/map');
-    expect(res.status).toBe(200);
-    expect(res.body).toHaveLength(1);
-    expect(res.body[0].date).toBeNull();
   });
 });
 

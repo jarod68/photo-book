@@ -2,62 +2,35 @@
 
 const express  = require('express');
 const path     = require('path');
-const fs       = require('fs');
-const exifr    = require('../services/exif');   // photo metadata (ExifReader, exifr-compatible API)
-
-const { PHOTOS_DIR, isImage, derivUrl } = require('../services/image');
+const library  = require('../services/library');
 const { resolveUser, filterVisibleAlbums }  = require('../services/access');
 
 const router = express.Router();
 
-// GET /api/map — all GPS photos across all visible albums
+// GET /api/map — all GPS photos across all visible albums. Metadata comes from
+// the cached library index, so this no longer re-reads every photo's EXIF.
 router.get('/', async (req, res) => {
-  if (!fs.existsSync(PHOTOS_DIR)) return res.json([]);
   try {
-    const albumDirs = fs.readdirSync(PHOTOS_DIR, { withFileTypes: true }).filter(
-      e => e.isDirectory?.() ?? false,
-    );
-
+    const names = await library.listAlbums();
     const user = await resolveUser(req.cookies?.pb_session);
-    const { filtered: allowedDirs } = await filterVisibleAlbums(albumDirs, user);
+    const { filtered } = await filterVisibleAlbums(names.map((name) => ({ name, isDirectory: () => true })), user);
 
-    const buckets = await Promise.all(allowedDirs.map(async dir => {
-      const albumPath = path.join(PHOTOS_DIR, dir.name);
-      const files     = fs.readdirSync(albumPath).filter(isImage).sort();
-      const photos    = [];
-
-      await Promise.all(files.map(async (file, albumIndex) => {
-        try {
-          const filePath = path.join(albumPath, file);
-          const [g, tags] = await Promise.all([
-            exifr.gps(filePath),
-            exifr.parse(filePath, ['DateTimeOriginal', 'CreateDate']).catch(() => null),
-          ]);
-          if (!g?.latitude) return;
-
-          // Derivatives are produced when the album is browsed or at startup;
-          // the map only links to them (versioned by the source's mtime).
-          const { mtimeMs } = await fs.promises.stat(filePath).catch(() => ({}));
-          const previewUrl  = derivUrl('preview', dir.name, file, mtimeMs);
-          const thumbUrl    = derivUrl('thumb', dir.name, file, mtimeMs);
-
-          const rawDate = tags?.DateTimeOriginal ?? tags?.CreateDate ?? null;
-
-          photos.push({
-            gps:        { lat: +g.latitude.toFixed(6), lng: +g.longitude.toFixed(6) },
-            date:       rawDate instanceof Date ? rawDate.toISOString() : null,
-            name:       path.basename(file, path.extname(file)),
-            filename:   file,
-            previewUrl,
-            thumbUrl,
-            url:        `/photos/${encodeURIComponent(dir.name)}/${encodeURIComponent(file)}`,
-            album:      dir.name,
-            albumIndex,
-          });
-        } catch (err) { console.error('Map photo EXIF read failed:', err.message); }
-      }));
-
-      return photos;
+    const buckets = await Promise.all(filtered.map(async ({ name: album }) => {
+      const photos = (await library.getAlbumPhotos(album)) ?? [];
+      return photos
+        .map((p, albumIndex) => ({ p, albumIndex }))
+        .filter(({ p }) => p.gps)
+        .map(({ p, albumIndex }) => ({
+          gps:        p.gps,
+          date:       p.takenAt,
+          name:       path.basename(p.filename, path.extname(p.filename)),
+          filename:   p.filename,
+          previewUrl: p.previewUrl,
+          thumbUrl:   p.thumbUrl,
+          url:        p.url,
+          album,
+          albumIndex,
+        }));
     }));
 
     res.json(buckets.flat());
