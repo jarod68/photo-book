@@ -33,6 +33,9 @@ jobs:
   sbom:
     runs-on: ubuntu-latest
     needs: test
+    permissions:
+      contents: read
+      security-events: write   # upload the CVEs to Security → Code scanning
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
@@ -54,8 +57,32 @@ jobs:
           curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b /usr/local/bin
       - name: Generate CycloneDX SBOM (Syft)
         run: syft "docker:photo-book:scan" -o cyclonedx-json@1.6=sbom.cdx.json
-      - name: Scan the SBOM (Grype)
-        run: grype "sbom:sbom.cdx.json" --fail-on high --only-fixed
+      # Full report first (every CVE, fixable or not) so it is visible even
+      # when the gate below fails: the run summary, Security → Code scanning
+      # and a downloadable artifact.
+      - name: Scan the SBOM (Grype) — full report
+        run: grype "sbom:sbom.cdx.json" -o table -o json=grype.json -o sarif=grype.sarif
+      - name: CVE table in the run summary
+        if: always()
+        run: jq -r --arg image "jarod68/photo-book (amd64)" -f .github/grype-summary.jq grype.json >> "$GITHUB_STEP_SUMMARY"
+      - name: CVEs to Security → Code scanning
+        if: always() && github.event_name == 'push'
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: grype.sarif
+          category: grype-image
+      - name: SBOM + CVE report as artifact
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: sbom-cve-report
+          path: |
+            sbom.cdx.json
+            grype.json
+          retention-days: 30
+      # Gate: fail on any High/Critical CVE that has a fix available.
+      - name: Gate — fixable High/Critical block the build
+        run: grype "sbom:sbom.cdx.json" --fail-on high --only-fixed -q -o table
 
   # Build + push the multi-arch image to Docker Hub. Only on a push to main, and
   # only once the `test` and `sbom` gates are green. Pushes :sha-<commit> (kept,
