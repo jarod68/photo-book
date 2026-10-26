@@ -1,6 +1,7 @@
 # CLAUDE.md
 # Rules
-Never commit and push unless it is explicitely requested.
+Commit and push without asking: feature branches, and `main` (every push to `main` only deploys to QA).
+Production is the only gate: promote to prod only when the user explicitly asks for a specific commit.
 
 # Project Agents
 
