@@ -10,6 +10,7 @@ const database = require('./services/database'); // database.db, database.dbRead
 const auth     = require('./services/auth');
 const activity = require('./services/activity');
 const push     = require('./services/push');
+const maintenance = require('./services/maintenance');
 
 // Route modules
 const authRouter         = require('./routes/auth');
@@ -307,7 +308,7 @@ if (require.main === module) {
     console.log(`  Previews: ${PREVIEWS_DIR}\n`);
     database.connectDb()
       .then(() => auth.ensureAdmin())
-      .then(() => activity.purgeActivityLog())
+      .then(() => maintenance.startMaintenance())
       .then(() => database.syncPhotosToDb())
       .then(() => push.initVapid(database.db))
       .catch(console.error);

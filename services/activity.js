@@ -20,7 +20,7 @@ async function log(action, { username = null, ip = null, details = {} } = {}) {
 
 /**
  * Purges old activity_log rows when the count exceeds 5000.
- * Called once at server startup after the DB connection is established.
+ * Called by services/maintenance.js at startup and then periodically.
  */
 async function purgeActivityLog() {
   if (!database.dbReady) return;
