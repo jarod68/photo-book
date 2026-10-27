@@ -315,17 +315,20 @@ Every response carries a strict `Content-Security-Policy` (`services/csp.js`): s
 
 | Technology | Version | Role |
 |---|---|---|
-| Node.js | 22 (Alpine) | Runtime |
-| Express | 4.x | HTTP server and routing |
-| sharp | 0.34 | Image resizing and JPEG encoding |
-| exifr | 7.x | EXIF/XMP/IPTC/GPS metadata extraction |
+| Node.js | 26 (Alpine) | Runtime |
+| Express | 5.x | HTTP server and routing |
+| sharp | 0.35 | Image resizing and JPEG encoding |
+| ExifReader | 4.x | EXIF/XMP/IPTC/GPS metadata extraction (`services/exif.js`) |
+| heic-decode | 2.x | HEIC/HEIF decoding (libheif in WebAssembly) |
 | pg | 8.x | PostgreSQL client |
 
 The backend is written in CommonJS (`require`/`module.exports`) and runs as a single process. On startup it:
 
-1. Connects to PostgreSQL with a retry loop (up to 10 attempts)
+1. Connects to PostgreSQL with a retry loop and applies pending migrations
 2. Syncs the filesystem to the database (inserts any new photo rows)
-3. Pre-generates missing previews in the background
+3. Pre-generates missing derivatives in the background, then fills the photo index
+
+Requests never touch the disk synchronously: albums and photos are read through `services/library.js` (`fs.promises`), so listing a large album does not block other requests. Only the folder watcher, which runs outside requests, uses synchronous calls.
 
 ### Frontend
 

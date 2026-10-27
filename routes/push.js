@@ -1,12 +1,10 @@
 'use strict';
 
 const express = require('express');
-const path    = require('path');
-const fs      = require('fs');
 
 const database     = require('../services/database');
 const push         = require('../services/push');
-const { PHOTOS_DIR } = require('../services/image');
+const library      = require('../services/library');
 const { resolveUser, getAlbumAccess } = require('../services/access');
 
 const router = express.Router();
@@ -32,9 +30,7 @@ router.post('/subscribe', express.json(), async (req, res) => {
 
   // The album must exist on disk, and the caller must be allowed to see it —
   // otherwise restricted album names and activity leak through notifications.
-  const albumPath = path.resolve(path.join(PHOTOS_DIR, album));
-  const albumExists = albumPath.startsWith(PHOTOS_DIR + path.sep) && fs.existsSync(albumPath);
-  if (!albumExists) return res.status(404).json({ error: 'Album not found' });
+  if (!await library.albumExists(album).catch(() => false)) return res.status(404).json({ error: 'Album not found' });
 
   const user = await resolveUser(req.cookies?.pb_session);
   const { allowed } = await getAlbumAccess(album, user, share ?? null)

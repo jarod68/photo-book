@@ -27,6 +27,11 @@ async function listAlbums() {
   return entries.filter(isAlbumDir).map((e) => e.name).sort((a, b) => a.localeCompare(b));
 }
 
+// True when the album folder exists (an invalid name throws BadRequest).
+async function albumExists(album) {
+  return fs.promises.stat(albumPath(album)).then((st) => st.isDirectory(), () => false);
+}
+
 async function listPhotos(album) {
   const files = await fs.promises.readdir(albumPath(album)).catch(() => null);
   return files ? files.filter(isMedia).sort() : null;
@@ -85,4 +90,4 @@ function invalidate(album, file) {
 function clear() { cache.clear(); }
 const size = () => cache.size;
 
-module.exports = { listAlbums, listPhotos, getPhoto, getAlbumPhotos, warmAll, allPhotos, invalidate, clear, size, albumPath };
+module.exports = { listAlbums, albumExists, listPhotos, getPhoto, getAlbumPhotos, warmAll, allPhotos, invalidate, clear, size, albumPath };

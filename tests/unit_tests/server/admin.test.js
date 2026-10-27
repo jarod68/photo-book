@@ -47,6 +47,17 @@ const _require      = createRequire(import.meta.url);
 const database      = _require('../../../services/database.js');
 const authMod       = _require('../../../services/auth.js');
 const errorLogMod   = _require('../../../services/error-log.js');
+const libraryMod    = _require('../../../services/library.js');
+
+// What the photo library holds in a test: album name → file names. The routes
+// read albums only through services/library.js (no synchronous fs, T7).
+function stubLibrary(albums) {
+  vi.spyOn(libraryMod, 'listAlbums').mockResolvedValue(Object.keys(albums));
+  vi.spyOn(libraryMod, 'albumExists').mockImplementation(async (a) => a in albums);
+  vi.spyOn(libraryMod, 'listPhotos').mockImplementation(async (a) => albums[a] ?? null);
+  vi.spyOn(libraryMod, 'getAlbumPhotos').mockImplementation(async (a) =>
+    (albums[a] ?? []).map((filename) => ({ filename, url: `/photos/${a}/${filename}` })));
+}
 const fsMod         = _require('fs');
 
 authMod._setBypass(true);
@@ -193,19 +204,15 @@ describe('GET /api/auth/me', () => {
 describe('GET /api/admin/stats', () => {
   afterEach(() => vi.restoreAllMocks());
 
-  it('retourne { albums: [] } si PHOTOS_DIR absent', async () => {
-    vi.spyOn(fsMod, 'existsSync').mockReturnValue(false);
+  it('retourne { albums: [] } sans album', async () => {
+    stubLibrary({});
     const res = await request(app).get('/api/admin/stats');
     expect(res.status).toBe(200);
     expect(res.body.albums).toEqual([]);
   });
 
   it('retourne les albums depuis le filesystem sans DB', async () => {
-    const albumDir = { name: 'Paris', isDirectory: () => true };
-    vi.spyOn(fsMod, 'existsSync').mockReturnValue(true);
-    vi.spyOn(fsMod, 'readdirSync')
-      .mockReturnValueOnce([albumDir])   // PHOTOS_DIR listing
-      .mockReturnValueOnce(['a.jpg', 'b.jpg']); // album contents
+    stubLibrary({ Paris: ['a.jpg', 'b.jpg'] });
     const res = await request(app).get('/api/admin/stats');
     expect(res.status).toBe(200);
     expect(res.body.albums).toHaveLength(1);
@@ -213,11 +220,7 @@ describe('GET /api/admin/stats', () => {
   });
 
   it('enrichit avec les stats DB si prête', async () => {
-    const albumDir = { name: 'Rome', isDirectory: () => true };
-    vi.spyOn(fsMod, 'existsSync').mockReturnValue(true);
-    vi.spyOn(fsMod, 'readdirSync')
-      .mockReturnValueOnce([albumDir])
-      .mockReturnValueOnce(['x.jpg']);
+    stubLibrary({ Rome: ['x.jpg'] });
     mockQuery
       .mockResolvedValueOnce({ rows: [{ album: 'Rome', views: '10' }] })
       .mockResolvedValueOnce({ rows: [{ album: 'Rome', likes: '3' }] })
@@ -228,15 +231,7 @@ describe('GET /api/admin/stats', () => {
   });
 
   it('trie par vues décroissantes', async () => {
-    const dirs = [
-      { name: 'A', isDirectory: () => true },
-      { name: 'B', isDirectory: () => true },
-    ];
-    vi.spyOn(fsMod, 'existsSync').mockReturnValue(true);
-    vi.spyOn(fsMod, 'readdirSync')
-      .mockReturnValueOnce(dirs)
-      .mockReturnValueOnce([])    // A: 0 photos
-      .mockReturnValueOnce([]);   // B: 0 photos
+    stubLibrary({ A: [], B: [] });
     mockQuery
       .mockResolvedValueOnce({ rows: [{ album: 'A', views: '5' }, { album: 'B', views: '20' }] })
       .mockResolvedValueOnce({ rows: [] })
@@ -247,9 +242,8 @@ describe('GET /api/admin/stats', () => {
     expect(res.body.albums[1].album).toBe('A');
   });
 
-  it('retourne 500 si readdirSync lève une exception', async () => {
-    vi.spyOn(fsMod, 'existsSync').mockReturnValue(true);
-    vi.spyOn(fsMod, 'readdirSync').mockImplementation(() => { throw new Error('disk error'); });
+  it('retourne 500 si la lecture des albums échoue', async () => {
+    vi.spyOn(libraryMod, 'listAlbums').mockRejectedValue(new Error('disk error'));
     vi.spyOn(console, 'error').mockImplementation(() => {});
     const res = await request(app).get('/api/admin/stats');
     expect(res.status).toBe(500);
@@ -492,7 +486,7 @@ describe('DELETE /api/admin/albums/:album', () => {
   it('supprime le répertoire et nettoie la DB (deleteAlbumFromDb)', async () => {
     // album exists, previews + medium exist
     vi.spyOn(fsMod.promises, 'access').mockResolvedValue(undefined);
-    const rmSpy = vi.spyOn(fsMod, 'rmSync');
+    const rmSpy = vi.spyOn(fsMod.promises, 'rm').mockResolvedValue(undefined);
     mockQuery.mockResolvedValue({ rowCount: 1 });
     database._setState({ query: mockQuery }, true);
     const res = await request(app).delete('/api/admin/albums/Paris');
@@ -507,7 +501,7 @@ describe('DELETE /api/admin/albums/:album', () => {
 
   it('supprime sans erreur si DB non prête', async () => {
     vi.spyOn(fsMod.promises, 'access').mockResolvedValue(undefined);
-    vi.spyOn(fsMod, 'rmSync');
+    vi.spyOn(fsMod.promises, 'rm').mockResolvedValue(undefined);
     const res = await request(app).delete('/api/admin/albums/Paris');
     expect(res.status).toBe(200);
   });
@@ -515,7 +509,7 @@ describe('DELETE /api/admin/albums/:album', () => {
   it('supprime également les dossiers previews/medium si existants', async () => {
     // album + previews + medium all exist
     vi.spyOn(fsMod.promises, 'access').mockResolvedValue(undefined);
-    const rmSpy = vi.spyOn(fsMod, 'rmSync').mockImplementation(() => {});
+    const rmSpy = vi.spyOn(fsMod.promises, 'rm').mockResolvedValue(undefined);
     mockQuery.mockResolvedValue({ rowCount: 1 });
     database._setState({ query: mockQuery }, true);
     const res = await request(app).delete('/api/admin/albums/Paris');
@@ -523,9 +517,9 @@ describe('DELETE /api/admin/albums/:album', () => {
     expect(rmSpy).toHaveBeenCalledTimes(3); // album + previews + medium
   });
 
-  it('retourne 500 si rmSync lève une exception', async () => {
+  it('retourne 500 si la suppression échoue', async () => {
     vi.spyOn(fsMod.promises, 'access').mockResolvedValue(undefined);
-    vi.spyOn(fsMod, 'rmSync').mockImplementation(() => { throw new Error('disk error'); });
+    vi.spyOn(fsMod.promises, 'rm').mockRejectedValue(new Error('disk error'));
     vi.spyOn(console, 'error').mockImplementation(() => {});
     const res = await request(app).delete('/api/admin/albums/Paris');
     expect(res.status).toBe(500);

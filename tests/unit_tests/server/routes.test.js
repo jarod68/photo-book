@@ -47,6 +47,16 @@ authMod._setBypass(true);
 
 const mockQuery = vi.fn();
 
+// What the photo library holds in a test: album name → file names. The routes
+// read albums only through services/library.js (no synchronous fs, T7).
+function stubLibrary(albums) {
+  vi.spyOn(libraryMod, 'listAlbums').mockResolvedValue(Object.keys(albums));
+  vi.spyOn(libraryMod, 'albumExists').mockImplementation(async (a) => a in albums);
+  vi.spyOn(libraryMod, 'listPhotos').mockImplementation(async (a) => albums[a] ?? null);
+  vi.spyOn(libraryMod, 'getAlbumPhotos').mockImplementation(async (a) =>
+    (albums[a] ?? []).map((filename) => ({ filename, url: `/photos/${a}/${filename}` })));
+}
+
 beforeEach(() => {
   database._reset();
   mockQuery.mockReset();
@@ -319,11 +329,7 @@ describe('GET /api/albums', () => {
   });
 
   it('retourne visibility public et canDelete false quand DB prête et aucun cookie', async () => {
-    const albumDir = { name: 'Paris', isDirectory: () => true };
-    vi.spyOn(fsMod, 'existsSync').mockReturnValue(true);
-    vi.spyOn(fsMod, 'readdirSync')
-      .mockReturnValueOnce([albumDir]) // PHOTOS_DIR listing
-      .mockReturnValueOnce([]);        // Paris album contents
+    stubLibrary({ Paris: [] });
     mockQuery
       .mockResolvedValueOnce({ rows: [] })  // album_settings (no entries)
       .mockResolvedValueOnce({ rows: [] }); // album_users (no basic user)
@@ -337,8 +343,7 @@ describe('GET /api/albums', () => {
   });
 
   it('renvoie couverture choisie, description et plage de dates (F3)', async () => {
-    vi.spyOn(fsMod, 'existsSync').mockReturnValue(true);
-    vi.spyOn(fsMod, 'readdirSync').mockReturnValueOnce([{ name: 'Paris', isDirectory: () => true }]);
+    stubLibrary({ Paris: ['a.jpg', 'b.jpg'] });
     vi.spyOn(libraryMod, 'getAlbumPhotos').mockResolvedValue([
       { filename: 'a.jpg', type: 'photo', url: '/photos/Paris/a.jpg', thumbUrl: '/t/a', previewUrl: '/p/a', takenAt: '2024-05-01T10:00:00.000Z' },
       { filename: 'b.jpg', type: 'photo', url: '/photos/Paris/b.jpg', thumbUrl: '/t/b', previewUrl: '/p/b', takenAt: '2024-04-01T10:00:00.000Z' },
@@ -357,15 +362,7 @@ describe('GET /api/albums', () => {
   });
 
   it('exclut un album restricted quand aucun utilisateur authentifié', async () => {
-    const dirs = [
-      { name: 'Public', isDirectory: () => true },
-      { name: 'Secret', isDirectory: () => true },
-    ];
-    vi.spyOn(fsMod, 'existsSync').mockReturnValue(true);
-    vi.spyOn(fsMod, 'readdirSync')
-      .mockReturnValueOnce(dirs)   // PHOTOS_DIR listing
-      .mockReturnValueOnce([]);    // Public album contents
-    // Secret is filtered before readdirSync is called for it
+    stubLibrary({ Public: [], Secret: [] });
     mockQuery
       .mockResolvedValueOnce({ rows: [{ album: 'Secret', visibility: 'restricted' }] }) // album_settings
       .mockResolvedValueOnce({ rows: [] }); // album_users
@@ -376,20 +373,15 @@ describe('GET /api/albums', () => {
     expect(res.body[0].name).toBe('Public');
   });
 
-  it('retourne 500 si readdirSync lève une exception', async () => {
-    vi.spyOn(fsMod, 'existsSync').mockReturnValue(true);
-    vi.spyOn(fsMod, 'readdirSync').mockImplementation(() => { throw new Error('disk error'); });
+  it('retourne 500 si la lecture des albums échoue', async () => {
+    vi.spyOn(libraryMod, 'listAlbums').mockRejectedValue(new Error('disk error'));
     vi.spyOn(console, 'error').mockImplementation(() => {});
     const res = await request(app).get('/api/albums');
     expect(res.status).toBe(500);
   });
 
   it('inclut les albums restricted pour un utilisateur admin (ligne 526)', async () => {
-    const dirs = [{ name: 'VIP', isDirectory: () => true }];
-    vi.spyOn(fsMod, 'existsSync').mockReturnValue(true);
-    vi.spyOn(fsMod, 'readdirSync')
-      .mockReturnValueOnce(dirs)  // PHOTOS_DIR listing
-      .mockReturnValueOnce([]);   // VIP album contents
+    stubLibrary({ VIP: [] });
     mockQuery
       .mockResolvedValueOnce({ rows: [{ album: 'VIP', visibility: 'restricted' }] }) // album_settings
       .mockResolvedValueOnce({ rows: [] }); // album_users (admin: no user_id query)
@@ -404,11 +396,7 @@ describe('GET /api/albums', () => {
   });
 
   it('inclut les albums restricted pour un utilisateur basic autorisé (ligne 527)', async () => {
-    const dirs = [{ name: 'VIP', isDirectory: () => true }];
-    vi.spyOn(fsMod, 'existsSync').mockReturnValue(true);
-    vi.spyOn(fsMod, 'readdirSync')
-      .mockReturnValueOnce(dirs)  // PHOTOS_DIR listing
-      .mockReturnValueOnce([]);   // VIP album contents
+    stubLibrary({ VIP: [] });
     mockQuery
       .mockResolvedValueOnce({ rows: [{ album: 'VIP', visibility: 'restricted' }] }) // album_settings
       .mockResolvedValueOnce({ rows: [{ album: 'VIP' }] }); // album_users: user authorized
@@ -426,25 +414,18 @@ describe('GET /api/albums', () => {
 // ── /api/albums/:album ────────────────────────────────────────────────────────
 
 describe('GET /api/albums/:album', () => {
-  beforeEach(() => {
-    vi.spyOn(fsMod, 'existsSync').mockReturnValue(false);
-    vi.spyOn(fsMod, 'readdirSync').mockReturnValue([]);
-    // the cached photo index lists what the mocked directory contains
-    vi.spyOn(libraryMod, 'getAlbumPhotos').mockImplementation(async (album) =>
-      fsMod.readdirSync().map((filename) => ({ filename, url: `/photos/${album}/${filename}` })));
-  });
+  beforeEach(() => stubLibrary({}));
 
   afterEach(() => vi.restoreAllMocks());
 
   it("retourne 404 si l'album n'existe pas", async () => {
-    // fsMod.existsSync returns false by default (describe beforeEach spy)
+    // no album in the library (describe beforeEach)
     const res = await request(app).get('/api/albums/Inconnu');
     expect(res.status).toBe(404);
   });
 
   it('retourne 200 avec { name, photos } si l\'album existe (sans DB)', async () => {
-    fsMod.existsSync.mockReturnValue(true);
-    fsMod.readdirSync.mockReturnValue(['photo.jpg']);
+    stubLibrary({ Paris: ['photo.jpg'] });
 
     const res = await request(app).get('/api/albums/Paris');
     expect(res.status).toBe(200);
@@ -454,8 +435,7 @@ describe('GET /api/albums/:album', () => {
   });
 
   it('enrichit les photos avec views et likes si la DB est prête', async () => {
-    fsMod.existsSync.mockReturnValue(true);
-    fsMod.readdirSync.mockReturnValue(['photo.jpg']);
+    stubLibrary({ Paris: ['photo.jpg'] });
     mockQuery
       .mockResolvedValueOnce({ rows: [] })  // getAlbumVisibility (album_settings)
       .mockResolvedValueOnce({ rows: [] })  // photo_overrides
@@ -470,8 +450,8 @@ describe('GET /api/albums/:album', () => {
   });
 
   it('retourne 500 si la lecture de l\'album échoue', async () => {
-    fsMod.existsSync.mockReturnValue(true);
-    fsMod.readdirSync.mockImplementation(() => { throw new Error('disk error'); });
+    stubLibrary({ Paris: [] });
+    libraryMod.getAlbumPhotos.mockRejectedValue(new Error('disk error'));
     vi.spyOn(console, 'error').mockImplementation(() => {});
 
     const res = await request(app).get('/api/albums/Paris');
@@ -479,7 +459,7 @@ describe('GET /api/albums/:album', () => {
   });
 
   it('ne modifie pas les objets du cache en ajoutant views / likes', async () => {
-    fsMod.existsSync.mockReturnValue(true);
+    stubLibrary({ Paris: [] });
     const cached = { filename: 'photo.jpg' };
     libraryMod.getAlbumPhotos.mockResolvedValue([cached]);
     mockQuery
@@ -494,7 +474,7 @@ describe('GET /api/albums/:album', () => {
   });
 
   it('applique les titres / légendes / lieux modifiés dans l\'admin (F2)', async () => {
-    fsMod.existsSync.mockReturnValue(true);
+    stubLibrary({ Paris: [] });
     const cached = { filename: 'photo.jpg', name: 'IMG_1', description: 'exif', location: null };
     libraryMod.getAlbumPhotos.mockResolvedValue([cached]);
     mockQuery.mockImplementation(async (sql) => (
@@ -508,8 +488,7 @@ describe('GET /api/albums/:album', () => {
   });
 
   it('retourne canDelete false quand DB prête et aucun utilisateur (album public)', async () => {
-    fsMod.existsSync.mockReturnValue(true);
-    fsMod.readdirSync.mockReturnValue(['photo.jpg']);
+    stubLibrary({ Paris: ['photo.jpg'] });
     mockQuery
       .mockResolvedValueOnce({ rows: [] })  // getAlbumVisibility → public
       .mockResolvedValueOnce({ rows: [] })  // photo_views
@@ -521,8 +500,7 @@ describe('GET /api/albums/:album', () => {
   });
 
   it('retourne 401 si album restricted et aucun utilisateur', async () => {
-    fsMod.existsSync.mockReturnValue(true);
-    fsMod.readdirSync.mockReturnValue(['photo.jpg']);
+    stubLibrary({ Paris: ['photo.jpg'] });
     mockQuery.mockResolvedValueOnce({ rows: [{ visibility: 'restricted' }] }); // getAlbumVisibility
     database._setState({ query: mockQuery }, true);
     const res = await request(app).get('/api/albums/Paris');
@@ -530,8 +508,7 @@ describe('GET /api/albums/:album', () => {
   });
 
   it('retourne 503 (fail-closed) si getAlbumAccess lève une exception', async () => {
-    fsMod.existsSync.mockReturnValue(true);
-    fsMod.readdirSync.mockReturnValue(['photo.jpg']);
+    stubLibrary({ Paris: ['photo.jpg'] });
     mockQuery.mockRejectedValueOnce(new Error('db error'));
     database._setState({ query: mockQuery }, true);
     const res = await request(app).get('/api/albums/Paris');
@@ -634,9 +611,7 @@ describe('GET /api/map', () => {
 // ── POST /api/push/subscribe ──────────────────────────────────────────────────
 
 describe('POST /api/push/subscribe', () => {
-  beforeEach(() => {
-    vi.spyOn(fsMod, 'existsSync').mockReturnValue(false);
-  });
+  beforeEach(() => stubLibrary({}));
 
   afterEach(() => vi.restoreAllMocks());
 
@@ -651,7 +626,6 @@ describe('POST /api/push/subscribe', () => {
   });
 
   it('retourne 404 si l\'album n\'existe pas sur disque', async () => {
-    fsMod.existsSync.mockReturnValue(false);
     mockQuery.mockResolvedValue({ rows: [] });
     database._setState({ query: mockQuery }, true);
     const res = await request(app).post('/api/push/subscribe').send(validBody);
@@ -659,7 +633,7 @@ describe('POST /api/push/subscribe', () => {
   });
 
   it('retourne 401 sur album restreint sans utilisateur ni share token', async () => {
-    fsMod.existsSync.mockReturnValue(true);
+    stubLibrary({ Paris: [] });
     mockQuery.mockResolvedValueOnce({ rows: [{ visibility: 'restricted' }] }); // album_settings
     database._setState({ query: mockQuery }, true);
     const res = await request(app).post('/api/push/subscribe').send(validBody);
@@ -667,7 +641,7 @@ describe('POST /api/push/subscribe', () => {
   });
 
   it('accepte l\'abonnement sur album public', async () => {
-    fsMod.existsSync.mockReturnValue(true);
+    stubLibrary({ Paris: [] });
     mockQuery.mockResolvedValue({ rows: [] }); // visibility public + INSERT
     database._setState({ query: mockQuery }, true);
     const res = await request(app).post('/api/push/subscribe').send(validBody);
@@ -678,7 +652,7 @@ describe('POST /api/push/subscribe', () => {
   });
 
   it('accepte l\'abonnement sur album restreint avec share token valide', async () => {
-    fsMod.existsSync.mockReturnValue(true);
+    stubLibrary({ Paris: [] });
     mockQuery
       .mockResolvedValueOnce({ rows: [{ visibility: 'restricted' }] }) // album_settings
       .mockResolvedValueOnce({ rows: [{ 1: 1 }] })                     // share_tokens

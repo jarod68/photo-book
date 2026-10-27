@@ -1,12 +1,10 @@
 'use strict';
 
 const express  = require('express');
-const fs       = require('fs');
-const path     = require('path');
 
 const { requireAdmin } = require('../../services/auth');
-const { PHOTOS_DIR, isMedia, isAlbumDir } = require('../../services/image');
 const database   = require('../../services/database');
+const library    = require('../../services/library');
 const system      = require('../../services/system');
 const maintenance = require('../../services/maintenance');
 
@@ -15,13 +13,10 @@ const router = express.Router();
 // GET /api/admin/stats
 router.get('/stats', requireAdmin, async (req, res) => {
   try {
-    const entries = fs.existsSync(PHOTOS_DIR)
-      ? fs.readdirSync(PHOTOS_DIR, { withFileTypes: true }).filter(isAlbumDir)
-      : [];
-    const fsMap = new Map(entries.map(e => [
-      e.name,
-      fs.readdirSync(path.join(PHOTOS_DIR, e.name)).filter(isMedia).length,
-    ]));
+    const names = await library.listAlbums();
+    const fsMap = new Map(await Promise.all(names.map(async name => [
+      name, ((await library.listPhotos(name)) ?? []).length,
+    ])));
 
     let viewMap = new Map();
     let likeMap = new Map();

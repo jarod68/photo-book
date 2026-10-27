@@ -41,6 +41,17 @@ const { app } = await import('../../../server.js');
 const _require = createRequire(import.meta.url);
 const database = _require('../../../services/database.js');
 const fsMod    = _require('fs');
+const libraryMod = _require('../../../services/library.js');
+
+// What the photo library holds in a test: album name → file names. The routes
+// read albums only through services/library.js (no synchronous fs, T7).
+function stubLibrary(albums) {
+  vi.spyOn(libraryMod, 'listAlbums').mockResolvedValue(Object.keys(albums));
+  vi.spyOn(libraryMod, 'albumExists').mockImplementation(async (a) => a in albums);
+  vi.spyOn(libraryMod, 'listPhotos').mockImplementation(async (a) => albums[a] ?? null);
+  vi.spyOn(libraryMod, 'getAlbumPhotos').mockImplementation(async (a) =>
+    (albums[a] ?? []).map((filename) => ({ filename, url: `/photos/${a}/${filename}` })));
+}
 
 // ⚠️  Ne pas appeler authMod._setBypass(true) — ce fichier teste les vraies
 //     gardes d'authentification et d'autorisation (requireAuth, requireAdmin).
@@ -251,8 +262,7 @@ describe('albumAccessGuard — /previews/:album/* (visibilité restreinte)', () 
 
 describe('GET /api/albums/:album — contrôle d\'accès', () => {
   beforeEach(() => {
-    vi.spyOn(fsMod, 'existsSync').mockReturnValue(true);
-    vi.spyOn(fsMod, 'readdirSync').mockReturnValue([]);
+    stubLibrary({ Paris: [] });
     database._setState({ query: mockQuery }, true);
     mockQuery.mockResolvedValue({ rows: [] }); // défaut pour toutes les requêtes
   });

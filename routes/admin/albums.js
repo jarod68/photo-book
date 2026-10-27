@@ -101,11 +101,9 @@ router.delete('/:album', requireAdmin, async (req, res) => {
     const albumPath = safeAlbumPath(req.params.album);
     const albumExists = await fs.promises.access(albumPath).then(() => true).catch(() => false);
     if (!albumExists) return res.status(404).json({ error: 'Album not found' });
-    fs.rmSync(albumPath, { recursive: true, force: true });
+    await fs.promises.rm(albumPath, { recursive: true, force: true });
     for (const base of [PREVIEWS_DIR, MEDIUM_DIR]) {
-      const d = path.join(base, req.params.album);
-      const dExists = await fs.promises.access(d).then(() => true).catch(() => false);
-      if (dExists) fs.rmSync(d, { recursive: true, force: true });
+      await fs.promises.rm(path.join(base, req.params.album), { recursive: true, force: true });
     }
     await deleteAlbumFromDb(req.params.album);
     res.json({ ok: true });

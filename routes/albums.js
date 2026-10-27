@@ -28,11 +28,9 @@ function safeAlbumPath(name) {
 // GET /api/albums
 router.get('/', async (req, res) => {
   try {
-    if (!fs.existsSync(PHOTOS_DIR)) fs.mkdirSync(PHOTOS_DIR, { recursive: true });
-
-    const entries = fs.readdirSync(PHOTOS_DIR, { withFileTypes: true }).filter(
-      e => e.isDirectory?.() ?? false,
-    );
+    await fs.promises.mkdir(PHOTOS_DIR, { recursive: true });
+    // no synchronous file access while serving a request (T7)
+    const entries = (await library.listAlbums()).map(name => ({ name, isDirectory: () => true }));
 
     const user = await resolveUser(req.cookies?.pb_session);
     const { filtered, visibilityMap, authorizedSet } = await filterVisibleAlbums(entries, user);
@@ -58,7 +56,7 @@ router.get('/', async (req, res) => {
 router.get('/:album/download/zip', async (req, res) => {
   try {
     const albumPath = safeAlbumPath(req.params.album);
-    if (!fs.existsSync(albumPath)) return res.status(404).json({ error: 'Not found' });
+    if (!await library.albumExists(req.params.album)) return res.status(404).json({ error: 'Not found' });
 
     const user       = await resolveUser(req.cookies?.pb_session);
     const shareToken = req.query?.share ?? null;
@@ -71,7 +69,7 @@ router.get('/:album/download/zip', async (req, res) => {
     }
     if (!access.allowed) return res.status(401).json({ error: 'Unauthorized' });
 
-    const files = fs.readdirSync(albumPath).filter(isMedia).sort();
+    const files = (await library.listPhotos(req.params.album)) ?? [];
     if (!files.length) return res.status(404).json({ error: 'Album is empty' });
 
     const albumName   = req.params.album;
@@ -100,8 +98,8 @@ router.get('/:album/download/zip', async (req, res) => {
 // GET /api/albums/:album
 router.get('/:album', async (req, res) => {
   try {
-    const albumPath = safeAlbumPath(req.params.album);
-    if (!fs.existsSync(albumPath)) return res.status(404).json({ error: 'Not found' });
+    safeAlbumPath(req.params.album);
+    if (!await library.albumExists(req.params.album)) return res.status(404).json({ error: 'Not found' });
 
     const user       = await resolveUser(req.cookies?.pb_session);
     const shareToken = req.query?.share ?? null;

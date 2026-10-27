@@ -28,6 +28,11 @@ describe('library (T2)', () => {
     expect(await library.listAlbums()).toEqual(['Perth']);
     expect(await library.listPhotos('Perth')).toEqual(['a.jpg', 'b.jpg']);
     expect(await library.getAlbumPhotos('Nope')).toBeNull();
+    expect(await library.albumExists('Perth')).toBe(true);
+    expect(await library.albumExists('Nope')).toBe(false);
+    fs.writeFileSync(path.join(process.env.PHOTOS_DIR, 'file.txt'), 'x');
+    expect(await library.albumExists('file.txt')).toBe(false);   // a file is not an album
+    await expect(library.albumExists('../etc')).rejects.toThrow('Invalid album');
   });
 
   it('returns the cached metadata while the file is unchanged', async () => {
