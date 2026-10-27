@@ -28,6 +28,10 @@ test('admin users section', async ({ page }) => {
 
 test('admin system section layout', async ({ page }) => {
   await page.waitForSelector('#section-system .sys-card', { state: 'visible' });
+  // fixed-width values, so the masks below do not depend on their length
+  await page.addStyleTag({ content: `
+    .sys-row span:last-child, #system-migrations-count, #system-errors-count {
+      display: inline-block; width: 140px; overflow: hidden; white-space: nowrap; }` });
   await expect(page.locator('#section-system')).toHaveScreenshot('admin-system.png', {
     // the layout and labels are checked; the values (build, uptime, sizes,
     // counts, dates, error messages) change from run to run
