@@ -864,6 +864,8 @@ async function openAlbumSettings(albumName) {
   const authorizedIds = new Set((settingsRes.users ?? []).map(u => u.id));
 
   document.getElementById('album-notify-new').checked = settingsRes.notifyNew ?? true;
+  const gpsRadio = document.querySelector(`input[name="album-gps"][value="${settingsRes.gpsPrivacy ?? 'exact'}"]`);
+  if (gpsRadio) gpsRadio.checked = true;
   const visRadio = document.querySelector(`input[name="album-visibility"][value="${settingsRes.visibility}"]`);
   if (visRadio) visRadio.checked = true;
 
@@ -932,7 +934,11 @@ document.getElementById('album-settings-save-btn').addEventListener('click', asy
   const res = await fetch(`/api/admin/albums/${encodeURIComponent(albumSettingsName)}/settings`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ visibility, userIds, notifyNew: document.getElementById('album-notify-new').checked }),
+    body: JSON.stringify({
+      visibility, userIds,
+      notifyNew:  document.getElementById('album-notify-new').checked,
+      gpsPrivacy: document.querySelector('input[name="album-gps"]:checked')?.value ?? 'exact',
+    }),
   });
   if (res.ok) {
     closeAlbumSettings();

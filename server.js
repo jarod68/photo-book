@@ -19,6 +19,7 @@ const csp      = require('./services/csp');
 const { VENDOR_FILES } = require('./services/vendor');
 const places   = require('./services/places');
 const notify   = require('./services/notify');
+const gpsPrivacy = require('./services/gps-privacy');
 
 // Route modules
 const authRouter         = require('./routes/auth');
@@ -144,6 +145,21 @@ app.use('/photos', albumAccessGuard(), (req, res, next) => {
   const target = path.resolve(path.join(PHOTOS_DIR, req.path));
   if (!target.startsWith(PHOTOS_DIR)) return res.status(403).end();
   next();
+}, async (req, res, next) => {
+  // Albums with a hidden / approximate GPS position (F10): the original's EXIF
+  // holds the exact one, so visitors get a full-size copy without metadata.
+  // Same URL, different file per user: never cached as immutable.
+  const parts = req.path.split('/').filter(Boolean).map((p) => decodeURIComponent(p));
+  if (parts.length !== 2 || !isImage(parts[1])) return next();
+  const [album, file] = parts;
+  try {
+    if (await gpsPrivacy.modeFor(album) === 'exact') return next();
+    const original = path.join(PHOTOS_DIR, album, file);
+    if (!await fs.promises.access(original).then(() => true, () => false)) return next();
+    res.set('Cache-Control', 'private, no-cache');
+    if (await gpsPrivacy.exactFor(album, res.locals.user)) return res.sendFile(original);
+    res.type('jpeg').sendFile(await gpsPrivacy.cleanCopy(album, file));
+  } catch (err) { next(err); }
 }, express.static(PHOTOS_DIR, {
   maxAge: '1y',
   immutable: true,
@@ -170,6 +186,7 @@ function albumAccessGuard() {
       return res.status(503).end();
     }
     if (!access.allowed) return res.status(401).end();
+    res.locals.user = user;
     next();
   };
 }

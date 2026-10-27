@@ -68,6 +68,7 @@ const mockQuery  = vi.fn();
 beforeEach(() => {
   database._reset();
   mockQuery.mockReset();
+  _require('../../../services/gps-privacy.js')._reset();   // its settings cache
 });
 
 afterEach(() => vi.restoreAllMocks());

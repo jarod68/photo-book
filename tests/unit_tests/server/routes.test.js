@@ -60,6 +60,7 @@ function stubLibrary(albums) {
 beforeEach(() => {
   database._reset();
   mockQuery.mockReset();
+  _require('../../../services/gps-privacy.js')._reset();   // its settings cache
 });
 
 // ── albumAccessGuard ──────────────────────────────────────────────────────────
@@ -439,6 +440,7 @@ describe('GET /api/albums/:album', () => {
     mockQuery
       .mockResolvedValueOnce({ rows: [] })  // getAlbumVisibility (album_settings)
       .mockResolvedValueOnce({ rows: [] })  // photo_overrides
+      .mockResolvedValueOnce({ rows: [] })  // gps_privacy (F10)
       .mockResolvedValueOnce({ rows: [{ filename: 'photo.jpg', views: '7' }] })
       .mockResolvedValueOnce({ rows: [{ filename: 'photo.jpg', likes: '3' }] });
     database._setState({ query: mockQuery }, true);
@@ -465,6 +467,7 @@ describe('GET /api/albums/:album', () => {
     mockQuery
       .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] })  // gps_privacy (F10)
       .mockResolvedValueOnce({ rows: [{ filename: 'photo.jpg', views: '7' }] })
       .mockResolvedValueOnce({ rows: [] });
     database._setState({ query: mockQuery }, true);
@@ -855,5 +858,43 @@ describe('GET /api/albums/:album/download/zip', () => {
     expect(res.headers['content-disposition']).toBe(
       `attachment; filename="_t_ _ _vora.zip"; filename*=UTF-8''${encodeURIComponent('Été à Évora')}.zip`);
     expect(res.body.subarray(0, 2).toString()).toBe('PK');
+  });
+});
+
+// ── GPS position privacy (F10) ────────────────────────────────────────────────
+
+describe('confidentialité de la position GPS (F10)', () => {
+  const geo = (filename, lat, lng) => ({ filename, url: `/photos/A/${filename}`, gps: { lat, lng }, takenAt: null });
+  // album_settings answers: Approx is rounded, Hidden has no position, Open is exact
+  const settings = async (sql) => (sql.includes('gps_privacy')
+    ? { rows: [{ album: 'Approx', gps_privacy: 'approx' }, { album: 'Hidden', gps_privacy: 'hidden' }] }
+    : { rows: [] });
+
+  beforeEach(() => {
+    stubLibrary({ Approx: ['a.jpg'], Hidden: ['h.jpg'], Open: ['o.jpg'] });
+    libraryMod.getAlbumPhotos.mockImplementation(async (album) => [geo(`${album[0].toLowerCase()}.jpg`, 48.858370, 2.294481)]);
+    mockQuery.mockImplementation(settings);
+    database._setState({ query: mockQuery }, true);
+  });
+  afterEach(() => vi.restoreAllMocks());
+
+  it('album : position arrondie ou retirée pour un visiteur', async () => {
+    expect((await request(app).get('/api/albums/Approx')).body.photos[0]).toMatchObject({ gps: { lat: 48.86, lng: 2.29 }, gpsApprox: true });
+    expect((await request(app).get('/api/albums/Hidden')).body.photos[0].gps).toBeNull();
+    expect((await request(app).get('/api/albums/Open')).body.photos[0].gps).toEqual({ lat: 48.858370, lng: 2.294481 });
+  });
+
+  it('album : un admin voit la position exacte', async () => {
+    vi.spyOn(authMod, 'getSessionUser').mockResolvedValue({ id: 1, role: 'admin' });
+    const res = await request(app).get('/api/albums/Hidden').set('Cookie', 'pb_session=' + 'a'.repeat(64));
+    expect(res.body.photos[0].gps).toEqual({ lat: 48.858370, lng: 2.294481 });
+  });
+
+  it('carte : albums masqués absents, approximatifs arrondis', async () => {
+    const res = await request(app).get('/api/map');
+    expect(res.body.map((m) => [m.album, m.gps])).toEqual([
+      ['Approx', { lat: 48.86, lng: 2.29 }],
+      ['Open', { lat: 48.858370, lng: 2.294481 }],
+    ]);
   });
 });

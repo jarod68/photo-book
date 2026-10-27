@@ -159,6 +159,20 @@ Place names come from IPTC, from the admin edits, or from **reverse geocoding** 
 
 The viewer's top bar has a **slideshow** button (or `Space`): a new photo every 5 s, looping through the album, with the interface hidden (a tap shows it again). A playing video is watched to the end before moving on, the next photo is preloaded, choosing a photo by hand restarts the 5 s, and the show pauses while the tab is hidden. `Esc` or `Space` stops it. The **fullscreen** button (or `F`) uses the Fullscreen API; it is hidden where the API is missing (iPhone Safari).
 
+### GPS position privacy
+
+Each album has a **GPS position** setting (Admin → Albums → ⚙, `album_settings.gps_privacy`, migration 6), for visitors and members — admins always see the exact position and get the original files:
+
+| Setting | Album / map / globe APIs | Original image files (`/photos/…`, zip export) |
+|---|---|---|
+| **Exact** (default) | exact coordinates | the original, with its EXIF |
+| **Approximate** | rounded to 2 decimals (≈ 1 km), `gpsApprox: true` | a full-size JPEG copy **without metadata** |
+| **Hidden** | no coordinates: the photos are not on the maps | a full-size JPEG copy **without metadata** |
+
+The copy is the `display` derivative (`public/medium/<album>/<file>.full.jpg`, quality 90, up to 6000 px), made on first request and deleted with the photo; in a zip export, a non-JPEG keeps its name plus `.jpg`. Responses for these albums are `Cache-Control: private, no-cache`, since the same URL serves the original to admins. The place name (IPTC, admin edit or city-level geocoding) stays visible. **Videos are served as they are**: removing their metadata would need ffmpeg in the image. The settings are re-read at most once a minute (at once after a change in the admin); without the database, the last known settings apply.
+
+The face-blurring scripts in `scripts/` (`blur-faces.js`, `detect_faces.py`) are not wired in: they rewrite the original files in place and need Python with OpenCV.
+
 ### Album cover, description and dates
 
 The same editor sets the album's **description** and its **cover** (☆ button on a photo). Both are stored in `album_settings` (migration 3). Without a chosen cover — or when the chosen photo was deleted — the cover is the first photo whose thumbnail could be made, so a video or a corrupt file never becomes the cover. The album card shows the description and the capture-date range (first to last `DateTimeOriginal`), computed from the cached photo index; the index is filled once at startup, after the derivatives are generated.
@@ -441,7 +455,9 @@ CREATE TABLE album_settings (
   album       VARCHAR(255) PRIMARY KEY,
   visibility  VARCHAR(50)  NOT NULL DEFAULT 'public',
   cover       VARCHAR(255),          -- migration 3; NULL = first readable photo
-  description TEXT                   -- migration 3
+  description TEXT,                  -- migration 3
+  notify_new  BOOLEAN NOT NULL DEFAULT true,                -- migration 5
+  gps_privacy VARCHAR(16) NOT NULL DEFAULT 'exact'          -- migration 6: exact | approx | hidden
 );
 
 CREATE TABLE album_users (

@@ -173,6 +173,14 @@ const MIGRATIONS = [
       await q('ALTER TABLE album_settings ADD COLUMN notify_new BOOLEAN NOT NULL DEFAULT true');
     },
   },
+  {
+    version: 6,
+    name: 'GPS position privacy per album',
+    async up(q) {
+      await q(`ALTER TABLE album_settings ADD COLUMN gps_privacy VARCHAR(16) NOT NULL DEFAULT 'exact'
+               CHECK (gps_privacy IN ('exact', 'approx', 'hidden'))`);
+    },
+  },
 ];
 
 const LOCK_KEY = 726571;   // arbitrary, constant: pg_advisory_xact_lock key

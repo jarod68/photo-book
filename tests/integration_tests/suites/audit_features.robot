@@ -1,8 +1,8 @@
 *** Settings ***
 Documentation     End-to-end checks of the 2026-10 audit features: photo edits (F2),
 ...               album cover / description (F3), search (F6), uploads that never
-...               overwrite (F7), System tab (F8), notification switch (F9), CSP and
-...               self-hosted libraries (T6).
+...               overwrite (F7), System tab (F8), notification switch (F9), GPS
+...               privacy (F10), CSP and self-hosted libraries (T6).
 Resource          ../resources/admin.resource
 Library           Collections
 Suite Setup       Audit Suite Setup
@@ -26,12 +26,12 @@ Audit Suite Teardown
     Close Browser
 
 Upload As Admin
-    [Arguments]    ${fixture}    ${as_name}
+    [Arguments]    ${fixture}    ${as_name}    ${type}=image/png
     ${b64}=    Evaluate    base64.b64encode(open(r'${FIXTURE_DIR}/${fixture}', 'rb').read()).decode()    modules=base64
     ${data}=    Evaluate JavaScript    ${NONE}
     ...    async () => {
     ...      const bytes = Uint8Array.from(atob('${b64}'), c => c.charCodeAt(0));
-    ...      const fd = new FormData(); fd.append('photos', new Blob([bytes], {type: 'image/png'}), '${as_name}');
+    ...      const fd = new FormData(); fd.append('photos', new Blob([bytes], {type: '${type}'}), '${as_name}');
     ...      return fetch('/api/admin/albums/${ALBUM}/photos', {method: 'POST', body: fd}).then(r => r.json());
     ...    }
     RETURN    ${data}
@@ -93,6 +93,28 @@ F9 Automatic Notifications Can Be Turned Off Per Album
     ${settings}=    Evaluate JavaScript    ${NONE}
     ...    () => fetch('/api/admin/albums/${ALBUM}/settings').then(r => r.json())
     Should Not Be True    ${settings}[notifyNew]
+
+F10 Approximate Position For Visitors, Exact For Admins, No EXIF In Served Files
+    Upload As Admin    gps-a.tiff    gps-a.tiff    image/tiff
+    ${s}=    Evaluate JavaScript    ${NONE}
+    ...    () => fetch('/api/admin/albums/${ALBUM}/settings', {method:'PUT', headers:{'Content-Type':'application/json'},
+    ...      body: JSON.stringify({visibility:'public', userIds:[], gpsPrivacy:'approx'})}).then(r => r.status)
+    Should Be Equal As Integers    ${s}    200
+    ${visitor}=    Evaluate JavaScript    ${NONE}
+    ...    () => fetch('/api/albums/${ALBUM}', {credentials:'omit'}).then(r => r.json()).then(d => d.photos.find(p => p.filename === 'gps-a.tiff').gps)
+    Should Be Equal As Numbers    ${visitor}[lat]    45.5
+    Should Be Equal As Numbers    ${visitor}[lng]    -73.57
+    ${admin}=    Evaluate JavaScript    ${NONE}
+    ...    () => fetch('/api/albums/${ALBUM}').then(r => r.json()).then(d => d.photos.find(p => p.filename === 'gps-a.tiff').gps)
+    Should Be Equal As Numbers    ${admin}[lat]    45.5017
+    # the original TIFF (with its EXIF) only for the admin; visitors get a JPEG copy without metadata
+    ${types}=    Evaluate JavaScript    ${NONE}
+    ...    () => Promise.all([
+    ...      fetch('/photos/${ALBUM}/gps-a.tiff', {credentials:'omit'}).then(r => r.headers.get('content-type') + ' ' + r.headers.get('cache-control')),
+    ...      fetch('/photos/${ALBUM}/gps-a.tiff').then(r => r.headers.get('content-type'))])
+    Should Start With    ${types}[0]    image/jpeg
+    Should Contain       ${types}[0]    private
+    Should Start With    ${types}[1]    image/tiff
 
 T6 Pages Carry A Strict CSP And Load Libraries From The Site
     ${h}=    Evaluate JavaScript    ${NONE}

@@ -212,6 +212,22 @@
           <p class="album-settings-users-label" data-i18n="admin.authorizedUsers">Authorized users</p>
           <div id="album-users-checkboxes" class="album-users-checkboxes"></div>
         </div>
+        <div class="album-settings-gps">
+          <p class="album-settings-users-label" data-i18n="admin.gpsPrivacy">GPS position (visitors and members)</p>
+          <label class="album-settings-radio">
+            <input type="radio" name="album-gps" value="exact">
+            <span data-i18n="admin.gpsExact">Exact</span>
+          </label>
+          <label class="album-settings-radio">
+            <input type="radio" name="album-gps" value="approx">
+            <span><span data-i18n="admin.gpsApprox">Approximate</span> <span class="vis-hint" data-i18n="admin.gpsApproxHint">— about 1 km</span></span>
+          </label>
+          <label class="album-settings-radio">
+            <input type="radio" name="album-gps" value="hidden">
+            <span><span data-i18n="admin.gpsHidden">Hidden</span> <span class="vis-hint" data-i18n="admin.gpsHiddenHint">— not on the maps</span></span>
+          </label>
+          <p class="album-settings-gps-note admin-dim" data-i18n="admin.gpsNote">Photos are then served without their metadata. Videos keep theirs. Admins always see the exact position.</p>
+        </div>
         <div class="album-settings-subscribers">
           <p class="album-settings-users-label" data-i18n="admin.pushSubscribers">Push subscribers</p>
           <label class="album-user-checkbox album-notify-auto">

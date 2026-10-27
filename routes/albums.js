@@ -5,10 +5,11 @@ const path      = require('path');
 const fs        = require('fs');
 const { ZipArchive } = require('archiver');
 
-const { PHOTOS_DIR, isMedia, deletePhotoFiles } = require('../services/image');
+const { PHOTOS_DIR, isImage, isMedia, deletePhotoFiles } = require('../services/image');
 const library  = require('../services/library');
 const overrides = require('../services/overrides');
 const albumInfo = require('../services/album-info');
+const gpsPrivacy = require('../services/gps-privacy');
 const database = require('../services/database');
 const auth     = require('../services/auth');
 const activity = require('../services/activity');
@@ -72,6 +73,16 @@ router.get('/:album/download/zip', async (req, res) => {
     const files = (await library.listPhotos(req.params.album)) ?? [];
     if (!files.length) return res.status(404).json({ error: 'Album is empty' });
 
+    // Albums with a hidden / approximate position: images without their EXIF (F10).
+    // The copies are made before the response starts, so an error is still a status.
+    const exact = await gpsPrivacy.exactFor(req.params.album, user);
+    const entries = [];
+    for (const file of files) {
+      entries.push(exact || !isImage(file)
+        ? { from: path.join(albumPath, file), name: file }
+        : { from: await gpsPrivacy.cleanCopy(req.params.album, file), name: gpsPrivacy.cleanName(file) });
+    }
+
     const albumName   = req.params.album;
     const asciiName   = albumName.replace(/[^\x20-\x7E]/g, '_').replace(/"/g, '');
     const encodedName = encodeURIComponent(albumName);
@@ -85,9 +96,7 @@ router.get('/:album/download/zip', async (req, res) => {
     archive.on('warning', err => { if (err.code !== 'ENOENT') console.warn('Archive warning:', err); });
     archive.on('error',   err => { console.error('Archive error:', err); res.destroy(err); });
     archive.pipe(res);
-    for (const file of files) {
-      archive.file(path.join(albumPath, file), { name: file });
-    }
+    for (const { from, name } of entries) archive.file(from, { name });
     archive.finalize(); // event-driven — do not await
   } catch (err) {
     if (!res.headersSent) sendError(res, err);
@@ -117,8 +126,10 @@ router.get('/:album', async (req, res) => {
     // titles edited in the admin and counters are added below.
     const ovs = await overrides.loadOverrides([req.params.album])
       .catch((err) => { console.error('Failed to load photo overrides:', err.message); return new Map(); });
-    const photos = ((await library.getAlbumPhotos(req.params.album)) ?? [])
+    const edited = ((await library.getAlbumPhotos(req.params.album)) ?? [])
       .map((p) => overrides.applyOverride(p, ovs.get(`${req.params.album}/${p.filename}`)));
+    // position rounded or removed when the album asks for it (F10)
+    const photos = await gpsPrivacy.protectAll(req.params.album, edited, user);
 
     if (database.dbReady) {
       try {

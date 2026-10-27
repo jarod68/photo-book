@@ -4,6 +4,7 @@ const express  = require('express');
 const path     = require('path');
 const library  = require('../services/library');
 const overrides = require('../services/overrides');
+const gpsPrivacy = require('../services/gps-privacy');
 const { resolveUser, filterVisibleAlbums }  = require('../services/access');
 
 const { sendError } = require('../services/http-errors');
@@ -22,8 +23,8 @@ router.get('/', async (req, res) => {
       .catch((err) => { console.error('Failed to load photo overrides:', err.message); return new Map(); });
 
     const buckets = await Promise.all(filtered.map(async ({ name: album }) => {
-      const photos = ((await library.getAlbumPhotos(album)) ?? [])
-        .map((p) => overrides.applyOverride(p, ovs.get(`${album}/${p.filename}`)));
+      const photos = await gpsPrivacy.protectAll(album, ((await library.getAlbumPhotos(album)) ?? [])
+        .map((p) => overrides.applyOverride(p, ovs.get(`${album}/${p.filename}`))), user);
       return photos
         .map((p, albumIndex) => ({ p, albumIndex }))
         .filter(({ p }) => p.gps)

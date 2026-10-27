@@ -43,7 +43,12 @@ const DERIVATIVES = {
   // full-size JPEG for formats browsers cannot display (HEIC/HEIF, TIFF)
   display: { dir: () => MEDIUM_DIR,   suffix: '.full.jpg',  width: () => 6000,                         quality: 90, route: 'medium', only: (f) => NEEDS_DISPLAY.has(ext(f)) },
 };
-const kindsFor = (filename) => Object.keys(DERIVATIVES).filter((k) => !DERIVATIVES[k].only || DERIVATIVES[k].only(filename));
+// The derivatives made ahead of time for a file. `anyDisplay`: also the
+// full-size display JPEG, which albums with a hidden or approximate GPS
+// position get on demand for every image (services/gps-privacy.js) — kept by
+// the cleanup and deleted with the photo.
+const kindsFor = (filename, { anyDisplay = false } = {}) => Object.keys(DERIVATIVES)
+  .filter((k) => !DERIVATIVES[k].only || DERIVATIVES[k].only(filename) || (anyDisplay && k === 'display' && isImage(filename)));
 
 // HEIC/HEIF (HEVC) is not decodable by the prebuilt sharp: heic-decode
 // (libheif in WebAssembly) produces raw RGBA that sharp then resizes. A 12 MP
@@ -340,7 +345,7 @@ async function pruneDerivatives(_deps = {}) {
   for (const e of await _fsp.readdir(PHOTOS_DIR, { withFileTypes: true }).catch(() => [])) {
     if (!isAlbumDir(e)) continue;
     const files = (await _fsp.readdir(path.join(PHOTOS_DIR, e.name)).catch(() => [])).filter(isImage);
-    albums.set(e.name, new Set(files.flatMap((f) => kindsFor(f).map((k) => derivName(k, f)))));
+    albums.set(e.name, new Set(files.flatMap((f) => kindsFor(f, { anyDisplay: true }).map((k) => derivName(k, f)))));
   }
   let removed = 0;
   for (const root of new Set(Object.values(DERIVATIVES).map((d) => d.dir()))) {
@@ -380,7 +385,7 @@ async function deletePhotoFiles(album, filename, database, _deps = {}) {
   const filePath  = path.resolve(path.join(albumPath, filename));
   await _fsPromises.unlink(filePath);
 
-  for (const kind of kindsFor(filename)) {
+  for (const kind of kindsFor(filename, { anyDisplay: true })) {
     const p = path.join(DERIVATIVES[kind].dir(), album, derivName(kind, filename));
     await _fsPromises.unlink(p).catch(() => {});
   }

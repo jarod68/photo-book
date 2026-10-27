@@ -67,6 +67,7 @@ const mockQuery = vi.fn();
 beforeEach(() => {
   database._reset();
   mockQuery.mockReset();
+  _require('../../../services/gps-privacy.js')._reset();   // its settings cache
 });
 
 // ── POST /api/auth/login ──────────────────────────────────────────────────────
@@ -1019,7 +1020,7 @@ describe('GET /api/admin/albums/:album/settings', () => {
     // database._reset() in beforeEach → dbReady = false
     const res = await request(app).get('/api/admin/albums/Paris/settings');
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({ visibility: 'public', users: [], notifyNew: true });
+    expect(res.body).toEqual({ visibility: 'public', users: [], notifyNew: true, gpsPrivacy: 'exact' });
   });
 
   it('retourne visibility public et users vides si aucune entrée en DB', async () => {
@@ -1473,5 +1474,37 @@ describe('abonnés push et notification manuelle (admin)', () => {
     vi.spyOn(pushMod, 'sendToAlbum').mockRejectedValue(new Error('push down'));
     vi.spyOn(console, 'error').mockImplementation(() => {});
     expect((await request(app).post('/api/admin/albums/Paris/notify').send({ body: 'x' })).status).toBe(500);
+  });
+});
+
+describe('PUT /api/admin/albums/:album/settings — position GPS (F10)', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it('refuse un mode inconnu', async () => {
+    database._setState({ query: mockQuery }, true);
+    const res = await request(app).put('/api/admin/albums/Paris/settings').send({ visibility: 'public', gpsPrivacy: 'blurred' });
+    expect(res.status).toBe(400);
+    expect(mockQuery).not.toHaveBeenCalled();
+  });
+
+  it('enregistre le mode et l\'applique tout de suite', async () => {
+    const gpsMod = _require('../../../services/gps-privacy.js');
+    const invalidate = vi.spyOn(gpsMod, 'invalidate');
+    mockQuery.mockResolvedValue({ rows: [] });
+    database._setState({ query: mockQuery }, true);
+    const res = await request(app).put('/api/admin/albums/Paris/settings').send({ visibility: 'public', gpsPrivacy: 'approx' });
+    expect(res.status).toBe(200);
+    const [sql, params] = mockQuery.mock.calls[0];
+    expect(sql).toMatch(/gps_privacy = \$4/);
+    expect(params).toEqual(['Paris', 'public', true, 'approx']);
+    expect(invalidate).toHaveBeenCalled();
+  });
+
+  it('GET renvoie le mode enregistré', async () => {
+    mockQuery
+      .mockResolvedValueOnce({ rows: [{ visibility: 'public', notify_new: true, gps_privacy: 'hidden' }] })
+      .mockResolvedValueOnce({ rows: [] });
+    database._setState({ query: mockQuery }, true);
+    expect((await request(app).get('/api/admin/albums/Paris/settings')).body.gpsPrivacy).toBe('hidden');
   });
 });
