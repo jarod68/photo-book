@@ -552,6 +552,8 @@ scripts/e2e-server.sh stop
 
 `npm run test:robot` and `npm run test:visual` do the same in one command (start, run, stop).
 
+The visual suite covers the home page, login, viewer, map, sharing, admin, and the screens added in October 2026 (`features.spec.js`: album card, sort menu, photo editor, upload report, search, chronological strip, edited photo info, slideshow) on an album prepared by `global.setup.js`.
+
 **Visual baselines** are made in the same image as CI, never on a laptop (macOS renders fonts differently). After an intended UI change, run **Actions → Update visual baselines** on the branch — or put `[update-baselines]` in a commit message there — and review the images it commits; the next push checks against them.
 
 ## Tests unitaires

@@ -51,7 +51,8 @@ start() {
 
   echo "[e2e] Starting the app on $BASE_URL (log: $E2E_DIR/server.log)…"
   # exec: the recorded PID is node's own, so `stop` stops the server
-  (cd dist && NODE_ENV=test PLACES_BACKGROUND=off \
+  # TZ=UTC: capture dates (camera-local times) read the same on every machine
+  (cd dist && NODE_ENV=test PLACES_BACKGROUND=off TZ=UTC \
      PHOTOS_DIR="$E2E_DIR/photos" PREVIEWS_DIR="$E2E_DIR/previews" MEDIUM_DIR="$E2E_DIR/medium" \
      exec node server.js > "$E2E_DIR/server.log" 2>&1) &
   echo $! > "$E2E_DIR/server.pid"

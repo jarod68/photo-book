@@ -8,6 +8,7 @@ const BASE_URL      = process.env.BASE_URL ?? 'http://localhost:3000';
 const AUTH_FILE     = path.join(__dirname, '.auth/admin.json');
 const PUBLIC_ALBUM  = 'visual-regression';
 const PRIVATE_ALBUM = 'visual-regression-private';
+const FEATURES      = 'visual-features';
 
 async function globalTeardown() {
   if (!fs.existsSync(AUTH_FILE)) return;
@@ -17,6 +18,7 @@ async function globalTeardown() {
 
   await context.request.delete(`${BASE_URL}/api/admin/albums/${PUBLIC_ALBUM}`).catch(() => {});
   await context.request.delete(`${BASE_URL}/api/admin/albums/${PRIVATE_ALBUM}`).catch(() => {});
+  await context.request.delete(`${BASE_URL}/api/admin/albums/${FEATURES}`).catch(() => {});
 
   await browser.close();
 }

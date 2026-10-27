@@ -16,7 +16,14 @@ const dateFmt = new Intl.DateTimeFormat(LOCALES[getLang()] ?? getLang(), { day: 
 
 // Filters live in the URL, so a search can be bookmarked or shared.
 const params = new URLSearchParams(location.search);
-for (const [k, el] of fields) if (params.get(k)) el.value = params.get(k);
+for (const [k, el] of fields) {
+  const v = params.get(k);
+  if (!v) continue;
+  // the camera / album lists are filled by the first answer: keep the URL's
+  // choice as an option meanwhile, or the first search would ignore it
+  if (el.tagName === 'SELECT') el.appendChild(Object.assign(document.createElement('option'), { value: v, textContent: v }));
+  el.value = v;
+}
 
 let facetsLoaded = false;
 let seq = 0;
@@ -24,12 +31,12 @@ let seq = 0;
 function fillSelect(select, values) {
   const keep = select.value;
   for (const v of values) {
-    const o = document.createElement('option');
-    o.value = o.textContent = v.name ?? v;
-    if (v.count != null) o.textContent = `${v.name} (${v.count})`;
-    select.appendChild(o);
+    const name = v.name ?? v;
+    const o = [...select.options].find(x => x.value === name) ?? select.appendChild(document.createElement('option'));
+    o.value = name;
+    o.textContent = v.count != null ? `${name} (${v.count})` : name;
   }
-  select.value = keep;   // option from the URL, once it exists
+  select.value = keep;
 }
 
 async function run() {

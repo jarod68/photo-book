@@ -13,6 +13,8 @@ const BASE_URL      = process.env.BASE_URL    ?? 'http://localhost:3000';
 const ADMIN_PASS    = process.env.ADMIN_PASS  ?? '';
 const PUBLIC_ALBUM  = 'visual-regression';
 const PRIVATE_ALBUM = 'visual-regression-private';
+const FEATURES      = 'visual-features';   // edited titles, cover, description, dates (features.spec.js)
+const FIXTURES      = path.join(__dirname, '../integration_tests/fixtures');
 const AUTH_FILE     = path.join(__dirname, '.auth/admin.json');
 const FIXTURE       = path.join(__dirname, '../integration_tests/fixtures/test-photo-1.png');
 
@@ -23,6 +25,20 @@ async function createAlbum(api, name) {
     headers: { 'Content-Type': 'application/json' },
   });
   if (!res.ok()) throw new Error(`Failed to create album ${name}: ${await res.text()}`);
+}
+
+async function uploadFixture(api, album, name) {
+  const res = await api.post(`${BASE_URL}/api/admin/albums/${album}/photos`, {
+    multipart: { photos: {
+      name, mimeType: name.endsWith('.png') ? 'image/png' : 'image/tiff', buffer: fs.readFileSync(path.join(FIXTURES, name)),
+    } },
+  });
+  if (!res.ok()) throw new Error(`Failed to upload to ${album}: ${await res.text()}`);
+}
+
+async function putJson(api, url, data) {
+  const res = await api.put(`${BASE_URL}${url}`, { data, headers: { 'Content-Type': 'application/json' } });
+  if (!res.ok()) throw new Error(`PUT ${url} failed: ${await res.text()}`);
 }
 
 async function uploadPhoto(api, album) {
@@ -75,6 +91,14 @@ async function globalSetup() {
     },
   );
   if (!settings.ok()) throw new Error(`Failed to set restricted visibility: ${await settings.text()}`);
+
+  // ── Album for the 2026-10 features ────────────────────────────────────────
+  await createAlbum(api, FEATURES);
+  for (const name of ['gps-a.tiff', 'gps-b.tiff', 'gps-c.tiff', 'test-photo-2.png']) await uploadFixture(api, FEATURES, name);
+  await putJson(api, `/api/admin/albums/${FEATURES}/photos/gps-b.tiff/meta`,
+    { title: 'Vieux-Port', description: 'Le matin, depuis le quai', location: 'Montréal, Canada' });
+  await putJson(api, `/api/admin/albums/${FEATURES}/details`,
+    { cover: 'test-photo-2.png', description: 'Trois jours à Montréal' });
 
   await browser.close();
 }
