@@ -128,6 +128,10 @@ Derivatives persist across restarts on their own volumes (`PREVIEWS_DIR`, `MEDIU
 - Original files are served with `?v=<mtime>` too, so a file replaced under the same name is reloaded.
 - Uploads accept up to 200 MB per file.
 
+### Uploads never overwrite
+
+An uploaded file never replaces one already in the album. A name already taken — on disk, or earlier in the same batch — gets a suffix (`IMG_1.jpg` → `IMG_1 (2).jpg`); a file byte-for-byte identical to the one already there is dropped as a duplicate, so sending the same batch twice adds nothing. Files of unsupported types are refused. The upload answers `{ count, files, renamed, duplicates, skipped }` and the admin dialog lists anything renamed, dropped or refused. File names are read as UTF-8 (`défilé.jpg` keeps its accents).
+
 ### Titles, captions and places
 
 A photo's title, caption and place come from its file (XMP / IPTC / EXIF; the title falls back to the file name). Admins can change them without touching the file: **Admin → Albums → photos button** lists every photo of the album with the file's values as placeholders. A saved value is stored in `photo_overrides` and shown everywhere (viewer, map popups); clearing a field reverts to the file's value. Overrides follow album renames and are deleted with their photo or album.

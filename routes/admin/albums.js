@@ -15,6 +15,7 @@ const library   = require('../../services/library');
 const overrides = require('../../services/overrides');
 const cleanup   = require('../../services/cleanup');
 const albumInfo = require('../../services/album-info');
+const uploads   = require('../../services/uploads');
 
 const router = express.Router();
 
@@ -212,19 +213,43 @@ router.post('/:album/photos', requireAdmin, async (req, res) => {
     return res.status(400).json({ error: 'Invalid album' });
   }
 
+  // Never overwrite (F7): a taken name gets a " (2)" suffix, see services/uploads.js.
+  const reserved = new Set();
+  const skipped  = [];
   multer({
     storage: multer.diskStorage({
       destination: (_req, _file, cb) => cb(null, albumPath),
-      // basename strips any client-supplied path components (e.g. "../../x.jpg")
-      filename:    (_req, file,  cb) => cb(null, path.basename(file.originalname)),
+      filename: (_req, file, cb) => {
+        // basename strips any client-supplied path components (e.g. "../../x.jpg")
+        file.wanted = path.basename(file.originalname);
+        try {
+          const name = uploads.uniqueName(albumPath, file.wanted, reserved);
+          reserved.add(name.toLowerCase());
+          cb(null, name);
+        } catch (e) { cb(e); }
+      },
     }),
-    fileFilter: (_req, file, cb) => cb(null, isMedia(file.originalname)),
+    fileFilter: (_req, file, cb) => {
+      const ok = isMedia(file.originalname);
+      if (!ok) skipped.push(path.basename(file.originalname));
+      cb(null, ok);
+    },
     limits: { fileSize: 200 * 1024 * 1024 },
-  }).array('photos', 500)(req, res, err => {
-    if (err) return res.status(400).json({ error: err.message });
+    defParamCharset: 'utf8',   // browsers send UTF-8 file names ("défilé.jpg")
+  }).array('photos', 500)(req, res, async err => {
+    if (err) return res.status(400).json({ error: err.message });   // multer removes the batch's files
+    const renamed = [], duplicates = [], uploadedFiles = [];
+    for (const f of req.files ?? []) {
+      if (f.filename !== f.wanted && await uploads.sameContent(f.path, path.join(albumPath, f.wanted))) {
+        await fs.promises.unlink(f.path).catch(() => {});
+        duplicates.push(f.wanted);
+        continue;
+      }
+      if (f.filename !== f.wanted) renamed.push({ from: f.wanted, to: f.filename });
+      uploadedFiles.push(f.filename);
+    }
     preGenerateAll().catch(console.error);
-    const uploadedFiles = req.files?.map(f => f.originalname) ?? [];
-    res.json({ ok: true, count: uploadedFiles.length });
+    res.json({ ok: true, count: uploadedFiles.length, files: uploadedFiles, renamed, duplicates, skipped });
     activity.log('photo_upload', { username: req.user?.username ?? null, ip: req.ip, details: { album: req.params.album, count: uploadedFiles.length, filenames: uploadedFiles } });
     if (uploadedFiles.length > 0) {
       push.sendToAlbum(req.params.album, {

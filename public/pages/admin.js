@@ -282,6 +282,7 @@ function openUploadModal(album) {
   document.getElementById('upload-album-name').textContent = album;
   fileListEl.innerHTML = '';
   fileCountEl.textContent = '';
+  document.getElementById('upload-report').hidden = true;
   progressWrap.hidden = true;
   progressFill.style.width = '0%';
   startBtn.disabled = true;
@@ -336,7 +337,7 @@ startBtn.addEventListener('click', async () => {
   for (const f of pendingFiles) formData.append('photos', f);
 
   try {
-    await new Promise((resolve, reject) => {
+    const result = await new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
       xhr.upload.onprogress = e => {
         if (!e.lengthComputable) return;
@@ -357,12 +358,27 @@ startBtn.addEventListener('click', async () => {
     progressText.textContent = '100%';
     pendingFiles = [];
     await loadAlbums();
-    closeUploadModal();
+    // Nothing overwritten (F7): say what was renamed, dropped or refused.
+    if (!showUploadReport(result)) closeUploadModal();
   } catch (err) {
     progressText.textContent = `Error: ${err.message}`;
     startBtn.disabled = false;
   }
 });
+
+// Returns true when there is something to report (the modal then stays open).
+function showUploadReport({ count = 0, renamed = [], duplicates = [], skipped = [] }) {
+  const reportEl = document.getElementById('upload-report');
+  if (!renamed.length && !duplicates.length && !skipped.length) { reportEl.hidden = true; return false; }
+  const list = (items) => `<ul>${items.map(i => `<li>${i}</li>`).join('')}</ul>`;
+  reportEl.innerHTML = `<p>${t('admin.uploadDone', { n: count })}</p>`
+    + (renamed.length    ? `<p>${t('admin.uploadRenamed')}</p>${list(renamed.map(r => `${esc(r.from)} → <strong>${esc(r.to)}</strong>`))}` : '')
+    + (duplicates.length ? `<p>${t('admin.uploadDuplicates')}</p>${list(duplicates.map(esc))}` : '')
+    + (skipped.length    ? `<p>${t('admin.uploadSkipped')}</p>${list(skipped.map(esc))}` : '');
+  reportEl.hidden = false;
+  renderFileList();
+  return true;
+}
 
 // Close
 document.getElementById('upload-close-btn').addEventListener('click', closeUploadModal);
