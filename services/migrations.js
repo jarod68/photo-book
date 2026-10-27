@@ -152,6 +152,20 @@ const MIGRATIONS = [
       await q('ALTER TABLE album_settings ADD COLUMN description TEXT');
     },
   },
+  {
+    version: 4,
+    name: 'reverse-geocoding cache',
+    async up(q) {
+      // key: "lat,lng" rounded to 3 decimals (~100 m); location NULL = nothing found
+      await q(`
+        CREATE TABLE place_cache (
+          key        VARCHAR(32) PRIMARY KEY,
+          location   TEXT,
+          fetched_at TIMESTAMPTZ NOT NULL DEFAULT now()
+        )
+      `);
+    },
+  },
 ];
 
 const LOCK_KEY = 726571;   // arbitrary, constant: pg_advisory_xact_lock key

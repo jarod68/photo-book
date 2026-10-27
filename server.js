@@ -13,6 +13,7 @@ const push     = require('./services/push');
 const maintenance = require('./services/maintenance');
 const cleanup     = require('./services/cleanup');
 const library  = require('./services/library');
+const places   = require('./services/places');
 
 // Route modules
 const authRouter         = require('./routes/auth');
@@ -20,6 +21,7 @@ const albumsRouter       = require('./routes/albums');
 const interactionsRouter = require('./routes/interactions');
 const geocodeRouter      = require('./routes/geocode');
 const mapRouter          = require('./routes/map');
+const searchRouter       = require('./routes/search');
 const shareRouter        = require('./routes/share');
 const pushRouter         = require('./routes/push');
 const adminStatsRouter   = require('./routes/admin/stats');
@@ -211,6 +213,7 @@ app.use('/api/albums',  albumsRouter);
 app.use('/api',         interactionsRouter);
 app.use('/api/geocode', geocodeRouter);
 app.use('/api/map',     mapRouter);
+app.use('/api/search',  searchRouter);
 app.use('/api/share',   shareRouter);
 app.use('/api/push',    pushRouter);
 
@@ -243,7 +246,10 @@ function watchPhotosDir() {
     clearTimeout(debounceTimer);
     debounceTimer = setTimeout(() => {
       console.log('  ↻ New photos detected — generating thumbnails…');
-      preGenerateAll().catch(console.error);
+      preGenerateAll()
+        .then(() => (process.env.PLACES_BACKGROUND !== 'off'
+          ? library.allPhotos().then((photos) => places.fillMissing(photos)) : null))
+        .catch(console.error);
     }, 2_000);
   };
 
@@ -299,13 +305,20 @@ if (require.main === module) {
     console.log(`  ➜  http://localhost:${PORT}`);
     console.log(`  Photos:   ${PHOTOS_DIR}`);
     console.log(`  Previews: ${PREVIEWS_DIR}\n`);
-    database.connectDb()
+    const dbStarted = database.connectDb()
       .then(() => auth.ensureAdmin())
       .then(() => maintenance.startMaintenance())
       .then(() => database.syncPhotosToDb())
       .then(() => push.initVapid(database.db))
       .catch(console.error);
-    preGenerateAll().then(() => library.warmAll()).catch(console.error);
+    const indexed = preGenerateAll().then(() => library.warmAll()).catch(console.error);
+    // Places for GPS photos, for search (1 request/s; PLACES_BACKGROUND=off disables)
+    if (process.env.PLACES_BACKGROUND !== 'off') {
+      Promise.all([dbStarted, indexed])
+        .then(() => library.allPhotos())
+        .then((photos) => places.fillMissing(photos))
+        .catch(console.error);
+    }
     watchPhotosDir();
   });
 

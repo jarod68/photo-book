@@ -20,7 +20,7 @@ async function main() {
     // Frontend pages: bundle all imports into one file per page, minify
     esbuild.build({
       ...shared,
-      entryPoints: ['admin', 'home', 'login', 'map', 'viewer'].map(p => `public/pages/${p}.js`),
+      entryPoints: ['admin', 'home', 'login', 'map', 'search', 'viewer'].map(p => `public/pages/${p}.js`),
       bundle:  true,
       minify:  true,
       format:  'esm',
@@ -61,7 +61,7 @@ async function main() {
   ]);
 
   // HTML files are not processed by esbuild — copy as-is
-  for (const f of ['index.html', 'admin.html', 'login.html', 'map.html', 'viewer.html', 'globe.html']) {
+  for (const f of ['index.html', 'admin.html', 'login.html', 'map.html', 'search.html', 'viewer.html', 'globe.html']) {
     copyFile(path.join(ROOT, 'public', f), path.join(DIST, 'public', f));
   }
 

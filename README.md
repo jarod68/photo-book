@@ -139,6 +139,12 @@ A photo's title, caption and place come from its file (XMP / IPTC / EXIF; the ti
 
 Both choices are remembered in the browser (`localStorage`). Capture dates are the camera's local time, so days are counted as the camera saw them.
 
+### Search
+
+The **Search** page (button on the home page, `search.html`) finds photos across every album the visitor may see: free text — accents and case ignored, every word required — over the title, caption, place, album, file name and camera, plus filters on capture dates (inclusive), camera and album. Results are the most recent first (200 at most), each opening the photo in the viewer; the filters are kept in the URL, so a search can be bookmarked. `GET /api/search?q=&from=YYYY-MM-DD&to=YYYY-MM-DD&camera=&album=` returns `{ total, results, facets }` and reads no file: it works on the cached photo index.
+
+Place names come from IPTC, from the admin edits, or from **reverse geocoding** of the GPS position (Nominatim, OpenStreetMap). Lookups follow Nominatim's usage policy — one request per second at most, an identifying User-Agent, results cached — and are stored in `place_cache` (migration 4, one row per ~100 m cell), so each place is fetched once. After startup, and after new photos are detected, the server resolves in the background every GPS photo that has no place yet; set `PLACES_BACKGROUND=off` to disable that (the viewer still looks places up on demand). A failed lookup is retried after a day.
+
 ### Slideshow and fullscreen
 
 The viewer's top bar has a **slideshow** button (or `Space`): a new photo every 5 s, looping through the album, with the interface hidden (a tap shows it again). A playing video is watched to the end before moving on, the next photo is preloaded, choosing a photo by hand restarts the 5 s, and the show pauses while the tab is hidden. `Esc` or `Space` stops it. The **fullscreen** button (or `F`) uses the Fullscreen API; it is hidden where the API is missing (iPhone Safari).
@@ -236,6 +242,7 @@ Content varies depending on the authenticated user. Anonymous visitors and basic
 | `GET /api/albums/:album` (public) | ✓ | ✓ | ✓ |
 | `GET /api/albums/:album` (restricted) | `401` | ✓ if authorized | ✓ |
 | `GET /api/map` | public albums | + authorized restricted | all |
+| `GET /api/search` | public albums | + authorized restricted | all |
 
 `canDelete` (returned by `/api/albums` and `/api/albums/:album`) is `true` for admins and for basic users authorized on that album. It controls whether the delete button appears in the viewer.
 

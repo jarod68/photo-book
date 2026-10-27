@@ -69,6 +69,13 @@ async function warmAll() {
   for (const album of await listAlbums()) await getAlbumPhotos(album).catch(() => null);
 }
 
+// Every photo of every album (from the cache once warm).
+async function allPhotos() {
+  const out = [];
+  for (const album of await listAlbums()) out.push(...((await getAlbumPhotos(album).catch(() => null)) ?? []));
+  return out;
+}
+
 function invalidate(album, file) {
   if (file) { cache.delete(key(album, file)); return; }
   for (const k of cache.keys()) if (k.startsWith(`${album}/`)) cache.delete(k);
@@ -77,4 +84,4 @@ function invalidate(album, file) {
 function clear() { cache.clear(); }
 const size = () => cache.size;
 
-module.exports = { listAlbums, listPhotos, getPhoto, getAlbumPhotos, warmAll, invalidate, clear, size, albumPath };
+module.exports = { listAlbums, listPhotos, getPhoto, getAlbumPhotos, warmAll, allPhotos, invalidate, clear, size, albumPath };

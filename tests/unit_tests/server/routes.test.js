@@ -93,7 +93,9 @@ describe('albumAccessGuard (via /previews)', () => {
 
 describe('GET /api/geocode', () => {
   beforeEach(() => {
+    _require('../../../services/places.js')._reset();
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
       json: () => Promise.resolve({ address: { city: 'Paris', country: 'France' } }),
     }));
   });
@@ -132,6 +134,7 @@ describe('GET /api/geocode', () => {
 
   it('utilise le cache pour des coordonnées déjà demandées', async () => {
     const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
       json: () => Promise.resolve({ address: { city: 'Lyon', country: 'France' } }),
     });
     vi.stubGlobal('fetch', fetchMock);
@@ -711,5 +714,37 @@ describe('GET /version.json', () => {
     process.env.APP_ENV = 'qa';
     const res = await request(app).get('/version.json');
     expect(res.body.env).toBe('qa');
+  });
+});
+
+// ── /api/search (F6) ──────────────────────────────────────────────────────────
+
+describe('GET /api/search', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it('cherche dans les albums visibles, avec titres modifiés et lieux du cache', async () => {
+    vi.spyOn(libraryMod, 'listAlbums').mockResolvedValue(['Porto', 'Secret']);
+    vi.spyOn(libraryMod, 'getAlbumPhotos').mockImplementation(async (album) => [
+      { filename: `${album}.jpg`, type: 'photo', name: album, description: '', location: null,
+        gps: { lat: 41.14, lng: -8.61 }, takenAt: '2024-06-14T21:00:00.000Z', exif: null, url: `/photos/${album}/${album}.jpg`, thumbUrl: null },
+    ]);
+    mockQuery.mockImplementation(async (sql) => {
+      if (sql.includes('FROM album_settings')) return { rows: [{ album: 'Secret', visibility: 'restricted' }] };
+      if (sql.includes('photo_overrides')) return { rows: [{ album: 'Porto', filename: 'Porto.jpg', title: 'Ribeira', description: null, location: null }] };
+      if (sql.includes('place_cache')) return { rows: [{ location: 'Porto, Portugal' }] };
+      return { rows: [] };
+    });
+    database._setState({ query: mockQuery }, true);
+
+    const res = await request(app).get('/api/search?q=ribeira%20portugal');
+    expect(res.status).toBe(200);
+    expect(res.body.total).toBe(1);
+    expect(res.body.results[0]).toMatchObject({ album: 'Porto', name: 'Ribeira', location: 'Porto, Portugal' });
+    expect(res.body.facets.albums).toEqual(['Porto']);   // the restricted album is not searched
+  });
+
+  it('400 sur une date invalide', async () => {
+    const res = await request(app).get('/api/search?from=hier');
+    expect(res.status).toBe(400);
   });
 });
