@@ -39,10 +39,12 @@ GET System Returns Node Version And Uptime
     Should Match Regexp    ${data}[node]    ^v\\d+
     Should Be True    ${data}[uptime] >= 0
 
-GET System Returns Containers Array
+GET System Returns Build Database And Errors
     ${data}=    Evaluate JavaScript    ${NONE}
     ...    () => fetch('/api/admin/system').then(r => r.json())
-    Should Be True    isinstance(${data}[containers], list)
+    Should Be True    isinstance(${data}[build][sha], str)
+    Should Be True    ${data}[database][ready]
+    Should Be True    isinstance(${data}[errors], list)
 
 GET System Returns 401 For Anonymous
     ${s}=    Evaluate JavaScript    ${NONE}

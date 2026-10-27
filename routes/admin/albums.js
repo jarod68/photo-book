@@ -17,6 +17,8 @@ const cleanup   = require('../../services/cleanup');
 const albumInfo = require('../../services/album-info');
 const uploads   = require('../../services/uploads');
 
+const { BadRequest, sendError } = require('../../services/http-errors');
+
 const router = express.Router();
 
 // Must start alphanumeric (matches isAlbumDir); excludes path separators and
@@ -27,7 +29,7 @@ const ALBUM_NAME_RE = /^[A-Za-z0-9][^/\\<>&"'`\x00-\x1f]*$/;
 function safeAlbumPath(name) {
   const full = path.resolve(path.join(PHOTOS_DIR, name));
   const base = PHOTOS_DIR + path.sep;
-  if (!full.startsWith(base) && full !== PHOTOS_DIR) throw new Error('Invalid album');
+  if (!full.startsWith(base) && full !== PHOTOS_DIR) throw new BadRequest('Invalid album');
   return full;
 }
 
@@ -49,8 +51,7 @@ router.post('/', requireAdmin, express.json(), async (req, res) => {
     res.status(201).json({ ok: true });
     activity.log('album_create', { username: req.user?.username ?? null, ip: req.ip, details: { album: name } });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Internal server error' });
+    sendError(res, err);
   }
 });
 
@@ -89,8 +90,7 @@ router.patch('/:album', requireAdmin, express.json(), async (req, res) => {
     res.json({ ok: true });
     activity.log('album_rename', { username: req.user?.username ?? null, ip: req.ip, details: { from: oldName, to: newName } });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Internal server error' });
+    sendError(res, err);
   }
 });
 
@@ -110,8 +110,7 @@ router.delete('/:album', requireAdmin, async (req, res) => {
     res.json({ ok: true });
     activity.log('album_delete', { username: req.user?.username ?? null, ip: req.ip, details: { album: req.params.album } });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Internal server error' });
+    sendError(res, err);
   }
 });
 
@@ -129,8 +128,7 @@ router.delete('/:album/photos/:filename', requireAdmin, async (req, res) => {
     res.json({ ok: true });
     activity.log('photo_delete', { username: req.user?.username ?? null, ip: req.ip, details: { album, filename } });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Internal server error' });
+    sendError(res, err);
   }
 });
 
@@ -148,8 +146,7 @@ router.get('/:album/photos', requireAdmin, async (req, res) => {
       photos: photos.map((p) => overrides.applyOverride(p, ovs.get(`${req.params.album}/${p.filename}`), { withOriginal: true })),
     });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Internal server error' });
+    sendError(res, err);
   }
 });
 
@@ -171,8 +168,7 @@ router.put('/:album/photos/:filename/meta', requireAdmin, express.json(), async 
     res.json({ ok: true, override: values });
     activity.log('photo_edit', { username: req.user?.username ?? null, ip: req.ip, details: { album, filename } });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Internal server error' });
+    sendError(res, err);
   }
 });
 
@@ -197,8 +193,7 @@ router.put('/:album/details', requireAdmin, express.json(), async (req, res) => 
     await albumInfo.saveAlbumInfo(album, { cover, description: desc });
     res.json({ ok: true, cover, description: desc });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Internal server error' });
+    sendError(res, err);
   }
 });
 
@@ -278,8 +273,7 @@ router.get('/:album/settings', requireAdmin, async (req, res) => {
       users: userRows,
     });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Internal server error' });
+    sendError(res, err);
   }
 });
 
@@ -311,8 +305,7 @@ router.put('/:album/settings', requireAdmin, express.json(), async (req, res) =>
     }
     res.json({ ok: true });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Internal server error' });
+    sendError(res, err);
   }
 });
 
@@ -334,8 +327,7 @@ router.post('/:album/share', requireAdmin, express.json(), async (req, res) => {
     );
     res.status(201).json({ id: rows[0].id, token: rows[0].token, expires_at: rows[0].expires_at });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Internal server error' });
+    sendError(res, err);
   }
 });
 
@@ -350,8 +342,7 @@ router.get('/:album/share', requireAdmin, async (req, res) => {
     );
     res.json({ tokens: rows });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Internal server error' });
+    sendError(res, err);
   }
 });
 
@@ -367,8 +358,7 @@ router.delete('/:album/share/:id', requireAdmin, async (req, res) => {
     );
     res.json({ ok: true });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Internal server error' });
+    sendError(res, err);
   }
 });
 
@@ -395,8 +385,7 @@ router.get('/:album/subscribers', requireAdmin, async (req, res) => {
       })),
     });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Internal server error' });
+    sendError(res, err);
   }
 });
 
@@ -412,8 +401,7 @@ router.delete('/:album/subscribers/:id', requireAdmin, async (req, res) => {
     );
     res.json({ ok: true });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Internal server error' });
+    sendError(res, err);
   }
 });
 
@@ -425,8 +413,7 @@ router.post('/:album/notify', requireAdmin, express.json(), async (req, res) => 
     const sent = await push.sendToAlbum(req.params.album, { title: title ?? '', body: body ?? '' });
     res.json({ ok: true, sent });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Internal server error' });
+    sendError(res, err);
   }
 });
 

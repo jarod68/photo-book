@@ -46,7 +46,7 @@ const {
 const _require      = createRequire(import.meta.url);
 const database      = _require('../../../services/database.js');
 const authMod       = _require('../../../services/auth.js');
-const dockerInfoMod = _require('../../../services/docker-info.js');
+const errorLogMod   = _require('../../../services/error-log.js');
 const fsMod         = _require('fs');
 
 authMod._setBypass(true);
@@ -261,23 +261,31 @@ describe('GET /api/admin/stats', () => {
 describe('GET /api/admin/system', () => {
   afterEach(() => vi.restoreAllMocks());
 
-  it('retourne node, uptime et containers', async () => {
-    vi.spyOn(dockerInfoMod, 'getContainers').mockResolvedValue([
-      { id: 'abc123', name: 'photo-book', image: 'myimage', status: 'Up', state: 'running', tags: [], digest: null },
-    ]);
+  it('retourne build, disque, base, erreurs récentes (F8)', async () => {
+    errorLogMod._reset();
+    errorLogMod.record(['Geocode error:', 'timeout']);
     const res = await request(app).get('/api/admin/system');
     expect(res.status).toBe(200);
+    expect(res.headers['cache-control']).toBe('no-store');
     expect(res.body.node).toBe(process.version);
     expect(typeof res.body.uptime).toBe('number');
-    expect(res.body.containers).toHaveLength(1);
-    expect(res.body.containers[0].name).toBe('photo-book');
+    expect(res.body.build).toMatchObject({ env: expect.any(String), node: process.version, sha: expect.any(String) });
+    expect(res.body.database).toEqual({ ready: false });
+    expect(res.body.disk.photos).toMatchObject({ files: expect.any(Number), bytes: expect.any(Number) });
+    expect(res.body.errors[0].message).toBe('Geocode error: timeout');
   });
 
-  it('retourne containers vide si Docker indisponible', async () => {
-    vi.spyOn(dockerInfoMod, 'getContainers').mockRejectedValue(new Error('socket unavailable'));
+  it('lit l\'état de la base : version, taille, migrations, compteurs', async () => {
+    mockQuery.mockImplementation(async (sql) => {
+      if (sql.startsWith('SHOW server_version')) return { rows: [{ server_version: '17.6' }] };
+      if (sql.includes('pg_database_size')) return { rows: [{ bytes: '8388608' }] };
+      if (sql.includes('schema_migrations')) return { rows: [{ version: 1, name: 'baseline schema', applied_at: '2026-10-26T00:00:00Z' }] };
+      return { rows: [{ n: '3' }] };
+    });
+    database._setState({ query: mockQuery }, true);
     const res = await request(app).get('/api/admin/system');
-    expect(res.status).toBe(200);
-    expect(res.body.containers).toEqual([]);
+    expect(res.body.database).toMatchObject({ ready: true, version: '17.6', bytes: 8388608, counts: { users: 3, places: 3 } });
+    expect(res.body.database.migrations).toHaveLength(1);
   });
 });
 

@@ -50,18 +50,12 @@ services:
   photo-book:
     image: ${IMAGE:-jarod68/photo-book:latest}
     restart: unless-stopped
-    # Add the host docker group (by GID) so the node user can read
-    # /var/run/docker.sock without making the socket world-accessible.
-    # DOCKER_GID is written to .env by deploy.sh; defaults to 999 (Ubuntu/Debian).
-    group_add:
-      - "${DOCKER_GID:-999}"
     expose:
       - "3000"
     volumes:
       - ${PHOTOS_DIR:-./photos}:/app/photos
       - ./public/previews:/app/public/previews
       - ./public/medium:/app/public/medium
-      - /var/run/docker.sock:/var/run/docker.sock
       - ./docker-entrypoint.sh:/usr/local/bin/docker-entrypoint.sh:ro
     environment:
       - NODE_ENV=production

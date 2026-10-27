@@ -143,6 +143,19 @@ A photo's title, caption and place come from its file (XMP / IPTC / EXIF; the ti
 
 Both choices are remembered in the browser (`localStorage`). Capture dates are the camera's local time, so days are counted as the camera saw them.
 
+### Admin System tab
+
+**Admin → System** shows what is running and how it is doing, from `GET /api/admin/system` (admin only, never cached):
+
+- **build**: the commit (`version.json`), the environment (`APP_ENV`), Node, uptime, memory;
+- **disk**: photos and videos (count, size), thumbnails/previews size, used / total space of the photo and preview volumes (the card turns yellow under 10 % free; sizes are recomputed every 5 minutes at most);
+- **database**: PostgreSQL version, size, schema version, connections in use; the list of applied migrations;
+- **usage**: users, active sessions, active share links, push subscriptions, edited photos;
+- **caches and maintenance**: photo-index entries, geocoded places, activity-log rows, last maintenance run;
+- **recent errors**: the last 50 `console.error` messages since startup (kept in memory only).
+
+It replaces the former Docker container list, which needed the host's Docker socket mounted in the container (equivalent to root on the host, and absent under Kubernetes): the socket mount and the `DOCKER_GID` setting are gone from `docker-compose.yml` and `deploy.sh`. A request with an album path leaving the photo folder now gets a `400`, no longer a logged `500`.
+
 ### Search
 
 The **Search** page (button on the home page, `search.html`) finds photos across every album the visitor may see: free text — accents and case ignored, every word required — over the title, caption, place, album, file name and camera, plus filters on capture dates (inclusive), camera and album. Results are the most recent first (200 at most), each opening the photo in the viewer; the filters are kept in the URL, so a search can be bookmarked. `GET /api/search?q=&from=YYYY-MM-DD&to=YYYY-MM-DD&camera=&album=` returns `{ total, results, facets }` and reads no file: it works on the cached photo index.

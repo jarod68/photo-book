@@ -7,6 +7,8 @@ const places    = require('../services/places');
 const search    = require('../services/search');
 const { resolveUser, filterVisibleAlbums } = require('../services/access');
 
+const { sendError } = require('../services/http-errors');
+
 const router = express.Router();
 
 // GET /api/search?q=&from=YYYY-MM-DD&to=YYYY-MM-DD&camera=&album=
@@ -32,8 +34,7 @@ router.get('/', async (req, res) => {
     }
     res.json(search.search(entries, filters));
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Internal server error' });
+    sendError(res, err);
   }
 });
 

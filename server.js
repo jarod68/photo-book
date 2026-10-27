@@ -13,6 +13,8 @@ const push     = require('./services/push');
 const maintenance = require('./services/maintenance');
 const cleanup     = require('./services/cleanup');
 const library  = require('./services/library');
+const system   = require('./services/system');
+const errorLog = require('./services/error-log');
 const places   = require('./services/places');
 
 // Route modules
@@ -105,10 +107,7 @@ app.use('/previews', albumAccessGuard(), express.static(PREVIEWS_DIR, {
 // baked into the image (public/version.json, written by the Docker build) and
 // APP_ENV ("qa" on the QA deployment; unset = production). Same image in QA and
 // prod, so the environment has to come from the server, not the file.
-const BUILD_SHA = (() => {
-  try { return JSON.parse(fs.readFileSync(path.join(__dirname, 'public', 'version.json'), 'utf8')).sha || 'dev'; }
-  catch { return 'dev'; }
-})();
+const BUILD_SHA = system.buildSha(__dirname);
 app.get('/version.json', (_req, res) => {
   res.set('Cache-Control', 'no-store').json({ sha: BUILD_SHA, env: process.env.APP_ENV || 'production' });
 });
@@ -300,6 +299,7 @@ function watchPhotosDir() {
 // ─── Start ────────────────────────────────────────────────────────────────────
 
 if (require.main === module) {
+  errorLog.install();   // recent errors, shown in the admin System tab
   const server = app.listen(PORT, () => {
     console.log(`\n  360° Photo Viewer`);
     console.log(`  ➜  http://localhost:${PORT}`);

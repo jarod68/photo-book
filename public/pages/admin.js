@@ -210,47 +210,77 @@ async function loadTopPhotos() {
 // ── System info ───────────────────────────────────────────────────────────────
 
 async function loadSystem() {
-  const meta = document.getElementById('system-meta');
-  const body = document.getElementById('system-body');
+  const meta  = document.getElementById('system-meta');
+  const cards = document.getElementById('system-cards');
   try {
-    const { node, uptime, containers } = await fetch('/api/admin/system').then(r => r.json());
+    const res = await fetch('/api/admin/system');
+    if (!res.ok) throw new Error();
+    const sys = await res.json();
+    const { build, disk, database: db, caches, maintenance, errors } = sys;
 
     meta.innerHTML = `
-      <span class="admin-meta-pill">Node ${esc(node)}</span>
-      <span class="admin-meta-pill">Uptime ${formatUptime(uptime)}</span>
-    `;
+      <span class="admin-meta-pill">build <strong class="admin-mono">${esc(build.sha.slice(0, 7))}</strong></span>
+      <span class="admin-meta-pill admin-env-${esc(build.env)}">${esc(build.env)}</span>
+      <span class="admin-meta-pill">Node ${esc(build.node)}</span>
+      <span class="admin-meta-pill">Uptime ${formatUptime(sys.uptime)}</span>
+      <span class="admin-meta-pill">RAM ${formatBytes(build.memory.rss)}</span>`;
 
-    if (!containers.length) {
-      body.innerHTML = `<tr><td colspan="4" class="admin-empty">${t('admin.noDockerSocket')}</td></tr>`;
-      return;
-    }
+    const row  = (label, value) => `<div class="sys-row"><span>${label}</span><span>${value}</span></div>`;
+    const card = (title, rows, state = '') => `<div class="sys-card ${state}"><h3>${title}</h3>${rows.join('')}</div>`;
+    const used = v => (v ? `${formatBytes(v.total - v.free)} / ${formatBytes(v.total)} · ${Math.round((1 - v.free / v.total) * 100)} %` : '—');
+    const lowSpace = v => v && v.free / v.total < 0.1;
 
-    body.innerHTML = containers.map(c => {
-      const ref    = c.tags[0] ?? c.image;
-      const digest = c.digest ? shortDigest(c.digest) : '—';
-      const stateClass = c.state === 'running' ? 'admin-state-ok' : 'admin-state-warn';
-      return `
-        <tr>
-          <td class="admin-mono">${esc(c.name)}</td>
-          <td class="admin-mono">${esc(c.image)}</td>
-          <td class="admin-mono admin-digest" title="${esc(c.digest ?? '')}">
-            <span class="admin-ref">${esc(ref)}</span>
-            <span class="admin-hash">${esc(digest)}</span>
-          </td>
-          <td><span class="admin-state ${stateClass}">${esc(c.status)}</span></td>
-        </tr>
-      `;
-    }).join('');
+    const diskRows = disk.error ? [row(t('admin.sys.error'), esc(disk.error))] : [
+      row(t('admin.sys.photos'), `${disk.photos.images} · ${t('admin.sys.videos')} ${disk.photos.videos} · ${formatBytes(disk.photos.bytes)}`),
+      row(t('admin.sys.derivatives'), formatBytes(disk.previews.bytes + disk.medium.bytes)),
+      row(t('admin.sys.photosVolume'), used(disk.photosVolume)),
+      row(t('admin.sys.derivVolume'), used(disk.derivativesVolume)),
+    ];
+    const dbRows = !db.ready ? [row(t('admin.sys.status'), `<span class="admin-state admin-state-warn">${t('admin.sys.dbDown')}</span>`)] : [
+      row(t('admin.sys.status'), `<span class="admin-state admin-state-ok">PostgreSQL ${esc((db.version ?? '').split(' ')[0])}</span>`),
+      row(t('admin.sys.size'), formatBytes(db.bytes)),
+      row(t('admin.sys.schema'), `v${db.migrations.at(-1)?.version ?? '?'}`),
+      ...(db.pool ? [row(t('admin.sys.pool'), `${db.pool.total - db.pool.idle} / ${db.pool.total}${db.pool.waiting ? ` · ${db.pool.waiting} ⏳` : ''}`)] : []),
+    ];
+    const c = db.counts ?? {};
+    const usageRows = [
+      row(t('admin.sys.users'), c.users ?? '—'),
+      row(t('admin.sys.sessions'), c.activeSessions ?? '—'),
+      row(t('admin.sys.shares'), c.activeShareLinks ?? '—'),
+      row(t('admin.sys.push'), c.pushSubscriptions ?? '—'),
+      row(t('admin.sys.edits'), c.photoEdits ?? '—'),
+    ];
+    const cacheRows = [
+      row(t('admin.sys.photoIndex'), caches.photoIndex),
+      row(t('admin.sys.places'), c.places ?? '—'),
+      row(t('admin.sys.activity'), c.activityLog ?? '—'),
+      row(t('admin.sys.maintenance'), maintenance
+        ? `${new Date(maintenance.at).toLocaleString(getLang(), { dateStyle: 'short', timeStyle: 'short' })}${maintenance.error ? ' ⚠' : ''}`
+        : '—'),
+    ];
+    cards.innerHTML =
+      card(t('admin.sys.disk'), diskRows, !disk.error && (lowSpace(disk.photosVolume) || lowSpace(disk.derivativesVolume)) ? 'sys-card--warn' : '')
+      + card(t('admin.sys.database'), dbRows, db.ready ? '' : 'sys-card--warn')
+      + card(t('admin.sys.usage'), usageRows)
+      + card(t('admin.sys.caches'), cacheRows);
+
+    const migrations = db.migrations ?? [];
+    document.getElementById('system-migrations-count').textContent = migrations.length ? `(${migrations.length})` : '';
+    document.getElementById('system-migrations').innerHTML = migrations.map(m => `
+      <tr><td class="num admin-mono">${m.version}</td><td>${esc(m.name)}</td>
+      <td class="admin-dim">${new Date(m.applied_at).toLocaleString(getLang())}</td></tr>`).join('');
+
+    document.getElementById('system-errors-count').textContent = `(${errors.length})`;
+    document.getElementById('system-errors-wrap').classList.toggle('has-errors', errors.length > 0);
+    document.getElementById('system-errors').innerHTML = errors.length
+      ? errors.map(e => `<tr><td class="admin-dim admin-nowrap">${new Date(e.at).toLocaleString(getLang())}</td>
+          <td class="admin-mono admin-error-msg">${esc(e.message)}</td></tr>`).join('')
+      : `<tr><td class="admin-empty">${t('admin.sys.noErrors')}</td></tr>`;
   } catch (_) {
-    body.innerHTML = `<tr><td colspan="4" class="admin-error">${t('admin.failedLoad')}</td></tr>`;
+    cards.innerHTML = `<p class="admin-error">${t('admin.failedLoad')}</p>`;
   }
 }
-
-function shortDigest(digest) {
-  // "image@sha256:abcdef..." → "sha256:abcdef" (first 19 chars of hash)
-  const match = digest.match(/sha256:([0-9a-f]+)/);
-  return match ? `sha256:${match[1].slice(0, 12)}` : digest.slice(0, 24);
-}
+document.getElementById('system-refresh-btn').addEventListener('click', loadSystem);
 
 function formatUptime(seconds) {
   const d = Math.floor(seconds / 86400);
@@ -323,7 +353,9 @@ function renderFileList() {
 function formatBytes(b) {
   if (b < 1024)       return `${b} B`;
   if (b < 1048576)    return `${(b/1024).toFixed(1)} KB`;
-  return `${(b/1048576).toFixed(1)} MB`;
+  if (b < 1073741824) return `${(b/1048576).toFixed(1)} MB`;
+  if (b < 1099511627776) return `${(b/1073741824).toFixed(1)} GB`;
+  return `${(b/1099511627776).toFixed(1)} TB`;
 }
 
 startBtn.addEventListener('click', async () => {

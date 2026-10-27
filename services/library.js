@@ -9,6 +9,7 @@
 // requests for one photo share a single computation.
 const path = require('path');
 const fs = require('fs');
+const { BadRequest } = require('./http-errors');
 const { PHOTOS_DIR, isMedia, isAlbumDir, photoMeta, withConcurrency } = require('./image');
 
 const cache = new Map();      // "album/file" → { mtimeMs, size, meta }
@@ -17,7 +18,7 @@ const key = (album, file) => `${album}/${file}`;
 
 function albumPath(album) {
   const full = path.resolve(PHOTOS_DIR, album);
-  if (!full.startsWith(PHOTOS_DIR + path.sep)) throw new Error('Invalid album');
+  if (!full.startsWith(PHOTOS_DIR + path.sep)) throw new BadRequest('Invalid album');
   return full;
 }
 

@@ -111,23 +111,22 @@
     </section>
 
     <section class="admin-section" id="section-system">
-      <h2 class="admin-section-title" data-i18n="admin.system">System</h2>
-      <div id="system-meta" class="admin-system-meta"></div>
-      <div class="admin-table-wrap">
-        <table class="admin-table">
-          <thead>
-            <tr>
-              <th data-i18n="admin.col.container">Container</th>
-              <th data-i18n="admin.col.image">Image</th>
-              <th data-i18n="admin.col.reference">Reference / digest</th>
-              <th data-i18n="admin.col.status">Status</th>
-            </tr>
-          </thead>
-          <tbody id="system-body">
-            <tr><td colspan="4" class="admin-loading" data-i18n="admin.loading">Loading…</td></tr>
-          </tbody>
-        </table>
+      <div class="admin-section-header">
+        <h2 class="admin-section-title" data-i18n="admin.system">System</h2>
+        <button id="system-refresh-btn" class="admin-action-btn admin-action-btn--ghost" data-i18n="admin.refresh">Refresh</button>
       </div>
+      <div id="system-meta" class="admin-system-meta"></div>
+      <div id="system-cards" class="admin-system-cards">
+        <p class="admin-loading" data-i18n="admin.loading">Loading…</p>
+      </div>
+      <details class="admin-system-details">
+        <summary><span data-i18n="admin.sys.migrations">Database migrations</span> <span id="system-migrations-count" class="admin-dim"></span></summary>
+        <div class="admin-table-wrap"><table class="admin-table"><tbody id="system-migrations"></tbody></table></div>
+      </details>
+      <details class="admin-system-details" id="system-errors-wrap">
+        <summary><span data-i18n="admin.sys.errors">Recent errors</span> <span id="system-errors-count" class="admin-dim"></span></summary>
+        <div class="admin-table-wrap"><table class="admin-table"><tbody id="system-errors"></tbody></table></div>
+      </details>
     </section>
 
     <section class="admin-section">

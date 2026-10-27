@@ -7,7 +7,8 @@ const path     = require('path');
 const { requireAdmin } = require('../../services/auth');
 const { PHOTOS_DIR, isMedia, isAlbumDir } = require('../../services/image');
 const database   = require('../../services/database');
-const dockerInfo = require('../../services/docker-info');
+const system      = require('../../services/system');
+const maintenance = require('../../services/maintenance');
 
 const router = express.Router();
 
@@ -51,15 +52,14 @@ router.get('/stats', requireAdmin, async (req, res) => {
   }
 });
 
-// GET /api/admin/system
+// GET /api/admin/system — build, disk, database, caches, maintenance, recent errors
 router.get('/system', requireAdmin, async (req, res) => {
-  let containers = [];
-  try { containers = await dockerInfo.getContainers(); } catch (err) { console.error('Docker info unavailable:', err.message); }
-  res.json({
-    node:       process.version,
-    uptime:     Math.floor(process.uptime()),
-    containers,
-  });
+  try {
+    res.set('Cache-Control', 'no-store').json(await system.report({ maintenance: maintenance.lastRun() }));
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 // GET /api/admin/top-photos  (requireAuth only — applied via app.use('/api/admin', requireAuth) in server.js)

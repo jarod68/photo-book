@@ -205,11 +205,6 @@ DYNAMIC
 # ── Write .env ────────────────────────────────────────────────────────────────
 write_env() {
   info "Writing $INSTALL_DIR/.env …"
-  # Detect the host docker group GID so the container can access the Docker socket
-  # via group membership (group_add) without chmod 666.
-  DOCKER_GID=$(getent group docker 2>/dev/null | cut -d: -f3 \
-    || stat -c '%g' /var/run/docker.sock 2>/dev/null \
-    || echo "999")
   # mine-sim cluster sizing: one worker per CPU core of THIS host (1 ⇒ the image
   # stays single-process). Recomputed on every deploy/update so it tracks the
   # machine it runs on.
@@ -224,11 +219,10 @@ IMAGE=${IMAGE}
 MINESIM_IMAGE=${MINESIM_IMAGE}
 TRAEFIK_IMAGE=${TRAEFIK_IMAGE}
 POSTGRES_IMAGE=${POSTGRES_IMAGE}
-DOCKER_GID=${DOCKER_GID}
 MINESIM_WORKERS=${MINESIM_WORKERS}
 ENV
   chmod 600 "$INSTALL_DIR/.env"
-  success ".env written (DOCKER_GID=${DOCKER_GID}, MINESIM_WORKERS=${MINESIM_WORKERS})."
+  success ".env written (MINESIM_WORKERS=${MINESIM_WORKERS})."
 }
 
 # ── Write the mine-sim startup script ─────────────────────────────────────────

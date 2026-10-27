@@ -6,6 +6,8 @@ const library  = require('../services/library');
 const overrides = require('../services/overrides');
 const { resolveUser, filterVisibleAlbums }  = require('../services/access');
 
+const { sendError } = require('../services/http-errors');
+
 const router = express.Router();
 
 // GET /api/map — all GPS photos across all visible albums. Metadata comes from
@@ -41,8 +43,7 @@ router.get('/', async (req, res) => {
 
     res.json(buckets.flat());
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Internal server error' });
+    sendError(res, err);
   }
 });
 

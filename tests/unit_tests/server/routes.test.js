@@ -748,3 +748,17 @@ describe('GET /api/search', () => {
     expect(res.status).toBe(400);
   });
 });
+
+describe('chemins d\'album invalides (F8)', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it('répond 400 sans journaliser d\'erreur serveur', async () => {
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    for (const url of ['/api/albums/..%2F..%2Fetc', '/api/albums/..%2F..%2Fetc/cover', '/api/albums/..%2F..%2Fetc/download/zip']) {
+      const res = await request(app).get(url);
+      expect(res.status, url).toBe(400);
+      expect(res.body.error).toBe('Invalid album');
+    }
+    expect(errSpy).not.toHaveBeenCalled();
+  });
+});

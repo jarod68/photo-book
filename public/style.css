@@ -1907,6 +1907,29 @@ body {
 .admin-pagination-info { font-size: 12px; color: var(--text-dim); }
 
 /* ── System info ──────────────────────────────────────────────────────────── */
+.admin-system-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.sys-card {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  padding: 12px 14px;
+}
+.sys-card--warn { border-color: rgba(250,204,21,0.45); }
+.sys-card h3 { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-dim); margin-bottom: 8px; }
+.sys-row { display: flex; justify-content: space-between; gap: 10px; font-size: 12.5px; padding: 3px 0; }
+.sys-row span:first-child { color: var(--text-dim); }
+.sys-row span:last-child { text-align: right; }
+.admin-system-details { margin-top: 8px; }
+.admin-system-details summary { cursor: pointer; font-size: 13px; padding: 6px 0; color: var(--text); }
+.admin-system-details.has-errors summary { color: #ff8a8a; }
+.admin-error-msg { white-space: pre-wrap; word-break: break-word; }
+.admin-nowrap { white-space: nowrap; }
+.admin-env-qa { color: #f59e0b; border-color: rgba(245,158,11,0.5); }
 .admin-system-meta {
   display: flex;
   gap: 8px;

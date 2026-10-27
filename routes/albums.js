@@ -14,12 +14,14 @@ const auth     = require('../services/auth');
 const activity = require('../services/activity');
 const { resolveUser, getAlbumAccess, filterVisibleAlbums } = require('../services/access');
 
+const { BadRequest, sendError } = require('../services/http-errors');
+
 const router = express.Router();
 
 function safeAlbumPath(name) {
   const full = path.resolve(path.join(PHOTOS_DIR, name));
   const base = PHOTOS_DIR + path.sep;
-  if (!full.startsWith(base) && full !== PHOTOS_DIR) throw new Error('Invalid album');
+  if (!full.startsWith(base) && full !== PHOTOS_DIR) throw new BadRequest('Invalid album');
   return full;
 }
 
@@ -48,8 +50,7 @@ router.get('/', async (req, res) => {
 
     res.json(albums);
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Internal server error' });
+    sendError(res, err);
   }
 });
 
@@ -91,8 +92,8 @@ router.get('/:album/download/zip', async (req, res) => {
     }
     archive.finalize(); // event-driven — do not await
   } catch (err) {
-    console.error(err);
-    if (!res.headersSent) res.status(500).json({ error: 'Internal server error' });
+    if (!res.headersSent) sendError(res, err);
+    else console.error(err);
   }
 });
 
@@ -138,8 +139,7 @@ router.get('/:album', async (req, res) => {
 
     res.json({ name: req.params.album, photos, canDelete, canDownload: !!user });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Internal server error' });
+    sendError(res, err);
   }
 });
 
@@ -154,8 +154,7 @@ router.get('/:album/cover', async (req, res) => {
     if (!cover) return res.status(404).json({ error: 'No photos' });
     res.json({ cover, coverPreview, coverThumb });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Internal server error' });
+    sendError(res, err);
   }
 });
 
@@ -176,8 +175,7 @@ router.delete('/:album/photos/:filename', auth.requireAuth, async (req, res) => 
     res.json({ ok: true });
     activity.log('photo_delete', { username: req.user?.username ?? null, ip: req.ip, details: { album, filename } });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Internal server error' });
+    sendError(res, err);
   }
 });
 

@@ -25,10 +25,15 @@ async function purgeExpired() {
   return out;
 }
 
+let last = null;   // { at, sessions, shares } — shown in the admin System tab
+
 async function runMaintenance() {
-  await purgeExpired().catch((err) => console.error('Expired-row purge failed:', err.message));
+  const purged = await purgeExpired().catch((err) => { console.error('Expired-row purge failed:', err.message); return null; });
   await activity.purgeActivityLog();
+  last = { at: new Date().toISOString(), ...(purged ?? { error: true }) };
 }
+
+const lastRun = () => last;
 
 let timer = null;
 function startMaintenance() {
@@ -40,4 +45,4 @@ function startMaintenance() {
 }
 function stopMaintenance() { clearInterval(timer); timer = null; }
 
-module.exports = { purgeExpired, runMaintenance, startMaintenance, stopMaintenance, SHARE_GRACE_DAYS, EVERY_MS };
+module.exports = { purgeExpired, runMaintenance, lastRun, startMaintenance, stopMaintenance, SHARE_GRACE_DAYS, EVERY_MS };
