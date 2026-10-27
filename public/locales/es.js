@@ -152,6 +152,7 @@ export default {
   'admin.photoDescription': 'Leyenda',
   'admin.photoLocation': 'Lugar',
   'admin.saved': 'Guardado',
+  'admin.notifyNew': 'Avisar automáticamente a los suscriptores cuando se añaden fotos',
   'admin.refresh': 'Actualizar',
   'admin.sys.migrations': 'Migraciones de la base',
   'admin.sys.errors': 'Errores recientes',

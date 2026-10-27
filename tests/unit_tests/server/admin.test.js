@@ -1025,7 +1025,7 @@ describe('GET /api/admin/albums/:album/settings', () => {
     // database._reset() in beforeEach → dbReady = false
     const res = await request(app).get('/api/admin/albums/Paris/settings');
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({ visibility: 'public', users: [] });
+    expect(res.body).toEqual({ visibility: 'public', users: [], notifyNew: true });
   });
 
   it('retourne visibility public et users vides si aucune entrée en DB', async () => {

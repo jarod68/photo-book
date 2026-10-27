@@ -143,6 +143,10 @@ A photo's title, caption and place come from its file (XMP / IPTC / EXIF; the ti
 
 Both choices are remembered in the browser (`localStorage`). Capture dates are the camera's local time, so days are counted as the camera saw them.
 
+### New-photo notifications
+
+Visitors can subscribe to an album (bell button in the viewer). When photos are added — uploaded from the admin **or** copied into the album folder by any other means — the subscribers get **one** push notification per album, "Porto — 12 nouvelles photos", once no new photo has arrived for 10 minutes (`NOTIFY_QUIET_MS`), and at the latest one hour after the first one during a long import (`NOTIFY_MAX_WAIT_MS`). A photo deleted in the meantime is not counted, a newer notification replaces the album's previous one on the device, and tapping it opens the first new photo. The switch *Notify subscribers automatically* in the album's settings turns it off (`album_settings.notify_new`, migration 5); the manual *Send* button stays. Pending notifications are kept in memory: a restart during the quiet period drops them.
+
 ### Admin System tab
 
 **Admin → System** shows what is running and how it is doing, from `GET /api/admin/system` (admin only, never cached):

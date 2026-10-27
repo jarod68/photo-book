@@ -166,6 +166,13 @@ const MIGRATIONS = [
       `);
     },
   },
+  {
+    version: 5,
+    name: 'automatic new-photo notifications per album',
+    async up(q) {
+      await q('ALTER TABLE album_settings ADD COLUMN notify_new BOOLEAN NOT NULL DEFAULT true');
+    },
+  },
 ];
 
 const LOCK_KEY = 726571;   // arbitrary, constant: pg_advisory_xact_lock key

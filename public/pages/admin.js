@@ -863,6 +863,7 @@ async function openAlbumSettings(albumName) {
   const basicUsers    = (usersRes.users ?? []).filter(u => u.role === 'basic');
   const authorizedIds = new Set((settingsRes.users ?? []).map(u => u.id));
 
+  document.getElementById('album-notify-new').checked = settingsRes.notifyNew ?? true;
   const visRadio = document.querySelector(`input[name="album-visibility"][value="${settingsRes.visibility}"]`);
   if (visRadio) visRadio.checked = true;
 
@@ -931,7 +932,7 @@ document.getElementById('album-settings-save-btn').addEventListener('click', asy
   const res = await fetch(`/api/admin/albums/${encodeURIComponent(albumSettingsName)}/settings`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ visibility, userIds }),
+    body: JSON.stringify({ visibility, userIds, notifyNew: document.getElementById('album-notify-new').checked }),
   });
   if (res.ok) {
     closeAlbumSettings();

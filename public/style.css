@@ -2223,6 +2223,7 @@ body {
 
 /* ── Album settings modal ─────────────────────────────────────────────────── */
 .album-settings-modal { max-width: 420px; }
+.album-notify-auto { margin: 4px 0 8px; font-size: 12.5px; }
 
 .album-settings-body {
   padding: 20px 20px 4px;

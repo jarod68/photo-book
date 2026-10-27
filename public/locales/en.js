@@ -152,6 +152,7 @@ export default {
   'admin.photoDescription': 'Caption',
   'admin.photoLocation': 'Place',
   'admin.saved': 'Saved',
+  'admin.notifyNew': 'Notify subscribers automatically when photos are added',
   'admin.refresh': 'Refresh',
   'admin.sys.migrations': 'Database migrations',
   'admin.sys.errors': 'Recent errors',

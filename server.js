@@ -16,6 +16,7 @@ const library  = require('./services/library');
 const system   = require('./services/system');
 const errorLog = require('./services/error-log');
 const places   = require('./services/places');
+const notify   = require('./services/notify');
 
 // Route modules
 const authRouter         = require('./routes/auth');
@@ -254,13 +255,16 @@ function watchPhotosDir() {
 
   const watchAlbum = (albumPath, albumName) => {
     try {
-      fs.watch(albumPath, (_event, name) => {
+      fs.watch(albumPath, (event, name) => {
         if (!name || !isMedia(name)) return;
         library.invalidate(albumName, name);   // drop the cached metadata right away
         const full = path.join(albumPath, name);
         if (fs.existsSync(full)) {
           scheduleRegenerate();
+          // a new file, however it got there: subscribers get a digest (F9)
+          if (event === 'rename') notify.photosAdded(albumName, [name]);
         } else {
+          notify.photoRemoved(albumName, name);
           deletePhotoFromDb(albumName, name).catch(console.error);
         }
       });

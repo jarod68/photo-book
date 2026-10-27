@@ -16,6 +16,7 @@ const overrides = require('../../services/overrides');
 const cleanup   = require('../../services/cleanup');
 const albumInfo = require('../../services/album-info');
 const uploads   = require('../../services/uploads');
+const notify    = require('../../services/notify');
 
 const { BadRequest, sendError } = require('../../services/http-errors');
 
@@ -246,21 +247,17 @@ router.post('/:album/photos', requireAdmin, async (req, res) => {
     preGenerateAll().catch(console.error);
     res.json({ ok: true, count: uploadedFiles.length, files: uploadedFiles, renamed, duplicates, skipped });
     activity.log('photo_upload', { username: req.user?.username ?? null, ip: req.ip, details: { album: req.params.album, count: uploadedFiles.length, filenames: uploadedFiles } });
-    if (uploadedFiles.length > 0) {
-      push.sendToAlbum(req.params.album, {
-        title: req.params.album,
-        body:  `${uploadedFiles.length} nouvelle${uploadedFiles.length > 1 ? 's' : ''} photo${uploadedFiles.length > 1 ? 's' : ''} ajoutée${uploadedFiles.length > 1 ? 's' : ''}`,
-      }).catch(err => console.error('Push send error:', err.message));
-    }
+    // one digest per album once the uploads stop (services/notify.js)
+    notify.photosAdded(req.params.album, uploadedFiles);
   });
 });
 
 // GET /api/admin/albums/:album/settings
 router.get('/:album/settings', requireAdmin, async (req, res) => {
-  if (!database.dbReady) return res.json({ visibility: 'public', users: [] });
+  if (!database.dbReady) return res.json({ visibility: 'public', users: [], notifyNew: true });
   try {
     const [{ rows: settingRows }, { rows: userRows }] = await Promise.all([
-      database.db.query('SELECT visibility FROM album_settings WHERE album = $1', [req.params.album]),
+      database.db.query('SELECT visibility, notify_new FROM album_settings WHERE album = $1', [req.params.album]),
       database.db.query(
         `SELECT u.id, u.username FROM album_users au
          JOIN users u ON u.id = au.user_id
@@ -270,6 +267,7 @@ router.get('/:album/settings', requireAdmin, async (req, res) => {
     ]);
     res.json({
       visibility: settingRows[0]?.visibility ?? 'public',
+      notifyNew:  settingRows[0]?.notify_new ?? true,
       users: userRows,
     });
   } catch (err) {
@@ -280,10 +278,11 @@ router.get('/:album/settings', requireAdmin, async (req, res) => {
 // PUT /api/admin/albums/:album/settings
 router.put('/:album/settings', requireAdmin, express.json(), async (req, res) => {
   const { album } = req.params;
-  const { visibility, userIds = [] } = req.body ?? {};
+  const { visibility, userIds = [], notifyNew = true } = req.body ?? {};
   if (!['public', 'restricted'].includes(visibility)) {
     return res.status(400).json({ error: 'visibility must be public or restricted' });
   }
+  if (typeof notifyNew !== 'boolean') return res.status(400).json({ error: 'notifyNew must be a boolean' });
   if (!Array.isArray(userIds) || userIds.length > 500 ||
       userIds.some(id => !Number.isInteger(id) || id <= 0)) {
     return res.status(400).json({ error: 'Invalid userIds' });
@@ -291,9 +290,9 @@ router.put('/:album/settings', requireAdmin, express.json(), async (req, res) =>
   if (!database.dbReady) return res.status(503).json({ error: 'Service unavailable' });
   try {
     await database.db.query(
-      `INSERT INTO album_settings (album, visibility) VALUES ($1, $2)
-       ON CONFLICT (album) DO UPDATE SET visibility = $2`,
-      [album, visibility],
+      `INSERT INTO album_settings (album, visibility, notify_new) VALUES ($1, $2, $3)
+       ON CONFLICT (album) DO UPDATE SET visibility = $2, notify_new = $3`,
+      [album, visibility, notifyNew],
     );
     await database.db.query('DELETE FROM album_users WHERE album = $1', [album]);
     if (userIds.length > 0) {

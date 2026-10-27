@@ -152,6 +152,7 @@ export default {
   'admin.photoDescription': 'Légende',
   'admin.photoLocation': 'Lieu',
   'admin.saved': 'Enregistré',
+  'admin.notifyNew': 'Prévenir automatiquement les abonnés quand des photos sont ajoutées',
   'admin.refresh': 'Actualiser',
   'admin.sys.migrations': 'Migrations de la base',
   'admin.sys.errors': 'Erreurs récentes',
