@@ -60,6 +60,19 @@ async function main() {
     }),
   ]);
 
+  // Browser libraries, self-hosted under /vendor/ (services/vendor.js)
+  const { VENDOR_FILES } = require('../services/vendor');
+  for (const [dest, src] of Object.entries(VENDOR_FILES)) {
+    const from = path.join(ROOT, 'node_modules', src);
+    const to   = path.join(DIST, 'public', 'vendor', dest);
+    if (dest.endsWith('/')) {
+      // top-level files only (three's lines/ also holds an unused webgpu/ folder)
+      for (const e of fs.readdirSync(from, { withFileTypes: true })) if (e.isFile()) copyFile(path.join(from, e.name), path.join(to, e.name));
+    } else {
+      copyFile(from, to);
+    }
+  }
+
   // HTML files are not processed by esbuild — copy as-is
   for (const f of ['index.html', 'admin.html', 'login.html', 'map.html', 'search.html', 'viewer.html', 'globe.html']) {
     copyFile(path.join(ROOT, 'public', f), path.join(DIST, 'public', f));

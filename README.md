@@ -305,6 +305,12 @@ All `/api/admin/*` routes first pass through `requireAuth` (→ `401` if no sess
 
 ## Implementation
 
+### Content-Security-Policy and self-hosted libraries
+
+The browser libraries — Leaflet 1.9.4, Leaflet.markercluster 1.5.3, Pannellum 2.5.7, Three.js 0.168.0, topojson-client 3.1.0 and the world-atlas country outlines — are `devDependencies` with exact versions, copied by `npm run build` to `dist/public/vendor/` and served by the app under `/vendor/` (the list is in `services/vendor.js`; running from the repository, the server maps the same paths to `node_modules`). Nothing is loaded from a CDN at run time, so a compromised CDN cannot inject code, and `npm audit` covers these libraries too.
+
+Every response carries a strict `Content-Security-Policy` (`services/csp.js`): scripts, styles, fonts, data and workers from the site only; images also from `data:`, `blob:` and the OpenStreetMap tile server; no plugins, no framing (`frame-ancestors 'none'`). The only inline script, the globe's import map, is allowed by its SHA-256 hash, computed at startup from the served HTML. Inline styles stay allowed (style attributes, and Leaflet / Pannellum set styles too). Browsers report violations to `POST /api/csp-report`; each distinct one is logged once and appears in **Admin → System → Recent errors**.
+
 ### Backend
 
 | Technology | Version | Role |

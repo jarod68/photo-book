@@ -44,9 +44,15 @@
     "@vitest/coverage-v8": "^5.0.5",
     "esbuild": "^0.28.0",
     "happy-dom": "^21.0.4",
+    "leaflet": "1.9.4",
+    "leaflet.markercluster": "1.5.3",
     "nodemon": "^3.0.2",
+    "pannellum": "2.5.7",
     "supertest": "^7.2.2",
-    "vitest": "^5.0.5"
+    "three": "0.168.0",
+    "topojson-client": "3.1.0",
+    "vitest": "^5.0.5",
+    "world-atlas": "2.0.2"
   },
   "engines": {
     "node": ">=26"

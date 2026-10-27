@@ -15,6 +15,8 @@ const cleanup     = require('./services/cleanup');
 const library  = require('./services/library');
 const system   = require('./services/system');
 const errorLog = require('./services/error-log');
+const csp      = require('./services/csp');
+const { VENDOR_FILES } = require('./services/vendor');
 const places   = require('./services/places');
 const notify   = require('./services/notify');
 
@@ -48,7 +50,7 @@ app.set('trust proxy', 1);
 // ("Access blocked"). strict-origin-when-cross-origin sends only the origin
 // (https://book.holtz.fr) cross-site — never a page path, album name or share link.
 app.use(helmet({
-  contentSecurityPolicy: false,
+  contentSecurityPolicy: { useDefaults: false, directives: csp.directives(path.join(__dirname, 'public')) },
   referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
 }));
 app.use(cookieParser());
@@ -128,6 +130,15 @@ app.use(express.static(path.join(__dirname, 'public'), {
   },
 }));
 
+// Running from the repository (no build): /vendor/ comes from node_modules.
+if (!fs.existsSync(path.join(__dirname, 'public', 'vendor'))) {
+  for (const [dest, src] of Object.entries(VENDOR_FILES)) {
+    const from = path.join(__dirname, 'node_modules', src);
+    if (dest.endsWith('/')) app.use(`/vendor/${dest}`, express.static(from, { index: false }));
+    else app.get(`/vendor/${dest}`, (_req, res) => res.sendFile(from));
+  }
+}
+
 // Original photos: immutable 1 year (files are never overwritten on disk)
 app.use('/photos', albumAccessGuard(), (req, res, next) => {
   const target = path.resolve(path.join(PHOTOS_DIR, req.path));
@@ -200,6 +211,11 @@ async function getAlbumAccess(album, user, shareToken = null) {
 }
 
 // ─── Health check ─────────────────────────────────────────────────────────────
+
+// CSP violation reports from browsers (T6) — logged once each, see services/csp.js
+app.post('/api/csp-report',
+  express.json({ type: ['application/csp-report', 'application/reports+json', 'application/json'], limit: '16kb' }),
+  (req, res) => { csp.logViolation(req.body); res.status(204).end(); });
 
 app.get('/api/health', (_req, res) => {
   const status = database.dbReady ? 'ok' : 'degraded';

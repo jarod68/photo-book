@@ -16,8 +16,8 @@ const R   = 1;
 const DEG = Math.PI / 180;
 
 // 50m resolution for max precision (finer coastlines, more islands)
-const URL_110 = 'https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json';
-const URL_50  = 'https://cdn.jsdelivr.net/npm/world-atlas@2/countries-50m.json';
+const URL_110 = '/vendor/world-atlas/countries-110m.json';
+const URL_50  = '/vendor/world-atlas/countries-50m.json';
 
 // [name, lat, lng, maxCamDist]
 const LABELS = [

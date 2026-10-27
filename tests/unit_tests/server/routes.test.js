@@ -762,3 +762,23 @@ describe('chemins d\'album invalides (F8)', () => {
     expect(errSpy).not.toHaveBeenCalled();
   });
 });
+
+describe('CSP (T6)', () => {
+  it('chaque réponse porte la politique, et /api/csp-report accepte les rapports', async () => {
+    const res = await request(app).get('/api/health');
+    expect(res.headers['content-security-policy']).toMatch(/default-src 'self'.*script-src 'self' 'sha256-/);
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const r = await request(app).post('/api/csp-report').set('Content-Type', 'application/csp-report')
+      .send(JSON.stringify({ 'csp-report': { 'effective-directive': 'connect-src', 'blocked-uri': 'https://x.test', 'document-uri': 'http://l/map.html' } }));
+    expect(r.status).toBe(204);
+    expect(errSpy).toHaveBeenCalledWith(expect.stringContaining('CSP violation: connect-src'));
+    errSpy.mockRestore();
+  });
+
+  it('sert les bibliothèques sous /vendor/ depuis node_modules sans build', async () => {
+    const res = await request(app).get('/vendor/leaflet/leaflet.js');
+    expect(res.status).toBe(200);
+    expect(res.text).toMatch(/Leaflet/);
+    expect((await request(app).get('/vendor/three/addons/lines/LineMaterial.js')).status).toBe(200);
+  });
+});
