@@ -132,6 +132,10 @@ Derivatives persist across restarts on their own volumes (`PREVIEWS_DIR`, `MEDIU
 
 A photo's title, caption and place come from its file (XMP / IPTC / EXIF; the title falls back to the file name). Admins can change them without touching the file: **Admin → Albums → photos button** lists every photo of the album with the file's values as placeholders. A saved value is stored in `photo_overrides` and shown everywhere (viewer, map popups); clearing a field reverts to the file's value. Overrides follow album renames and are deleted with their photo or album.
 
+### Slideshow and fullscreen
+
+The viewer's top bar has a **slideshow** button (or `Space`): a new photo every 5 s, looping through the album, with the interface hidden (a tap shows it again). A playing video is watched to the end before moving on, the next photo is preloaded, choosing a photo by hand restarts the 5 s, and the show pauses while the tab is hidden. `Esc` or `Space` stops it. The **fullscreen** button (or `F`) uses the Fullscreen API; it is hidden where the API is missing (iPhone Safari).
+
 ### Album cover, description and dates
 
 The same editor sets the album's **description** and its **cover** (☆ button on a photo). Both are stored in `album_settings` (migration 3). Without a chosen cover — or when the chosen photo was deleted — the cover is the first photo whose thumbnail could be made, so a video or a corrupt file never becomes the cover. The album card shows the description and the capture-date range (first to last `DateTimeOriginal`), computed from the cached photo index; the index is filled once at startup, after the derivatives are generated.

@@ -607,6 +607,17 @@ body {
 .album-map-btn:hover:not(:disabled) { border-color: var(--border-h); color: var(--text); }
 .album-map-btn.active { color: var(--accent); border-color: rgba(59,130,246,0.45); background: var(--accent-dim); }
 .album-map-btn:disabled { opacity: 0.22; cursor: default; }
+.album-nav-right { gap: 6px; }
+.album-icon-btn { padding: 0 8px; }
+.album-icon-btn[hidden] { display: none; }
+#slideshow-btn .icon-pause,
+#slideshow-btn.active .icon-play,
+#fullscreen-btn .icon-exit,
+#fullscreen-btn.active .icon-enter { display: none; }
+#slideshow-btn.active .icon-pause,
+#fullscreen-btn.active .icon-exit { display: block; }
+/* slideshow: no cursor over the photo while the UI is hidden */
+#app.slideshow.ui-hidden #viewer { cursor: none; }
 
 #album-tabs {
   display: flex;

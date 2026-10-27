@@ -10,6 +10,7 @@ import { getAlbums, getAlbum, getLiked, toggleLike, recordView, geocode, createS
 import { formatViews, formatLikes } from '../utils/format.js';
 import { subscribeTo, unsubscribeFrom, getSubscription, getStoredAlbums } from '../utils/push.js';
 import { showBuildTag } from '../utils/build-tag.js';
+import { Slideshow }      from '../utils/slideshow.js';
 
 applyTranslations();
 initLangSwitcher('lang-switcher');
@@ -353,6 +354,7 @@ async function init() {
 async function selectAlbum(name, targetFilename = null) {
   if (name === state.current) return;
   state.current = name;
+  slideshow.stop();
   tabs.render(state.albums, name);
 
   const [data, likedData] = await Promise.all([
@@ -367,6 +369,7 @@ async function selectAlbum(name, targetFilename = null) {
   thumbs.render(state.photos);
 
   albumMapBtn.disabled = !state.photos.some(p => p.gps);
+  slideshowBtn.disabled = state.photos.length < 2;
 
   const hasActions = data.canDownload || data.canDelete;
   if (hasActions) {
@@ -488,13 +491,58 @@ deleteBtn.addEventListener('click', async e => {
   }
 });
 
+// ── Slideshow & fullscreen (F4) ───────────────────────────────────────────────
+const slideshowBtn  = document.getElementById('slideshow-btn');
+const fullscreenBtn = document.getElementById('fullscreen-btn');
+
+const slideshow = new Slideshow({
+  // loops back to the first photo; a playing video is watched to the end
+  next: () => {
+    if (state.photos.length < 2) return false;
+    showPhoto((state.index + 1) % state.photos.length, { auto: true });
+    return true;
+  },
+  isBusy: () => viewer.isVideoPlaying(),
+  onChange: playing => {
+    slideshowBtn.classList.toggle('active', playing);
+    slideshowBtn.setAttribute('aria-pressed', String(playing));
+    appEl.classList.toggle('slideshow', playing);
+    if (playing) appEl.classList.add('ui-hidden');
+  },
+});
+slideshowBtn.addEventListener('click', () => slideshow.toggle());
+
+// Preload the next photo so the slideshow never waits on the network.
+function preloadNext(index) {
+  const next = state.photos[(index + 1) % state.photos.length];
+  if (next && next.type !== 'video') new Image().src = next.mediumUrl || next.displayUrl || next.url;
+}
+
+// The Fullscreen API is missing on iPhone: the button is hidden there.
+const fsTarget = document.documentElement;
+if (document.fullscreenEnabled) fullscreenBtn.hidden = false;
+function toggleFullscreen() {
+  if (!document.fullscreenEnabled) return;
+  if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+  else fsTarget.requestFullscreen().catch(() => {});
+}
+fullscreenBtn.addEventListener('click', toggleFullscreen);
+document.addEventListener('fullscreenchange', () => {
+  fullscreenBtn.classList.toggle('active', !!document.fullscreenElement);
+});
+
 // ── Photo display ─────────────────────────────────────────────────────────────
-function showPhoto(index) {
+function showPhoto(index, { auto = false } = {}) {
   const photo = state.photos[index];
   if (!photo) return;
 
-  // Restore UI if hidden (photo changed from strip or keyboard)
-  appEl.classList.remove('ui-hidden');
+  // Restore UI if hidden (photo changed from strip or keyboard), and give a
+  // photo chosen by hand a full slideshow interval.
+  if (!auto) {
+    appEl.classList.remove('ui-hidden');
+    slideshow.restart();
+  }
+  if (slideshow.playing) preloadNext(index);
 
   state.index = index;
   thumbs.activate(index);
@@ -533,8 +581,15 @@ function showPhoto(index) {
 
 // ── Navigation ────────────────────────────────────────────────────────────────
 document.addEventListener('keydown', e => {
+  if (e.target.closest?.('input, textarea, select, [contenteditable]')) return;
   if (e.key === 'ArrowLeft'  && state.index > 0)                       showPhoto(state.index - 1);
   if (e.key === 'ArrowRight' && state.index < state.photos.length - 1) showPhoto(state.index + 1);
+  if (e.key === ' ' && !e.target.closest?.('button, a, video') && state.photos.length > 1) {
+    e.preventDefault();
+    slideshow.toggle();
+  }
+  if (e.key === 'Escape') slideshow.stop();
+  if ((e.key === 'f' || e.key === 'F') && !e.ctrlKey && !e.metaKey && !e.altKey) toggleFullscreen();
 });
 
 // ── Start ─────────────────────────────────────────────────────────────────────

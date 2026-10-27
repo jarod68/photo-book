@@ -22,6 +22,8 @@ export default {
   // Viewer
   'viewer.map':          'Mapa',
   'viewer.albumMap':     'Mapa del álbum',
+  'viewer.slideshow': 'Presentación (espacio)',
+  'viewer.fullscreen': 'Pantalla completa (F)',
   'viewer.download':     'Descargar',
   'viewer.delete':       'Eliminar',
   'viewer.actions':      'Acciones',

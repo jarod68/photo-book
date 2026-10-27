@@ -88,6 +88,12 @@ export class PhotoViewer {
 
   destroy() { this._destroyPannellum(); }
 
+  /** True while the current video is playing (the slideshow waits for it). */
+  isVideoPlaying() {
+    const v = this._video;
+    return !!v && v.style.display !== 'none' && !v.paused && !v.ended;
+  }
+
   // ── 360° ───────────────────────────────────────────────────────────────────
 
   _show360(url, previewUrl) {
