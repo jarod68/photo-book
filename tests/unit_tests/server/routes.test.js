@@ -756,3 +756,104 @@ describe('CSP (T6)', () => {
     expect((await request(app).get('/vendor/three/addons/lines/LineMaterial.js')).status).toBe(200);
   });
 });
+
+// ── GET /api/share/:token ─────────────────────────────────────────────────────
+
+describe('GET /api/share/:token', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it('503 sans DB, 404 si jeton inconnu ou expiré, sinon l\'album', async () => {
+    expect((await request(app).get('/api/share/abc')).status).toBe(503);
+    database._setState({ query: mockQuery }, true);
+    mockQuery.mockResolvedValueOnce({ rows: [] });
+    expect((await request(app).get('/api/share/abc')).status).toBe(404);
+    mockQuery.mockResolvedValueOnce({ rows: [{ album: 'Paris', expires_at: '2026-12-01T00:00:00.000Z' }] });
+    const res = await request(app).get('/api/share/abc');
+    expect(res.body).toEqual({ album: 'Paris', expires_at: '2026-12-01T00:00:00.000Z' });
+    expect(mockQuery.mock.calls.at(-1)[0]).toMatch(/expires_at > NOW\(\)/);
+  });
+
+  it('500 si la base échoue', async () => {
+    database._setState({ query: mockQuery }, true);
+    mockQuery.mockRejectedValueOnce(new Error('db'));
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    expect((await request(app).get('/api/share/abc')).status).toBe(500);
+  });
+});
+
+// ── /api/push: VAPID key and unsubscribe ──────────────────────────────────────
+
+describe('/api/push — clé VAPID et désabonnement', () => {
+  const pushMod = _require('../../../services/push.js');
+  afterEach(() => vi.restoreAllMocks());
+
+  it('GET vapid-key : 503 tant que les clés ne sont pas prêtes, puis la clé publique', async () => {
+    vi.spyOn(pushMod, 'getVapidPublicKey').mockReturnValue(null);
+    expect((await request(app).get('/api/push/vapid-key')).status).toBe(503);
+    pushMod.getVapidPublicKey.mockReturnValue('BPub');
+    expect((await request(app).get('/api/push/vapid-key')).body).toEqual({ publicKey: 'BPub' });
+  });
+
+  it('POST subscribe : 503 sans DB', async () => {
+    const res = await request(app).post('/api/push/subscribe')
+      .send({ album: 'Paris', subscription: { endpoint: 'e', keys: { p256dh: 'k', auth: 'a' } } });
+    expect(res.status).toBe(503);
+  });
+
+  it('POST subscribe : 500 si l\'enregistrement échoue', async () => {
+    stubLibrary({ Paris: [] });
+    mockQuery.mockResolvedValueOnce({ rows: [] }).mockRejectedValueOnce(new Error('db'));
+    database._setState({ query: mockQuery }, true);
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const res = await request(app).post('/api/push/subscribe')
+      .send({ album: 'Paris', subscription: { endpoint: 'e', keys: { p256dh: 'k', auth: 'a' } } });
+    expect(res.status).toBe(500);
+  });
+
+  it('DELETE subscribe : 400, 503, puis suppression de cet abonnement', async () => {
+    expect((await request(app).delete('/api/push/subscribe').send({ album: 'Paris' })).status).toBe(400);
+    expect((await request(app).delete('/api/push/subscribe').send({ album: 'Paris', endpoint: 'e' })).status).toBe(503);
+    database._setState({ query: mockQuery }, true);
+    mockQuery.mockResolvedValueOnce({ rows: [] });
+    expect((await request(app).delete('/api/push/subscribe').send({ album: 'Paris', endpoint: 'e' })).body).toEqual({ ok: true });
+    expect(mockQuery).toHaveBeenCalledWith(expect.stringContaining('DELETE FROM push_subscriptions'), ['Paris', 'e']);
+    mockQuery.mockRejectedValueOnce(new Error('db'));
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    expect((await request(app).delete('/api/push/subscribe').send({ album: 'Paris', endpoint: 'e' })).status).toBe(500);
+  });
+});
+
+// ── GET /api/albums/:album/download/zip ───────────────────────────────────────
+
+describe('GET /api/albums/:album/download/zip', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it('404 si l\'album n\'existe pas ou est vide', async () => {
+    stubLibrary({ Vide: [] });
+    expect((await request(app).get('/api/albums/Nope/download/zip')).status).toBe(404);
+    const res = await request(app).get('/api/albums/Vide/download/zip');
+    expect(res.status).toBe(404);
+    expect(res.body.error).toBe('Album is empty');
+  });
+
+  it('401 sur un album restreint, 503 si le contrôle d\'accès échoue (fail-closed)', async () => {
+    stubLibrary({ Secret: ['a.jpg'] });
+    database._setState({ query: mockQuery }, true);
+    mockQuery.mockResolvedValueOnce({ rows: [{ visibility: 'restricted' }] });
+    expect((await request(app).get('/api/albums/Secret/download/zip')).status).toBe(401);
+    mockQuery.mockRejectedValueOnce(new Error('db'));
+    expect((await request(app).get('/api/albums/Secret/download/zip')).status).toBe(503);
+  });
+
+  it('renvoie une archive zip nommée d\'après l\'album (accents encodés)', async () => {
+    stubLibrary({ 'Été à Évora': ['a.jpg'] });
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const res = await request(app).get(`/api/albums/${encodeURIComponent('Été à Évora')}/download/zip`)
+      .buffer(true).parse((r, cb) => { const c = []; r.on('data', (d) => c.push(d)); r.on('end', () => cb(null, Buffer.concat(c))); });
+    expect(res.status).toBe(200);
+    expect(res.headers['content-type']).toBe('application/zip');
+    expect(res.headers['content-disposition']).toBe(
+      `attachment; filename="_t_ _ _vora.zip"; filename*=UTF-8''${encodeURIComponent('Été à Évora')}.zip`);
+    expect(res.body.subarray(0, 2).toString()).toBe('PK');
+  });
+});

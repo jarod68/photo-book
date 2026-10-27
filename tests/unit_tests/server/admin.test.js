@@ -1343,3 +1343,135 @@ describe('PUT /api/admin/albums/:album/details (F3)', () => {
     expect(res.status).toBe(404);
   });
 });
+
+// ── GET /api/admin/logs ───────────────────────────────────────────────────────
+
+describe('GET /api/admin/logs', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it('retourne une liste vide si DB non prête', async () => {
+    const res = await request(app).get('/api/admin/logs');
+    expect(res.body).toEqual({ logs: [], total: 0, page: 1, pages: 0 });
+  });
+
+  it('pagine et calcule le nombre de pages', async () => {
+    mockQuery
+      .mockResolvedValueOnce({ rows: [{ id: 3, action: 'login' }] })
+      .mockResolvedValueOnce({ rows: [{ count: '120' }] });
+    database._setState({ query: mockQuery }, true);
+    const res = await request(app).get('/api/admin/logs?page=2&limit=50');
+    expect(res.body).toMatchObject({ total: 120, page: 2, pages: 3 });
+    expect(mockQuery.mock.calls[0][1]).toEqual([50, 50]);
+  });
+
+  it('filtre par action et borne la taille de page', async () => {
+    mockQuery.mockResolvedValueOnce({ rows: [] }).mockResolvedValueOnce({ rows: [{ count: '0' }] });
+    database._setState({ query: mockQuery }, true);
+    await request(app).get('/api/admin/logs?action=photo_edit&limit=5000&page=-3');
+    const [sql, params] = mockQuery.mock.calls[0];
+    expect(sql).toMatch(/WHERE action = \$3/);
+    expect(params).toEqual([100, 0, 'photo_edit']);
+    expect(mockQuery.mock.calls[1]).toEqual([expect.stringMatching(/WHERE action = \$1/), ['photo_edit']]);
+  });
+
+  it('retourne 500 si la requête échoue', async () => {
+    mockQuery.mockRejectedValue(new Error('db'));
+    database._setState({ query: mockQuery }, true);
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    expect((await request(app).get('/api/admin/logs')).status).toBe(500);
+  });
+});
+
+// ── Share links /api/admin/albums/:album/share ────────────────────────────────
+
+describe('liens de partage (admin)', () => {
+  beforeEach(() => authMod._setTestUser({ id: 7, username: 'admin', role: 'admin' }));
+  afterEach(() => { authMod._setTestUser(null); vi.restoreAllMocks(); });
+
+  it('POST : 503 sans DB, 400 si durée invalide', async () => {
+    expect((await request(app).post('/api/admin/albums/Paris/share').send({ days: 7 })).status).toBe(503);
+    database._setState({ query: mockQuery }, true);
+    for (const days of [0, 366, 1.5, 'x']) {
+      expect((await request(app).post('/api/admin/albums/Paris/share').send({ days })).status, String(days)).toBe(400);
+    }
+  });
+
+  it('POST : crée un jeton de 64 caractères qui expire après N jours', async () => {
+    mockQuery.mockImplementation(async (_sql, p) => ({ rows: [{ id: 1, token: p[0], expires_at: p[3] }] }));
+    database._setState({ query: mockQuery }, true);
+    const before = Date.now();
+    const res = await request(app).post('/api/admin/albums/Paris/share').send({ days: 3, label: 'Famille' });
+    expect(res.status).toBe(201);
+    expect(res.body.token).toMatch(/^[0-9a-f]{64}$/);
+    const [, params] = mockQuery.mock.calls[0];
+    expect(params.slice(1, 3)).toEqual(['Paris', 7]);          // album, created_by
+    expect(params[4]).toBe('Famille');
+    expect(new Date(params[3]).getTime() - before).toBeGreaterThanOrEqual(3 * 864e5 - 1000);
+  });
+
+  it('GET : liste vide sans DB, sinon les jetons de l\'album', async () => {
+    expect((await request(app).get('/api/admin/albums/Paris/share')).body).toEqual({ tokens: [] });
+    mockQuery.mockResolvedValue({ rows: [{ id: 1, token: 't' }] });
+    database._setState({ query: mockQuery }, true);
+    const res = await request(app).get('/api/admin/albums/Paris/share');
+    expect(res.body.tokens).toHaveLength(1);
+    expect(mockQuery.mock.calls[0][1]).toEqual(['Paris']);
+  });
+
+  it('DELETE : 400 si id invalide, sinon supprime dans cet album seulement', async () => {
+    database._setState({ query: mockQuery }, true);
+    expect((await request(app).delete('/api/admin/albums/Paris/share/abc')).status).toBe(400);
+    mockQuery.mockResolvedValue({ rows: [] });
+    expect((await request(app).delete('/api/admin/albums/Paris/share/12')).status).toBe(200);
+    expect(mockQuery).toHaveBeenCalledWith(expect.stringContaining('DELETE FROM share_tokens'), [12, 'Paris']);
+  });
+
+  it('500 si la base échoue', async () => {
+    mockQuery.mockRejectedValue(new Error('db'));
+    database._setState({ query: mockQuery }, true);
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    expect((await request(app).post('/api/admin/albums/Paris/share').send({ days: 7 })).status).toBe(500);
+    expect((await request(app).get('/api/admin/albums/Paris/share')).status).toBe(500);
+    expect((await request(app).delete('/api/admin/albums/Paris/share/1')).status).toBe(500);
+  });
+});
+
+// ── Push subscribers and manual notification ──────────────────────────────────
+
+describe('abonnés push et notification manuelle (admin)', () => {
+  const pushMod = _require('../../../services/push.js');
+  afterEach(() => vi.restoreAllMocks());
+
+  it('GET subscribers : abrège l\'endpoint, rien sans DB', async () => {
+    expect((await request(app).get('/api/admin/albums/Paris/subscribers')).body).toEqual({ count: 0, subscribers: [] });
+    mockQuery.mockResolvedValue({ rows: [{ id: 4, endpoint: 'https://push.example/very/long/endpoint/123456789', user_agent: 'UA', subscribed_at: '2026-10-01' }] });
+    database._setState({ query: mockQuery }, true);
+    const res = await request(app).get('/api/admin/albums/Paris/subscribers');
+    expect(res.body.count).toBe(1);
+    // only the last 20 characters of the endpoint (a capability URL) leave the server
+    expect(res.body.subscribers[0]).toEqual({ id: 4, endpoint_short: 'g/endpoint/123456789', user_agent: 'UA', subscribed_at: '2026-10-01' });
+  });
+
+  it('DELETE subscriber : 503 sans DB, 400 si id invalide, sinon supprime', async () => {
+    expect((await request(app).delete('/api/admin/albums/Paris/subscribers/4')).status).toBe(503);
+    database._setState({ query: mockQuery }, true);
+    expect((await request(app).delete('/api/admin/albums/Paris/subscribers/x')).status).toBe(400);
+    mockQuery.mockResolvedValue({ rows: [] });
+    expect((await request(app).delete('/api/admin/albums/Paris/subscribers/4')).status).toBe(200);
+    expect(mockQuery).toHaveBeenCalledWith(expect.stringContaining('DELETE FROM push_subscriptions'), [4, 'Paris']);
+  });
+
+  it('POST notify : 400 sans titre ni message, sinon envoie aux abonnés', async () => {
+    const send = vi.spyOn(pushMod, 'sendToAlbum').mockResolvedValue(3);
+    expect((await request(app).post('/api/admin/albums/Paris/notify').send({})).status).toBe(400);
+    const res = await request(app).post('/api/admin/albums/Paris/notify').send({ title: 'Nouveau', body: 'Regardez' });
+    expect(res.body).toEqual({ ok: true, sent: 3 });
+    expect(send).toHaveBeenCalledWith('Paris', { title: 'Nouveau', body: 'Regardez' });
+  });
+
+  it('POST notify : 500 si l\'envoi échoue', async () => {
+    vi.spyOn(pushMod, 'sendToAlbum').mockRejectedValue(new Error('push down'));
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    expect((await request(app).post('/api/admin/albums/Paris/notify').send({ body: 'x' })).status).toBe(500);
+  });
+});

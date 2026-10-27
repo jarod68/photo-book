@@ -61,6 +61,14 @@ describe('library (T2)', () => {
     expect(library.size()).toBe(1);
   });
 
+  it('warmAll() reads every album once; allPhotos() returns them all', async () => {
+    const files = await library.listPhotos('Perth');   // an earlier test deleted one
+    library.clear();
+    await library.warmAll();
+    expect(library.size()).toBe(files.length);
+    expect((await library.allPhotos()).map((p) => p.filename)).toEqual(files);
+  });
+
   it('invalidate() drops entries; album paths cannot escape PHOTOS_DIR', async () => {
     library.invalidate('Perth');
     expect(library.size()).toBe(0);

@@ -537,7 +537,7 @@ Every push, on any branch, runs the three test layers in GitHub Actions (`.githu
 
 | Job | What | Against |
 |---|---|---|
-| `test` | Vitest unit + route tests, with **coverage thresholds** (statements 80 %, branches 73 %, functions 77 %, lines 82 % over `server.js`, `routes/`, `services/`, `public/api/`, `public/utils/`) | mocks |
+| `test` | Vitest unit + route tests, with **coverage thresholds** (statements 89 %, branches 82 %, functions 84 %, lines 91 % over `server.js`, `routes/`, `services/`, `public/api/`, `public/utils/`) | mocks |
 | `robot` | Robot Framework suites (`tests/integration_tests`), report kept as an artifact | the built app + PostgreSQL 17 |
 | `visual` | Playwright screenshots compared with the **Linux** baselines in `tests/visual_tests/snapshots`, in Playwright's image `mcr.microsoft.com/playwright:v1.64.1-noble`; diffs kept as an artifact on failure | the built app + PostgreSQL 17 |
 
