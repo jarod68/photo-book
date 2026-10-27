@@ -27,11 +27,15 @@ test('admin users section', async ({ page }) => {
 });
 
 test('admin system section layout', async ({ page }) => {
-  await page.waitForSelector('#section-system', { state: 'visible' });
+  await page.waitForSelector('#section-system .sys-card', { state: 'visible' });
   await expect(page.locator('#section-system')).toHaveScreenshot('admin-system.png', {
+    // the layout and labels are checked; the values (build, uptime, sizes,
+    // counts, dates, error messages) change from run to run
     mask: [
-      // Uptime, node version, containers are all dynamic
-      page.locator('#section-system'),
+      page.locator('#system-meta'),
+      page.locator('.sys-row span:last-child'),
+      page.locator('#system-migrations-count'),
+      page.locator('#system-errors-count'),
     ],
   });
 });
