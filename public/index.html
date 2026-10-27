@@ -11,7 +11,14 @@
   <header class="home-header">
     <div class="home-header-left">
       <h1 class="home-logo">Photo Book</h1>
-      <p id="summary" class="home-summary"></p>
+      <div class="home-summary-row">
+        <p id="summary" class="home-summary"></p>
+        <select id="album-sort" class="home-sort" data-i18n-aria="home.sort" hidden>
+          <option value="name" data-i18n="home.sortName">A–Z</option>
+          <option value="recent" data-i18n="home.sortRecent">Most recent</option>
+          <option value="oldest" data-i18n="home.sortOldest">Oldest</option>
+        </select>
+      </div>
     </div>
     <div class="home-header-right">
       <div id="lang-switcher"></div>

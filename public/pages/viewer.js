@@ -1,4 +1,4 @@
-import { t, applyTranslations, initLangSwitcher } from '../utils/i18n.js';
+import { t, getLang, applyTranslations, initLangSwitcher } from '../utils/i18n.js';
 import '../utils/admin-shortcut.js';
 import { AlbumTabs }      from '../components/album-tabs.js';
 import { ThumbnailStrip } from '../components/thumbnail-strip.js';
@@ -11,6 +11,7 @@ import { formatViews, formatLikes } from '../utils/format.js';
 import { subscribeTo, unsubscribeFrom, getSubscription, getStoredAlbums } from '../utils/push.js';
 import { showBuildTag } from '../utils/build-tag.js';
 import { Slideshow }      from '../utils/slideshow.js';
+import { sortPhotos, dayLabels, loadOrder, saveOrder } from '../utils/order.js';
 
 applyTranslations();
 initLangSwitcher('lang-switcher');
@@ -362,11 +363,12 @@ async function selectAlbum(name, targetFilename = null) {
     getLiked(name, userToken),
   ]);
   const isRestricted = state.albums.find(a => a.name === name)?.visibility === 'restricted';
-  state.photos = data.photos.map(p => ({ ...p, isRestricted }));
+  state.photos = orderPhotos(data.photos.map(p => ({ ...p, isRestricted })));
   state.liked  = new Set(likedData.filenames);
   state.index  = -1;
   viewsEl.textContent = '';
   thumbs.render(state.photos);
+  orderBtn.disabled = state.photos.length < 2;
 
   albumMapBtn.disabled = !state.photos.some(p => p.gps);
   slideshowBtn.disabled = state.photos.length < 2;
@@ -489,6 +491,39 @@ deleteBtn.addEventListener('click', async e => {
   } catch (err) {
     alert(t('viewer.deleteError', { msg: err.message }));
   }
+});
+
+// ── Photo order: by name or chronological (F5) ────────────────────────────────
+const ORDER_KEY = 'pb.photoOrder';
+const orderBtn  = document.getElementById('order-btn');
+let photoOrder  = loadOrder(ORDER_KEY, 'name', ['name', 'date']);
+
+// Sorted copy; in date order the first photo of each day carries its label.
+function orderPhotos(photos) {
+  const sorted = sortPhotos(photos, photoOrder);
+  const labels = photoOrder === 'date' ? dayLabels(sorted, getLang()) : [];
+  sorted.forEach((p, i) => { p.dayLabel = labels[i] ?? null; });
+  return sorted;
+}
+
+function renderOrderBtn() {
+  const byDate = photoOrder === 'date';
+  orderBtn.classList.toggle('active', byDate);
+  orderBtn.setAttribute('aria-pressed', String(byDate));
+  orderBtn.title = t(byDate ? 'viewer.orderDate' : 'viewer.orderName');
+  orderBtn.setAttribute('aria-label', t('viewer.orderDate'));
+}
+renderOrderBtn();
+
+orderBtn.addEventListener('click', () => {
+  photoOrder = photoOrder === 'date' ? 'name' : 'date';
+  saveOrder(ORDER_KEY, photoOrder);
+  renderOrderBtn();
+  const current = state.photos[state.index]?.filename;
+  state.photos = orderPhotos(state.photos);
+  thumbs.render(state.photos);
+  const i = state.photos.findIndex(p => p.filename === current);
+  if (i >= 0) showPhoto(i, { auto: true });   // same photo, new position
 });
 
 // ── Slideshow & fullscreen (F4) ───────────────────────────────────────────────

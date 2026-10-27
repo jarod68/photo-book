@@ -278,6 +278,13 @@ export class ThumbnailStrip {
       thumb.appendChild(img);
     }
 
+    if (photo.dayLabel) {
+      const day = document.createElement('span');
+      day.className   = 'thumb-day';
+      day.textContent = photo.dayLabel;
+      thumb.appendChild(day);
+    }
+
     if (photo.is360) {
       const badge = document.createElement('span');
       badge.className   = 'thumb-badge';

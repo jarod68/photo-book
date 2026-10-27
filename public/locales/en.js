@@ -11,6 +11,10 @@ export default {
   'home.mapCard.sub':   'All locations',
   'home.globeCard.name': '3D Globe',
   'home.globeCard.sub':  '3D view of Earth',
+  'home.sort': 'Sort albums',
+  'home.sortName': 'A–Z',
+  'home.sortRecent': 'Most recent',
+  'home.sortOldest': 'Oldest',
   'word.album':        'album{s}',
   'word.photo':        'photo{s}',
 
@@ -22,6 +26,8 @@ export default {
   // Viewer
   'viewer.map':          'Map',
   'viewer.albumMap':     'Album map',
+  'viewer.orderDate': 'Chronological order',
+  'viewer.orderName': 'Order by name',
   'viewer.slideshow': 'Slideshow (space)',
   'viewer.fullscreen': 'Fullscreen (F)',
   'viewer.download':     'Download',

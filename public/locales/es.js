@@ -11,6 +11,10 @@ export default {
   'home.mapCard.sub':   'Todas las ubicaciones',
   'home.globeCard.name': 'Globo 3D',
   'home.globeCard.sub':  'Vista 3D de la Tierra',
+  'home.sort': 'Ordenar álbumes',
+  'home.sortName': 'A–Z',
+  'home.sortRecent': 'Más recientes',
+  'home.sortOldest': 'Más antiguos',
   'word.album':        'álbum{s}',
   'word.photo':        'foto{s}',
 
@@ -22,6 +26,8 @@ export default {
   // Viewer
   'viewer.map':          'Mapa',
   'viewer.albumMap':     'Mapa del álbum',
+  'viewer.orderDate': 'Orden cronológico',
+  'viewer.orderName': 'Orden por nombre',
   'viewer.slideshow': 'Presentación (espacio)',
   'viewer.fullscreen': 'Pantalla completa (F)',
   'viewer.download':     'Descargar',

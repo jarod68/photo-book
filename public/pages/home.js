@@ -1,6 +1,7 @@
 import { t, applyTranslations, initLangSwitcher } from '../utils/i18n.js';
 import { createAlbumCard } from '../components/album-card.js';
 import { showBuildTag } from '../utils/build-tag.js';
+import { sortAlbums, loadOrder, saveOrder } from '../utils/order.js';
 
 applyTranslations();
 initLangSwitcher('lang-switcher');
@@ -8,6 +9,8 @@ initLangSwitcher('lang-switcher');
 const grid   = document.getElementById('album-grid');
 const sumEl  = document.getElementById('summary');
 const authEl = document.getElementById('home-auth');
+const sortEl = document.getElementById('album-sort');
+const SORT_KEY = 'pb.albumSort';
 
 function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
@@ -36,7 +39,13 @@ async function init() {
     return;
   }
 
-  albums.forEach(album => grid.appendChild(createAlbumCard(album)));
+  // Album cards follow the map and globe cards; re-sorted in place (F5).
+  const cards = new Map(albums.map(a => [a.name, createAlbumCard(a)]));
+  const place = (mode) => sortAlbums(albums, mode).forEach(a => grid.appendChild(cards.get(a.name)));
+  sortEl.value = loadOrder(SORT_KEY, 'name', ['name', 'recent', 'oldest']);
+  sortEl.hidden = albums.length < 2;
+  sortEl.addEventListener('change', () => { saveOrder(SORT_KEY, sortEl.value); place(sortEl.value); });
+  place(sortEl.value);
 }
 
 function renderAuth(user) {
