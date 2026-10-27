@@ -1,6 +1,6 @@
 # Photo Book
 
-A self-hosted photo gallery with support for 360° panoramic photos, GPS map, view counts and likes — deployable on any Linux VPS with a single script.
+A self-hosted photo gallery with support for 360° panoramic photos, GPS map, view counts and likes. It runs on the holtz.fr k3s cluster ([infra-26](https://github.com/jarod68/infra-26)): https://book.holtz.fr, with a QA instance at https://qa.book.holtz.fr.
 
 ---
 
@@ -14,8 +14,8 @@ Key features:
 - **360° viewer** — equirectangular panoramas (detected via EXIF `ProjectionType` or a 2:1 aspect ratio) are rendered with Pannellum
 - **Interactive map** — all GPS-tagged photos are plotted across albums; clicking a marker opens the photo
 - **View counts & likes** — tracked per user session (anonymous UUID) and persisted in PostgreSQL
-- **Reverse geocoding** — GPS coordinates are resolved to human-readable place names via Nominatim (OpenStreetMap), cached in memory
-- **Preview generation** — sharp generates JPEG previews on first access and caches them to disk; subsequent server restarts are near-instant
+- **Reverse geocoding** — GPS coordinates are resolved to human-readable place names via Nominatim (OpenStreetMap), cached in the database
+- **Preview generation** — sharp generates thumbnails and previews in the background and keeps them on disk; subsequent server restarts are near-instant
 - **Internationalisation** — the interface is available in French, English and Spanish; the language is auto-detected from the browser and can be switched at any time via a dropdown in the header
 
 Role-based access control — albums can be public or restricted to selected users. No cloud dependency, no tracking.
@@ -30,13 +30,12 @@ Browser
   │  HTTPS (443)
   ▼
 ┌─────────────────────────────────────────────────┐
-│  Traefik  (reverse proxy + TLS)                 │
-│  • HTTP → HTTPS redirect                        │
-│  • Let's Encrypt certificate (ACME)             │
-│  • HSTS header                                  │
-│  • Routes *.domain → photo-book:3000            │
+│  Traefik  (k3s ingress, TLS, infra-26)          │
+│  • Let's Encrypt certificate                    │
+│  • book.holtz.fr → photo-book:3000              │
+│  • qa.book.holtz.fr → photo-book-qa:3000        │
 └────────────────────┬────────────────────────────┘
-                     │  HTTP (internal network)
+                     │  HTTP (cluster network)
                      ▼
 ┌────────────────────────────────────────────────┐
 │  photo-book  (Node.js / Express)               │
@@ -73,28 +72,17 @@ Browser
 └─────────────────┘
 ```
 
-### Containers
+### On the cluster
 
-| Container | Image | Role |
+Everything runs in the `web` namespace of the k3s cluster; the manifests live in [infra-26](https://github.com/jarod68/infra-26), not in this repository.
+
+| Deployment | Image | Role |
 |---|---|---|
-| `traefik` | `traefik:v3.3` | Reverse proxy, TLS termination, HTTP→HTTPS redirect, HSTS |
-| `photo-book` | `jarod68/photo-book:latest` | Node.js application server |
-| `postgres` | `postgres:16-alpine` | Persistent storage (views, likes, users, sessions, album settings) |
-| `adminer` | `adminer:latest` | Optional database UI, exposed via Traefik |
+| `photo-book` | `jarod68/photo-book:latest` | production, 1 replica — https://book.holtz.fr |
+| `photo-book-qa` | `jarod68/photo-book:qa` | QA — https://qa.book.holtz.fr (basic auth) |
+| `postgres` | PostgreSQL | databases `photobook` (prod) and `photobook_qa` (QA) |
 
-All three containers share a `proxy` bridge network. Traefik and photo-book communicate over this network; the Docker socket is not mounted (routing is configured via a static file provider).
-
-### Configuration files
-
-| File | Versioned | Description |
-|---|---|---|
-| `docker-compose.yml` | ✓ | Full stack definition with `${VAR}` references |
-| `traefik/static.yml` | ✓ | Traefik entrypoints, ACME, file provider |
-| `traefik/dynamic.yml` | generated | Router rule (domain), service URL, middlewares |
-| `.env` | generated | Secrets and server-specific values |
-| `letsencrypt/acme.json` | generated | TLS certificate store (chmod 600) |
-
-`deploy.sh` generates the three files marked *generated*; everything else lives in the repository.
+Persistent volumes: the photos (`/app/photos`, read-only for QA), and one pair of derivative volumes per instance (`/app/public/previews`, `/app/public/medium`). The pods run as uid 1000 (`runAsUser`, `fsGroup`). Keel rolls out new images (see *Release flow* below).
 
 The database schema is managed by **versioned migrations** in `services/migrations.js`. At startup, every migration not yet recorded in `schema_migrations` runs in order, each in its own transaction, under a PostgreSQL advisory lock (two instances never migrate at once); a failing migration is rolled back and stops the startup sequence. Never edit a released migration — add a new one. Migration 1 is the schema as it stood before migrations existed (all `IF NOT EXISTS`), so existing databases record it without any change.
 
@@ -159,7 +147,7 @@ Visitors can subscribe to an album (bell button in the viewer). When photos are 
 - **caches and maintenance**: photo-index entries, geocoded places, activity-log rows, last maintenance run;
 - **recent errors**: the last 50 `console.error` messages since startup (kept in memory only).
 
-It replaces the former Docker container list, which needed the host's Docker socket mounted in the container (equivalent to root on the host, and absent under Kubernetes): the socket mount and the `DOCKER_GID` setting are gone from `docker-compose.yml` and `deploy.sh`. A request with an album path leaving the photo folder now gets a `400`, no longer a logged `500`.
+It replaced the former Docker container list, which needed the host's Docker socket mounted in the container (equivalent to root on the host, and absent under Kubernetes). A request with an album path leaving the photo folder now gets a `400`, no longer a logged `500`.
 
 ### Search
 
@@ -562,6 +550,8 @@ ADMIN_PASS=Admin@test1 npx playwright test        # only comparable inside the P
 scripts/e2e-server.sh stop
 ```
 
+`npm run test:robot` and `npm run test:visual` do the same in one command (start, run, stop).
+
 **Visual baselines** are made in the same image as CI, never on a laptop (macOS renders fonts differently). After an intended UI change, run **Actions → Update visual baselines** on the branch — or put `[update-baselines]` in a commit message there — and review the images it commits; the next push checks against them.
 
 ## Tests unitaires
@@ -636,15 +626,16 @@ Unlike unit tests (which mock I/O and isolate modules), integration tests:
 pip install -r requirements-robot.txt
 
 # Download Playwright + Chromium (~150 MB, cached after first run)
-rfbrowser init
+rfbrowser init chromium
 ```
 
 ### Running tests
 
 ```bash
-# Full end-to-end run (starts the Docker stack, configures users, runs all suites)
+# Full run: builds and starts a throw-away instance (scripts/e2e-server.sh) against
+# the empty database given by the POSTGRES_* variables, runs every suite, stops it
 npm run test:robot
-# …or without Docker, against your own PostgreSQL: see "Tests in CI" above
+npm run test:robot -- tests/integration_tests/suites/auth.robot   # one suite
 
 # Run a single suite manually against an already-running instance
 robot \
@@ -756,84 +747,25 @@ push main ─► CI: tests + coverage ─► Grype gate (High/Critical with a fi
 - The CI never pushes `:latest`. Check the commit shown in the bottom-left corner of QA (`build abc1234`), then run **Actions → Promote to prod** with that commit (empty = whatever `:qa` serves now) and approve it: the exact image tested on QA is re-tagged `:latest`, no rebuild. To roll back, run it with an older commit.
 - **QA data**: its own PostgreSQL database and role (`photobook_qa`, selected with `POSTGRES_DB` / `POSTGRES_USER`) in the same PostgreSQL server; the **production photos mounted read-only** (QA can't upload, delete or modify them); its own preview / medium caches; no production Web Push keys (QA generates its own and only ever notifies its own subscribers). Its admin password is printed in the QA pod's log on first start.
 
-## How to deploy
-
-The steps below deploy photo-book on its own on any VPS (docker compose).
-
-### Prerequisites
-
-- A Linux VPS (Ubuntu 22.04+ or Debian 12+ recommended)
-- A domain name pointing to the server's IP
-- SSH access as root (or a user with `sudo`)
-- Port 80 and 443 open in the firewall
-
-### 1 — Clone the repository
+## Running locally
 
 ```bash
-git clone https://github.com/jarod68/photo-book.git
-cd photo-book
+npm ci
+# an empty PostgreSQL database; POSTGRES_HOST defaults to "postgres"
+export POSTGRES_HOST=localhost POSTGRES_DB=photobook POSTGRES_USER=photobook POSTGRES_PASSWORD=…
+PHOTOS_DIR=./photos npm run dev          # http://localhost:3000, from the sources (nodemon)
+# or, as in production:
+npm run build && (cd dist && node server.js)
 ```
 
-### 2 — Run the deploy script
+The admin password is printed in the log on the first start. Each sub-folder of `PHOTOS_DIR` is an album. `scripts/e2e-server.sh` starts a throw-away instance for the end-to-end tests (see *Tests in CI*).
 
-```bash
-sudo ./deploy.sh \
-  --domain your.domain.com \
-  --email  you@example.com
-```
-
-Optional flags:
-
-| Flag | Default | Description |
+| Variable | Default | Meaning |
 |---|---|---|
-| `--domain` | `book.holtz.fr` | Public hostname |
-| `--email` | `noname@book.holtz.fr` | ACME e-mail for Let's Encrypt |
-| `--photos-dir` | `/opt/photo-book/photos` | Host path where albums are stored |
-| `--update` | — | Re-sync files, rewrite config, pull latest image and restart |
-
-The script:
-
-1. Installs Docker and Docker Compose if not present
-2. Generates a random PostgreSQL password (saved to `/opt/photo-book/.postgres_password` for future updates)
-3. Writes `/opt/photo-book/.env` with all deployment variables
-4. Generates `traefik/dynamic.yml` with the router rule for your domain
-5. Creates directories (`photos/`, `public/previews/`, `letsencrypt/`)
-6. Initialises `letsencrypt/acme.json` with the required `chmod 600`
-7. Pulls Docker images and starts the stack
-8. Registers a systemd service (`photo-book.service`) that starts automatically on boot
-
-### 3 — Add photos
-
-Copy your album directories into the photos folder:
-
-```bash
-cp -r /path/to/My\ Trip /opt/photo-book/photos/
-```
-
-Each directory becomes an album. Supported formats: `.jpg`, `.jpeg`, `.png`, `.webp`, `.tiff`.
-
-Previews are generated automatically on the next page load (or in the background on the next restart).
-
-### Updating
-
-```bash
-cd /path/to/photo-book
-git pull
-sudo ./deploy.sh --update
-```
-
-### Useful commands
-
-```bash
-# View live logs
-journalctl -u photo-book -f
-
-# Container logs
-docker compose -f /opt/photo-book/docker-compose.yml logs -f
-
-# Restart the stack
-systemctl restart photo-book
-
-# Stop the stack
-systemctl stop photo-book
-```
+| `PORT` | `3000` | HTTP port |
+| `POSTGRES_HOST` / `POSTGRES_PORT` / `POSTGRES_DB` / `POSTGRES_USER` / `POSTGRES_PASSWORD` | `postgres` / `5432` / `photobook` / `photobook` / — | database |
+| `PHOTOS_DIR`, `PREVIEWS_DIR`, `MEDIUM_DIR` | `photos`, `public/previews`, `public/medium` | photo library and derivative caches |
+| `APP_ENV` | `production` | `qa` shows the QA banner |
+| `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` / `VAPID_SUBJECT` | generated and stored in the database | Web Push keys |
+| `NOTIFY_QUIET_MS` / `NOTIFY_MAX_WAIT_MS` | 10 min / 1 h | new-photo notification delays |
+| `PLACES_BACKGROUND` | on | `off` stops the background reverse geocoding |

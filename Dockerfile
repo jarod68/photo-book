@@ -11,8 +11,7 @@ COPY package.json package-lock.json ./
 RUN apk upgrade --no-cache \
   && npm ci --omit=dev \
   && rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx \
-            /usr/local/lib/node_modules/corepack /usr/local/bin/corepack \
-  && apk add --no-cache su-exec
+            /usr/local/lib/node_modules/corepack /usr/local/bin/corepack
 
 # Bundled application — built by `npm run build` before docker build
 COPY dist/server.js ./server.js
@@ -28,15 +27,10 @@ RUN printf '{"sha":"%s"}\n' "$GIT_SHA" > public/version.json
 RUN mkdir -p photos public/previews public/medium \
   && chown -R node:node /app
 
-COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
-RUN chmod +x /usr/local/bin/docker-entrypoint.sh
-
-# Declare non-root user so Docker Scout / image scanners see a safe default.
-# docker-compose overrides this to root so the entrypoint can chown bind-mount
-# volumes and fix the Docker socket, then su-exec drops back to node (uid 1000).
+# Runs as the unprivileged node user (uid 1000); on Kubernetes the pod's
+# securityContext (runAsUser / fsGroup 1000) makes the volumes writable.
 USER node
 
 EXPOSE 3000
 
-ENTRYPOINT ["docker-entrypoint.sh"]
 CMD ["node", "server.js"]
