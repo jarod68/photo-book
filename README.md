@@ -539,9 +539,30 @@ erDiagram
 
 ---
 
+## Tests in CI
+
+Every push, on any branch, runs the three test layers in GitHub Actions (`.github/workflows/ci.yml`); the image is built and pushed only from `main`, and only when all of them pass:
+
+| Job | What | Against |
+|---|---|---|
+| `test` | Vitest unit + route tests, with **coverage thresholds** (statements 80 %, branches 73 %, functions 77 %, lines 82 % over `server.js`, `routes/`, `services/`, `public/api/`, `public/utils/`) | mocks |
+| `robot` | Robot Framework suites (`tests/integration_tests`), report kept as an artifact | the built app + PostgreSQL 17 |
+| `visual` | Playwright screenshots compared with the **Linux** baselines in `tests/visual_tests/snapshots`, in Playwright's image `mcr.microsoft.com/playwright:v1.64.1-noble`; diffs kept as an artifact on failure | the built app + PostgreSQL 17 |
+
+`scripts/e2e-server.sh start` prepares the app for the last two, with no Docker: it builds, starts `dist/server.js` against the given PostgreSQL (`POSTGRES_*` variables) with an empty photo library, sets the admin password (`Admin@test1`) and creates the `robot-basic` user. Locally:
+
+```bash
+POSTGRES_HOST=localhost POSTGRES_DB=pb_e2e POSTGRES_USER=… POSTGRES_PASSWORD=… scripts/e2e-server.sh start
+robot --variable ADMIN_PASS:Admin@test1 tests/integration_tests/suites/
+ADMIN_PASS=Admin@test1 npx playwright test        # only comparable inside the Playwright image (fonts)
+scripts/e2e-server.sh stop
+```
+
+**Visual baselines** are made in the same image as CI, never on a laptop (macOS renders fonts differently). After an intended UI change, run **Actions → Update visual baselines** on the branch — or put `[update-baselines]` in a commit message there — and review the images it commits; the next push checks against them.
+
 ## Tests unitaires
 
-The test suite uses **Vitest 2.x** with V8 coverage.
+The test suite uses **Vitest 5** with V8 coverage (two projects: `server` in Node, `client` in happy-dom).
 
 ```
 tests/
@@ -589,7 +610,7 @@ npm run test:watch
 npm run test:coverage
 ```
 
-Coverage targets: `server.js`, `services/**`, `public/api/**`, `public/utils/**`.
+Coverage targets: `server.js`, `routes/**`, `services/**`, `public/api/**`, `public/utils/**`; the thresholds in `vitest.config.mjs` fail the run below them.
 
 ---
 
@@ -619,6 +640,7 @@ rfbrowser init
 ```bash
 # Full end-to-end run (starts the Docker stack, configures users, runs all suites)
 npm run test:robot
+# …or without Docker, against your own PostgreSQL: see "Tests in CI" above
 
 # Run a single suite manually against an already-running instance
 robot \
@@ -657,6 +679,7 @@ robot --console verbose --loglevel TRACE tests/integration_tests/suites/
 | `map.robot` | Map page structure, `GET /api/map` response shape |
 | `map_route.robot` | Route segmentation with GPS EXIF fixtures: two temporal groups form two independent polylines |
 | `geocode.robot` | `GET /api/geocode` input validation (400 on bad coords), response shape, cache consistency |
+| `audit_features.robot` | Photo edits, album cover / description, search API and page, uploads that never overwrite, System tab, notification switch, CSP and `/vendor/` libraries |
 
 ### Suite architecture
 

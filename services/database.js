@@ -24,7 +24,7 @@ async function tryConnect() {
 async function connectDb(dbInstance = null) {
   db = dbInstance ?? new Pool({
     host:     process.env.POSTGRES_HOST || 'postgres',
-    port:     5432,
+    port:     Number(process.env.POSTGRES_PORT) || 5432,
     // Overridable so a QA deployment can use its own database and role.
     database: process.env.POSTGRES_DB   || 'photobook',
     user:     process.env.POSTGRES_USER || 'photobook',

@@ -1,5 +1,6 @@
 *** Settings ***
 Resource          ../resources/common.resource
+Library           Collections
 Suite Setup       Open Geocode Context
 Suite Teardown    Close Browser
 

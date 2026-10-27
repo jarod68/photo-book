@@ -2,9 +2,10 @@ name: CI
 
 # Same release flow as mine-sim: CI → :qa (QA, rolled out by Keel) → manual
 # "Promote to prod" (promote.yml) → :latest (prod, rolled out by Keel).
+# Tests run on every branch; only a push to main builds and ships an image.
 on:
   push:
-    branches: [main]
+    branches: ['**']
   pull_request:
 
 # Cancel superseded runs on the same ref to save minutes.
@@ -13,7 +14,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # Blocking gate: unit + integration tests with coverage thresholds.
+  # Blocking gate: unit + integration tests (Vitest) with coverage thresholds
+  # (vitest.config.mjs — the run fails below them).
   test:
     runs-on: ubuntu-latest
     steps:
@@ -24,6 +26,82 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run test:coverage
+
+  # End-to-end: the built app against a real PostgreSQL, driven by the Robot
+  # Framework suites (tests/integration_tests) in Chromium.
+  robot:
+    runs-on: ubuntu-latest
+    needs: test
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env: { POSTGRES_USER: photobook, POSTGRES_PASSWORD: photobook, POSTGRES_DB: photobook }
+        ports: ["5432:5432"]
+        options: --health-cmd "pg_isready -U photobook" --health-interval 2s --health-timeout 5s --health-retries 30
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 26
+          cache: npm
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements-robot.txt
+      - run: npm ci
+      - run: pip install -r requirements-robot.txt && rfbrowser init chromium
+      - run: scripts/e2e-server.sh start
+      - name: Robot suites
+        run: >
+          robot --outputdir robot-results
+          --variable ADMIN_PASS:Admin@test1 --variable BASIC_USER:robot-basic --variable BASIC_PASS:Robot@basic1
+          tests/integration_tests/suites/
+      - name: Robot report as artifact
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: robot-report
+          path: |
+            robot-results/
+            ${{ runner.temp }}/photo-book-e2e/server.log
+          retention-days: 14
+
+  # Visual regression: Playwright screenshots compared with the Linux
+  # baselines in tests/visual_tests/snapshots. Runs in Playwright's own image
+  # (same browsers and fonts as the baselines). After an intended UI change,
+  # refresh them with Actions → "Update visual baselines" on the branch.
+  visual:
+    runs-on: ubuntu-latest
+    needs: test
+    container: mcr.microsoft.com/playwright:v1.64.1-noble
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env: { POSTGRES_USER: photobook, POSTGRES_PASSWORD: photobook, POSTGRES_DB: photobook }
+        options: --health-cmd "pg_isready -U photobook" --health-interval 2s --health-timeout 5s --health-retries 30
+    env:
+      POSTGRES_HOST: postgres
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 26
+          cache: npm
+      - run: npm ci
+      - run: scripts/e2e-server.sh start
+      - name: Playwright visual tests
+        run: npx playwright test
+        env: { ADMIN_PASS: Admin@test1 }
+      - name: Playwright report (diffs) as artifact
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: visual-report
+          path: |
+            tests/visual_tests/report/
+            test-results/
+          retention-days: 14
 
   # Supply-chain gate: build the image locally (amd64, not pushed), generate a
   # CycloneDX SBOM with Syft and scan it with Grype. Fails on any High/Critical
@@ -90,7 +168,7 @@ jobs:
   # :latest (prod) is never touched here — see promote.yml.
   docker:
     runs-on: ubuntu-latest
-    needs: [test, sbom]
+    needs: [test, robot, visual, sbom]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     steps:
       - uses: actions/checkout@v5
