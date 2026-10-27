@@ -1,5 +1,5 @@
 // Derived images on real files (real sharp, temporary directories).
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { createRequire } from 'module';
 import fs from 'fs';
 import os from 'os';
@@ -56,6 +56,21 @@ describe('derived images', () => {
     expect(fs.existsSync(pathOf(urls[0]))).toBe(true);
     expect(fs.readdirSync(path.join(PREVIEWS_DIR, 'Perth')).some((f) => f.endsWith('.tmp'))).toBe(false);
     fs.rmSync(file);
+  });
+
+  it('a damaged JPEG still gets derivatives; a file that does not decode gets none', async () => {
+    const good = await sharp({ create: { width: 800, height: 600, channels: 3, background: '#3366cc' } }).jpeg().toBuffer();
+    fs.writeFileSync(path.join(album, 'CUT.jpg'), good.subarray(0, Math.floor(good.length * 0.6)));   // truncated
+    fs.writeFileSync(path.join(album, 'JUNK.jpg'), Buffer.from('not a jpeg at all'));
+    const quiet = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const cut  = await photoMeta('Perth', 'CUT.jpg', album);
+    const junk = await photoMeta('Perth', 'JUNK.jpg', album);
+    quiet.mockRestore();
+    expect(cut.thumbUrl).toBeTruthy();
+    expect(cut.mediumUrl).toBeTruthy();
+    expect((await sharp(pathOf(cut.thumbUrl)).metadata()).width).toBe(480);
+    expect(junk.thumbUrl).toBeNull();
+    fs.rmSync(path.join(album, 'CUT.jpg')); fs.rmSync(path.join(album, 'JUNK.jpg'));
   });
 
   it('rebuilds derivatives and changes their URL when a photo is replaced', async () => {

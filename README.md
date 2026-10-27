@@ -112,6 +112,7 @@ For each photo, three derived JPEGs are made by sharp (EXIF orientation applied)
 - Rebuilt whenever the source is newer than the derivative (a photo replaced under the same name). Written to a temporary file and renamed, so a reader never sees a half-written image.
 - URLs carry the source's modification time (`?v=…`): derivatives are served as immutable for a year, and a replaced photo gets a new URL.
 - At startup the server generates whatever is missing or stale, then removes orphans (deleted photos and albums, files from the old naming scheme).
+- A slightly damaged file (truncated, odd JPEG markers) still gets derivatives from whatever decodes (sharp `failOn: 'none'`), as a browser would show it; only a file that does not decode at all is left without them (and never becomes an album cover).
 
 Derivatives persist across restarts on their own volumes (`PREVIEWS_DIR`, `MEDIUM_DIR`; default `public/previews`, `public/medium`).
 

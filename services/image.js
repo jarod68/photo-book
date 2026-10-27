@@ -58,7 +58,10 @@ async function withHeifSlot(fn) {
   try { return await fn(); } finally { heifSlots++; heifWaiters.shift()?.(); }
 }
 function lazySource(filePath) {
-  if (!HEIF_EXT.has(ext(filePath))) return () => Promise.resolve({ input: filePath });
+  // failOn 'none': a slightly damaged file (truncated, odd JPEG markers) still
+  // gets derivatives from whatever decodes, instead of none at all; browsers
+  // show such files too. A file that does not decode at all still fails.
+  if (!HEIF_EXT.has(ext(filePath))) return () => Promise.resolve({ input: filePath, options: { failOn: 'none' } });
   let p;
   return () => (p ??= withHeifSlot(async () => {
     const { width, height, data } = await heicDecode({ buffer: await fs.promises.readFile(filePath) });
