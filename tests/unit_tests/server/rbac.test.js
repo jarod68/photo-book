@@ -69,6 +69,8 @@ beforeEach(() => {
   database._reset();
   mockQuery.mockReset();
   _require('../../../services/gps-privacy.js')._reset();   // its settings cache
+  // a writable photo folder unless a test says otherwise (read-only = QA)
+  vi.spyOn(_require('../../../services/library.js'), 'isWritable').mockResolvedValue(true);
 });
 
 afterEach(() => vi.restoreAllMocks());

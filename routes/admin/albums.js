@@ -19,7 +19,7 @@ const uploads   = require('../../services/uploads');
 const notify    = require('../../services/notify');
 const gpsPrivacy = require('../../services/gps-privacy');
 
-const { BadRequest, sendError } = require('../../services/http-errors');
+const { BadRequest, sendError, requireWritableLibrary } = require('../../services/http-errors');
 
 const router = express.Router();
 
@@ -42,7 +42,7 @@ async function deleteAlbumFromDb(album) {
 }
 
 // POST /api/admin/albums
-router.post('/', requireAdmin, express.json(), async (req, res) => {
+router.post('/', requireAdmin, requireWritableLibrary, express.json(), async (req, res) => {
   const { name } = req.body ?? {};
   if (!name || !ALBUM_NAME_RE.test(name)) return res.status(400).json({ error: 'Invalid album name' });
   try {
@@ -58,7 +58,7 @@ router.post('/', requireAdmin, express.json(), async (req, res) => {
 });
 
 // PATCH /api/admin/albums/:album
-router.patch('/:album', requireAdmin, express.json(), async (req, res) => {
+router.patch('/:album', requireAdmin, requireWritableLibrary, express.json(), async (req, res) => {
   const { name: newName } = req.body ?? {};
   const oldName = req.params.album;
   if (!newName || !ALBUM_NAME_RE.test(newName)) return res.status(400).json({ error: 'Invalid album name' });
@@ -97,7 +97,7 @@ router.patch('/:album', requireAdmin, express.json(), async (req, res) => {
 });
 
 // DELETE /api/admin/albums/:album
-router.delete('/:album', requireAdmin, async (req, res) => {
+router.delete('/:album', requireAdmin, requireWritableLibrary, async (req, res) => {
   try {
     const albumPath = safeAlbumPath(req.params.album);
     const albumExists = await fs.promises.access(albumPath).then(() => true).catch(() => false);
@@ -115,7 +115,7 @@ router.delete('/:album', requireAdmin, async (req, res) => {
 });
 
 // DELETE /api/admin/albums/:album/photos/:filename
-router.delete('/:album/photos/:filename', requireAdmin, async (req, res) => {
+router.delete('/:album/photos/:filename', requireAdmin, requireWritableLibrary, async (req, res) => {
   try {
     const { album, filename } = req.params;
     const albumPath = safeAlbumPath(album);
@@ -198,7 +198,7 @@ router.put('/:album/details', requireAdmin, express.json(), async (req, res) => 
 });
 
 // POST /api/admin/albums/:album/photos (upload)
-router.post('/:album/photos', requireAdmin, async (req, res) => {
+router.post('/:album/photos', requireAdmin, requireWritableLibrary, async (req, res) => {
   let albumPath;
   try {
     albumPath = safeAlbumPath(req.params.album);

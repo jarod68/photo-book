@@ -27,6 +27,19 @@ async function listAlbums() {
   return entries.filter(isAlbumDir).map((e) => e.name).sort((a, b) => a.localeCompare(b));
 }
 
+// Whether the photo folder can be written to. False on QA, which mounts the
+// production photos read-only: creating, renaming or deleting albums and
+// uploading or deleting photos are then refused up front (and hidden in the
+// admin). Checked at most once a minute.
+let writableCache = { at: 0, value: true };
+async function isWritable() {
+  if (Date.now() - writableCache.at > 60_000) {
+    const value = await fs.promises.access(PHOTOS_DIR, fs.constants.W_OK).then(() => true, () => false);
+    writableCache = { at: Date.now(), value };
+  }
+  return writableCache.value;
+}
+
 // True when the album folder exists (an invalid name throws BadRequest).
 async function albumExists(album) {
   return fs.promises.stat(albumPath(album)).then((st) => st.isDirectory(), () => false);
@@ -90,4 +103,6 @@ function invalidate(album, file) {
 function clear() { cache.clear(); }
 const size = () => cache.size;
 
-module.exports = { listAlbums, albumExists, listPhotos, getPhoto, getAlbumPhotos, warmAll, allPhotos, invalidate, clear, size, albumPath };
+function _resetWritable() { writableCache = { at: 0, value: true }; }
+
+module.exports = { isWritable, _resetWritable, listAlbums, albumExists, listPhotos, getPhoto, getAlbumPhotos, warmAll, allPhotos, invalidate, clear, size, albumPath };

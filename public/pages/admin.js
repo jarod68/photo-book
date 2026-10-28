@@ -64,12 +64,13 @@ document.getElementById('logout-btn').addEventListener('click', async () => {
 async function loadAlbums() {
   const body = document.getElementById('albums-body');
   try {
-    const { albums } = await fetch('/api/admin/stats').then(r => r.json());
+    const { albums, readOnly } = await fetch('/api/admin/stats').then(r => r.json());
+    showReadOnly(readOnly);
     if (!albums.length) {
       body.innerHTML = `<tr><td colspan="5" class="admin-empty">${t('admin.noAlbums')}</td></tr>`;
       return;
     }
-    body.innerHTML = albums.map(a => renderAlbumRow(a)).join('');
+    body.innerHTML = albums.map(a => renderAlbumRow(a, readOnly)).join('');
     body.querySelectorAll('[data-settings]').forEach(btn =>
       btn.addEventListener('click', () => openAlbumSettings(btn.dataset.settings)));
     body.querySelectorAll('[data-rename]').forEach(btn =>
@@ -85,7 +86,18 @@ async function loadAlbums() {
   }
 }
 
-function renderAlbumRow(a) {
+// The photo folder is read-only (QA mounts the production photos): say so and
+// disable what would write to it. Titles, cover, access and notifications
+// live in the database and stay editable.
+function showReadOnly(readOnly) {
+  document.getElementById('library-readonly').hidden = !readOnly;
+  const btn = document.getElementById('new-album-btn');
+  btn.disabled = !!readOnly;
+  btn.title = readOnly ? t('admin.readOnlyShort') : '';
+}
+
+function renderAlbumRow(a, readOnly = false) {
+  const off = readOnly ? ` disabled title="${t('admin.readOnlyShort')}"` : '';
   const vis = a.visibility ?? 'public';
   return `
     <tr data-album="${esc(a.album)}">
@@ -99,9 +111,9 @@ function renderAlbumRow(a) {
       <td class="admin-row-actions">
         <button class="admin-icon-btn" data-settings="${esc(a.album)}" title="${t('admin.settings')}">${iconGear()}</button>
         <button class="admin-icon-btn" data-photos="${esc(a.album)}" title="${t('admin.editPhotos')}">${iconImages()}</button>
-        <button class="admin-icon-btn" data-upload="${esc(a.album)}" title="${t('admin.uploadPhotos')}">${iconUpload()}</button>
-        <button class="admin-icon-btn" data-rename="${esc(a.album)}" title="${t('admin.rename')}">${iconPencil()}</button>
-        <button class="admin-icon-btn admin-icon-btn--danger" data-delete="${esc(a.album)}" title="${t('admin.log.album_delete')}">${iconTrash()}</button>
+        <button class="admin-icon-btn" data-upload="${esc(a.album)}" title="${t('admin.uploadPhotos')}"${off}>${iconUpload()}</button>
+        <button class="admin-icon-btn" data-rename="${esc(a.album)}" title="${t('admin.rename')}"${off}>${iconPencil()}</button>
+        <button class="admin-icon-btn admin-icon-btn--danger" data-delete="${esc(a.album)}" title="${t('admin.log.album_delete')}"${off}>${iconTrash()}</button>
       </td>
     </tr>`;
 }

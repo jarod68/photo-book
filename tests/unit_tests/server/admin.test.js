@@ -68,6 +68,8 @@ beforeEach(() => {
   database._reset();
   mockQuery.mockReset();
   _require('../../../services/gps-privacy.js')._reset();   // its settings cache
+  // a writable photo folder unless a test says otherwise (read-only = QA)
+  vi.spyOn(_require('../../../services/library.js'), 'isWritable').mockResolvedValue(true);
 });
 
 // ── POST /api/auth/login ──────────────────────────────────────────────────────
@@ -1506,5 +1508,42 @@ describe('PUT /api/admin/albums/:album/settings — position GPS (F10)', () => {
       .mockResolvedValueOnce({ rows: [] });
     database._setState({ query: mockQuery }, true);
     expect((await request(app).get('/api/admin/albums/Paris/settings')).body.gpsPrivacy).toBe('hidden');
+  });
+});
+
+// ── Read-only photo library (QA mounts the production photos read-only) ───────
+
+describe('bibliothèque en lecture seule (QA)', () => {
+  beforeEach(() => libraryMod.isWritable.mockResolvedValue(false));
+  afterEach(() => vi.restoreAllMocks());
+
+  it('refuse avec 409 et un message clair tout ce qui écrit dans le dossier des photos', async () => {
+    const calls = [
+      request(app).post('/api/admin/albums').send({ name: 'Test' }),
+      request(app).patch('/api/admin/albums/Paris').send({ name: 'Rome' }),
+      request(app).delete('/api/admin/albums/Paris'),
+      request(app).delete('/api/admin/albums/Paris/photos/a.jpg'),
+      request(app).post('/api/admin/albums/Paris/photos'),
+      request(app).delete('/api/albums/Paris/photos/a.jpg'),
+    ];
+    for (const res of await Promise.all(calls)) {
+      expect(res.status, res.req.path).toBe(409);
+      expect(res.body).toEqual({ error: 'The photo library is read-only on this instance', code: 'read_only' });
+    }
+  });
+
+  it('laisse passer ce qui ne touche que la base (titres, couverture, accès)', async () => {
+    vi.spyOn(fsMod.promises, 'access').mockResolvedValue(undefined);
+    mockQuery.mockResolvedValue({ rows: [] });
+    database._setState({ query: mockQuery }, true);
+    expect((await request(app).put('/api/admin/albums/Paris/details').send({ description: 'x' })).status).toBe(200);
+    expect((await request(app).put('/api/admin/albums/Paris/settings').send({ visibility: 'public' })).status).toBe(200);
+    expect((await request(app).put('/api/admin/albums/Paris/photos/a.jpg/meta').send({ title: 'x' })).status).toBe(200);
+  });
+
+  it('les statistiques de l\'admin le signalent', async () => {
+    stubLibrary({ Paris: [] });
+    libraryMod.isWritable.mockResolvedValue(false);
+    expect((await request(app).get('/api/admin/stats')).body.readOnly).toBe(true);
   });
 });

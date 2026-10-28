@@ -40,7 +40,7 @@ router.get('/stats', requireAdmin, async (req, res) => {
       visibility: visibilityMap.get(album) ?? 'public',
     })).sort((a, b) => b.views - a.views || a.album.localeCompare(b.album));
 
-    res.json({ albums });
+    res.json({ albums, readOnly: !await library.isWritable() });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Internal server error' });

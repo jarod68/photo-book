@@ -1,4 +1,7 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+/* `hidden` always wins over a component's display rule (the new-album form
+   has display:flex and was shown although hidden). */
+[hidden] { display: none !important; }
 
 /* ── Palette ─────────────────────────────────────────────────────────────────
    Neutral dark theme, cobalt blue accent consistent with pins and routes.
@@ -24,6 +27,9 @@
 }
 
 html { height: 100%; background: var(--bg); color: var(--text); }
+/* The hidden attribute always hides, whatever display a class sets (the new
+   album form was always shown: .admin-new-album-form is display:flex). */
+[hidden] { display: none !important; }
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', sans-serif;
   min-height: 100%;
@@ -2224,6 +2230,17 @@ body {
 /* ── Album settings modal ─────────────────────────────────────────────────── */
 .album-settings-modal { max-width: 420px; }
 .album-notify-auto { margin: 4px 0 8px; font-size: 12.5px; }
+.admin-readonly-note {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border: 1px solid rgba(245,158,11,0.4);
+  background: rgba(245,158,11,0.07);
+  border-radius: 8px;
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+.admin-readonly-note[hidden] { display: none; }
+.admin-action-btn:disabled { opacity: 0.35; cursor: not-allowed; }
 .album-settings-gps { margin: 14px 0 6px; display: flex; flex-direction: column; gap: 4px; }
 .album-settings-gps-note { font-size: 11.5px; margin-top: 2px; line-height: 1.4; }
 

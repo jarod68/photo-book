@@ -117,6 +117,10 @@ Derivatives persist across restarts on their own volumes (`PREVIEWS_DIR`, `MEDIU
 - Original files are served with `?v=<mtime>` too, so a file replaced under the same name is reloaded.
 - Uploads accept up to 200 MB per file.
 
+### Read-only photo library
+
+When the photo folder cannot be written to (a read-only mount), the app says so instead of failing: Admin → Albums shows a notice and disables creating, renaming and deleting albums and uploading photos; those routes answer `409 { code: "read_only" }`, and the viewer offers no delete. Titles, cover, description and album settings live in the database and stay editable. Checked at most once a minute.
+
 ### Uploads never overwrite
 
 An uploaded file never replaces one already in the album. A name already taken — on disk, or earlier in the same batch — gets a suffix (`IMG_1.jpg` → `IMG_1 (2).jpg`); a file byte-for-byte identical to the one already there is dropped as a duplicate, so sending the same batch twice adds nothing. Files of unsupported types are refused. The upload answers `{ count, files, renamed, duplicates, skipped }` and the admin dialog lists anything renamed, dropped or refused. File names are read as UTF-8 (`défilé.jpg` keeps its accents).

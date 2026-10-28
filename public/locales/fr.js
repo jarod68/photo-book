@@ -152,6 +152,8 @@ export default {
   'admin.photoDescription': 'Légende',
   'admin.photoLocation': 'Lieu',
   'admin.saved': 'Enregistré',
+  'admin.readOnly': "La bibliothèque de photos est en lecture seule ici (la QA utilise les photos de la prod) : créer, renommer ou supprimer un album et envoyer des photos sont désactivés. Les titres, la couverture, la description et les réglages d'accès restent modifiables.",
+  'admin.readOnlyShort': 'Bibliothèque en lecture seule sur cette instance',
   'admin.notifyNew': 'Prévenir automatiquement les abonnés quand des photos sont ajoutées',
   'admin.gpsPrivacy': 'Position GPS (visiteurs et membres)',
   'admin.gpsExact': 'Exacte',

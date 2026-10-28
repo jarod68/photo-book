@@ -61,6 +61,8 @@ beforeEach(() => {
   database._reset();
   mockQuery.mockReset();
   _require('../../../services/gps-privacy.js')._reset();   // its settings cache
+  // a writable photo folder unless a test says otherwise (read-only = QA)
+  vi.spyOn(_require('../../../services/library.js'), 'isWritable').mockResolvedValue(true);
 });
 
 // ── albumAccessGuard ──────────────────────────────────────────────────────────
@@ -896,5 +898,19 @@ describe('confidentialité de la position GPS (F10)', () => {
       ['Approx', { lat: 48.86, lng: 2.29 }],
       ['Open', { lat: 48.858370, lng: 2.294481 }],
     ]);
+  });
+});
+
+describe('bibliothèque en lecture seule (QA) — visionneuse', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it('un admin ne se voit pas proposer la suppression', async () => {
+    stubLibrary({ Paris: ['a.jpg'] });
+    libraryMod.isWritable.mockResolvedValue(false);
+    database._setState({ query: mockQuery }, true);
+    mockQuery.mockResolvedValue({ rows: [] });
+    vi.spyOn(authMod, 'getSessionUser').mockResolvedValue({ id: 1, role: 'admin' });
+    const res = await request(app).get('/api/albums/Paris').set('Cookie', 'pb_session=' + 'a'.repeat(64));
+    expect(res.body.canDelete).toBe(false);
   });
 });

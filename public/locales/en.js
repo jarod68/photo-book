@@ -152,6 +152,8 @@ export default {
   'admin.photoDescription': 'Caption',
   'admin.photoLocation': 'Place',
   'admin.saved': 'Saved',
+  'admin.readOnly': 'The photo library is read-only here (QA uses the production photos): creating, renaming or deleting albums and uploading photos are disabled. Titles, cover, description and access settings can still be changed.',
+  'admin.readOnlyShort': 'Photo library is read-only on this instance',
   'admin.notifyNew': 'Notify subscribers automatically when photos are added',
   'admin.gpsPrivacy': 'GPS position (visitors and members)',
   'admin.gpsExact': 'Exact',

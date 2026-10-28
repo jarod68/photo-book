@@ -15,7 +15,7 @@ const auth     = require('../services/auth');
 const activity = require('../services/activity');
 const { resolveUser, getAlbumAccess, filterVisibleAlbums } = require('../services/access');
 
-const { BadRequest, sendError } = require('../services/http-errors');
+const { BadRequest, sendError, requireWritableLibrary } = require('../services/http-errors');
 
 const router = express.Router();
 
@@ -146,7 +146,8 @@ router.get('/:album', async (req, res) => {
       } catch (err) { console.error('Failed to load view/like counts:', err.message); }
     }
 
-    res.json({ name: req.params.album, photos, canDelete, canDownload: !!user });
+    const writable = await library.isWritable();
+    res.json({ name: req.params.album, photos, canDelete: canDelete && writable, canDownload: !!user });
   } catch (err) {
     sendError(res, err);
   }
@@ -168,7 +169,7 @@ router.get('/:album/cover', async (req, res) => {
 });
 
 // DELETE /api/albums/:album/photos/:filename  (user-facing, requires auth)
-router.delete('/:album/photos/:filename', auth.requireAuth, async (req, res) => {
+router.delete('/:album/photos/:filename', auth.requireAuth, requireWritableLibrary, async (req, res) => {
   try {
     const { album, filename } = req.params;
     const { canDelete } = await getAlbumAccess(album, req.user).catch(() => ({ canDelete: false }));

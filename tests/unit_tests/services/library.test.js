@@ -75,3 +75,20 @@ describe('library (T2)', () => {
     expect(() => library.albumPath('../etc')).toThrow('Invalid album');
   });
 });
+
+describe('isWritable (QA read-only library)', () => {
+  it('vrai sur un dossier inscriptible, faux s\'il ne l\'est pas, relu au plus une fois par minute', async () => {
+    library._resetWritable();
+    expect(await library.isWritable()).toBe(true);
+    fs.chmodSync(process.env.PHOTOS_DIR, 0o555);
+    try {
+      expect(await library.isWritable()).toBe(true);           // cached
+      library._resetWritable();
+      // root ignores permission bits: only meaningful as a normal user (CI, the pod)
+      if (process.getuid?.() !== 0) expect(await library.isWritable()).toBe(false);
+    } finally {
+      fs.chmodSync(process.env.PHOTOS_DIR, 0o755);
+      library._resetWritable();
+    }
+  });
+});

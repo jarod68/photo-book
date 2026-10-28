@@ -152,6 +152,8 @@ export default {
   'admin.photoDescription': 'Leyenda',
   'admin.photoLocation': 'Lugar',
   'admin.saved': 'Guardado',
+  'admin.readOnly': 'La fototeca es de solo lectura aquí (QA usa las fotos de producción): crear, renombrar o eliminar álbumes y subir fotos está desactivado. Los títulos, la portada, la descripción y los ajustes de acceso se pueden cambiar.',
+  'admin.readOnlyShort': 'Fototeca de solo lectura en esta instancia',
   'admin.notifyNew': 'Avisar automáticamente a los suscriptores cuando se añaden fotos',
   'admin.gpsPrivacy': 'Posición GPS (visitantes y miembros)',
   'admin.gpsExact': 'Exacta',
