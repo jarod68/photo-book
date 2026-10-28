@@ -93,6 +93,10 @@ export default {
 
   // Map
   'globe.title':   'Globe 3D',
+  'globe.satellite': 'Satellite',
+  'globe.map': 'Plan',
+  'globe.backToSpace': 'Vue de l’espace',
+  'globe.credit': 'Images : NASA Blue Marble &amp; Black Marble · côtes : Natural Earth',
 
   'map.title':     'Carte',
   'map.back':      'Retour',

@@ -758,7 +758,10 @@ describe('CSP (T6)', () => {
     const res = await request(app).get('/vendor/leaflet/leaflet.js');
     expect(res.status).toBe(200);
     expect(res.text).toMatch(/Leaflet/);
-    expect((await request(app).get('/vendor/three/addons/lines/LineMaterial.js')).status).toBe(200);
+    expect((await request(app).get('/vendor/three/addons/controls/OrbitControls.js')).status).toBe(200);
+    const worker = await request(app).get('/vendor/maplibre-gl/maplibre-gl-worker.mjs');
+    expect(worker.status).toBe(200);
+    expect(worker.headers['content-type']).toMatch(/javascript/);   // module workers need a JS MIME type
   });
 });
 

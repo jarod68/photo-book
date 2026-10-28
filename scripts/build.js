@@ -27,7 +27,7 @@ async function main() {
       outdir:  'dist/public/pages',
     }),
 
-    // Globe page: Three.js is loaded via importmap (CDN), so mark it external
+    // Globe page: Three.js and MapLibre are loaded via the import map (/vendor/), so external
     esbuild.build({
       ...shared,
       entryPoints: ['public/pages/globe.js'],
@@ -35,7 +35,7 @@ async function main() {
       minify:   true,
       format:   'esm',
       outdir:   'dist/public/pages',
-      external: ['three', 'three/addons/*'],
+      external: ['three', 'three/addons/*', 'maplibre-gl'],
     }),
 
     // CSS: minify
@@ -72,6 +72,9 @@ async function main() {
       copyFile(from, to);
     }
   }
+
+  // Static assets copied as they are: the globe's Earth textures (scripts/earth-textures.js)
+  fs.cpSync(path.join(ROOT, 'public', 'textures'), path.join(DIST, 'public', 'textures'), { recursive: true });
 
   // HTML files are not processed by esbuild — copy as-is
   for (const f of ['index.html', 'admin.html', 'login.html', 'map.html', 'search.html', 'viewer.html', 'globe.html']) {

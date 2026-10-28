@@ -18,10 +18,10 @@ const VENDOR_FILES = {
   'three/three.module.js':                      'three/build/three.module.js',
   'three/addons/controls/OrbitControls.js':     'three/examples/jsm/controls/OrbitControls.js',
   'three/addons/renderers/CSS2DRenderer.js':    'three/examples/jsm/renderers/CSS2DRenderer.js',
-  'three/addons/lines/':                        'three/examples/jsm/lines/',
-  'topojson-client/topojson-client.min.js':     'topojson-client/dist/topojson-client.min.js',
-  'world-atlas/countries-110m.json':            'world-atlas/countries-110m.json',
-  'world-atlas/countries-50m.json':             'world-atlas/countries-50m.json',
+  // ES modules: the worker is loaded from the main module's folder (same origin, no blob:)
+  'maplibre-gl/maplibre-gl.mjs':                'maplibre-gl/dist/maplibre-gl.mjs',
+  'maplibre-gl/maplibre-gl-worker.mjs':         'maplibre-gl/dist/maplibre-gl-worker.mjs',
+  'maplibre-gl/maplibre-gl.css':                'maplibre-gl/dist/maplibre-gl.css',
 };
 
 module.exports = { VENDOR_FILES };

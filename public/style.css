@@ -447,110 +447,125 @@ body {
   50%       { opacity: 1;   transform: scale(1.3); }
 }
 
-/* Country name labels rendered by CSS2DRenderer */
+/* Country names over the space view (CSS2DRenderer) */
 .globe-label {
-  color: rgba(148, 180, 212, 0.90);
-  font-size: 9px;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  font-weight: 500;
-  letter-spacing: 0.10em;
+  color: rgba(255,255,255,0.82);
+  font: 500 10px/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
   white-space: nowrap;
   pointer-events: none;
   user-select: none;
-  /* Cheap readable background instead of expensive blur text-shadow */
-  background: rgba(4,8,20,0.55);
-  padding: 1px 4px;
-  border-radius: 2px;
-  /* GPU layer hint — avoids repaint when transform updates */
+  text-shadow: 0 0 4px rgba(0,0,0,0.9), 0 1px 2px rgba(0,0,0,0.9);
+  transition: opacity 0.4s;
   will-change: transform, opacity;
 }
 
-/* ── Photo pin popup (fixed overlay, positioned by JS via project()) ─────── */
-.globe-popup {
-  position: fixed;
-  transform: translate(-50%, calc(-100% - 14px));
-  background: rgba(6, 12, 28, 0.97);
-  border: 1px solid rgba(59,130,246,0.28);
-  border-radius: 9px;
-  padding: 10px 28px 10px 10px;
-  width: 168px;
-  pointer-events: auto;
-  backdrop-filter: blur(12px);
-  box-shadow: 0 8px 28px rgba(0,0,0,0.65), 0 0 0 1px rgba(59,130,246,0.06);
-  z-index: 100;
-  display: none;
-}
-.globe-popup[data-open="true"]  { display: block; }
-.globe-popup[data-open="false"] { display: none;  }
+/* ── Two layers: space (Three.js) and near (MapLibre), cross-faded ──────── */
+.globe-layer { position: absolute; inset: 0; transition: opacity 0.45s ease; }
+#globe-near { opacity: 0; pointer-events: none; }
+.globe-is-near #globe-near { opacity: 1; pointer-events: auto; }
+.globe-is-near #globe-space { opacity: 0; pointer-events: none; }
+#globe-near .maplibregl-canvas { outline: none; }
 
-/* Downward-pointing caret */
-.globe-popup::after {
-  content: '';
-  position: absolute;
-  top: 100%;
-  left: 50%;
-  transform: translateX(-50%);
-  border: 6px solid transparent;
-  border-top-color: rgba(59,130,246,0.28);
-}
-.globe-popup::before {
-  content: '';
-  position: absolute;
-  top: calc(100% + 1px);
-  left: 50%;
-  transform: translateX(-50%);
-  border: 5px solid transparent;
-  border-top-color: rgba(6,12,28,0.97);
-}
-
-/* Close button */
-.globe-popup-close {
-  position: absolute;
-  top: 6px;
-  right: 7px;
-  background: none;
-  border: none;
-  color: rgba(238,238,242,0.35);
-  font-size: 16px;
-  line-height: 1;
-  cursor: pointer;
-  padding: 2px 4px;
-  transition: color 0.15s;
-}
-.globe-popup-close:hover { color: #eeeef2; }
-
-/* Inner content reuses .map-popup-* classes; override colors for dark bg */
-.globe-popup .map-popup-inner {
-  min-width: 0;
-}
-.globe-popup .globe-popup-title {
-  font-size: 12px;
-  font-weight: 600;
-  display: block;
-  margin-bottom: 5px;
-  line-height: 1.3;
-  color: #eeeef2;
-  white-space: nowrap;
+/* Satellite / map switch — only meaningful in the near view */
+.globe-modes {
+  display: flex;
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: var(--ctl-r);
   overflow: hidden;
-  text-overflow: ellipsis;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s;
 }
-.globe-popup .map-popup-date {
-  color: rgba(238,238,242,0.45);
+.globe-is-near .globe-modes { opacity: 1; pointer-events: auto; }
+.globe-modes button {
+  background: transparent;
+  border: none;
+  color: rgba(238,238,242,0.55);
+  font: inherit;
+  font-size: 12px;
+  padding: 5px 12px;
+  cursor: pointer;
 }
-.globe-popup-img {
-  width: 148px;
-  height: 94px;
-  object-fit: cover;
-  display: block;
-  border-radius: 5px;
-  margin-bottom: 8px;
+.globe-modes button[aria-pressed="true"] { background: rgba(59,130,246,0.25); color: #fff; }
+@media (max-width: 560px) {
+  .globe-count { display: none; }
+  .globe-modes button { padding: 5px 9px; }
 }
-.globe-popup .map-popup-view {
-  background: rgba(255,255,255,0.07);
-  color: #eeeef2 !important;
+#globe-up { display: flex; align-items: center; border-right: 1px solid rgba(255,255,255,0.12); }
+#globe-up:hover { color: #fff; }
+
+/* While the near view gets ready */
+.globe-switch-spinner {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  padding: 14px; border-radius: 50%; background: rgba(0,0,0,0.45);
+  opacity: 0; pointer-events: none; transition: opacity 0.2s 0.3s;
 }
-.globe-popup .map-popup-view:hover { background: #3b82f6; }
+.globe-switching .globe-switch-spinner { opacity: 1; }
+
+/* Image credits of the space view */
+.globe-credit {
+  position: absolute;
+  right: 10px;
+  bottom: 8px;
+  margin: 0;
+  font-size: 10px;
+  color: rgba(238,238,242,0.38);
+  pointer-events: auto;
+  transition: opacity 0.3s;
+}
+.globe-credit a { color: inherit; }
+.globe-is-near .globe-credit { opacity: 0; pointer-events: none; }
+
+/* Photo markers of the near view: round thumbnails, with a count for groups */
+.near-marker {
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  border: 3px solid #fff;
+  background: #3b82f6 center / cover no-repeat;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.55);
+  cursor: pointer;
+  padding: 0;
+  transition: transform 0.15s;
+}
+.near-marker:hover { transform: scale(1.12); }
+.near-marker-count {
+  position: absolute;
+  top: -9px;
+  right: -12px;
+  min-width: 22px;
+  padding: 2px 6px;
+  border-radius: 11px;
+  background: #3b82f6;
+  border: 2px solid #fff;
+  color: #fff;
+  font: 600 11px/14px -apple-system, 'Segoe UI', sans-serif;
+}
+
+/* Photo card */
+.near-popup .maplibregl-popup-content {
+  background: rgba(10,14,26,0.96);
+  color: #eeeef2;
+  border-radius: 12px;
+  padding: 0;
+  overflow: hidden;
+  box-shadow: 0 12px 36px rgba(0,0,0,0.6);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+.near-popup .maplibregl-popup-tip { border-top-color: rgba(10,14,26,0.96); border-bottom-color: rgba(10,14,26,0.96); }
+.near-popup .maplibregl-popup-close-button { color: #fff; font-size: 18px; right: 4px; top: 2px; text-shadow: 0 1px 3px #000; }
+.near-popup-img img { display: block; width: 100%; max-height: 190px; object-fit: cover; }
+.near-popup-text { display: flex; flex-direction: column; gap: 3px; padding: 10px 12px 12px; font-size: 12px; }
+.near-popup-text strong { font-size: 14px; font-weight: 600; }
+.near-popup-album { color: #60a5fa; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; }
+.near-popup-date { color: rgba(238,238,242,0.55); }
+.near-popup-link { margin-top: 6px; color: #93c5fd; text-decoration: none; font-weight: 500; }
+.near-popup-link:hover { text-decoration: underline; }
+.near-popup-grid { display: grid; grid-template-columns: repeat(3, 80px); gap: 4px; padding: 8px; }
+.near-popup-thumb img { display: block; width: 80px; height: 80px; object-fit: cover; border-radius: 6px; }
+
 
 /* ── Globe album card visual (home page) ─────────────────────────────────── */
 .album-card-globe-visual {

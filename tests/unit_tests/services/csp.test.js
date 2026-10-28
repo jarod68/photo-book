@@ -21,13 +21,19 @@ describe('CSP (T6)', () => {
     fs.rmSync(dir, { recursive: true });
   });
 
-  it('politique : rien hors du site sauf les tuiles OSM', () => {
+  it('politique : rien hors du site sauf les tuiles OSM, et les tuiles du globe en images / requêtes', () => {
     const d = csp.directives(path.join(ROOT, 'public'));
     expect(d.scriptSrc[0]).toBe("'self'");
     expect(d.scriptSrc.slice(1).every((s) => s.startsWith("'sha256-"))).toBe(true);
     expect(d.scriptSrc).toHaveLength(2);                    // the globe's import map
     expect(d.imgSrc).toContain(csp.TILE_ORIGIN);
-    expect(Object.values(d).flat().filter((s) => s.startsWith('https:'))).toEqual([csp.TILE_ORIGIN]);
+    expect(csp.GLOBE_ORIGINS).toEqual(['https://tiles.maps.eox.at', 'https://tiles.openfreemap.org']);
+    expect(d.imgSrc.filter((s) => s.startsWith('https:'))).toEqual([csp.TILE_ORIGIN, ...csp.GLOBE_ORIGINS]);
+    expect(d.connectSrc).toEqual(["'self'", ...csp.GLOBE_ORIGINS]);
+    // never scripts, styles, workers or frames from elsewhere
+    for (const k of ['scriptSrc', 'styleSrc', 'workerSrc', 'defaultSrc', 'fontSrc']) {
+      expect(d[k].some((s) => s.startsWith('https:')), k).toBe(false);
+    }
     expect(d.frameAncestors).toEqual(["'none'"]);
   });
 

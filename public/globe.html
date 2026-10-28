@@ -4,12 +4,14 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Photo Book — Globe</title>
+  <link rel="stylesheet" href="vendor/maplibre-gl/maplibre-gl.css">
   <link rel="stylesheet" href="style.css">
   <script type="importmap">
   {
     "imports": {
       "three":           "/vendor/three/three.module.js",
-      "three/addons/":   "/vendor/three/addons/"
+      "three/addons/":   "/vendor/three/addons/",
+      "maplibre-gl":     "/vendor/maplibre-gl/maplibre-gl.mjs"
     }
   }
   </script>
@@ -26,28 +28,28 @@
       <h1 class="globe-title" data-i18n="globe.title">Globe 3D</h1>
       <p id="globe-count" class="globe-count"></p>
     </div>
+    <div id="globe-modes" class="globe-modes" role="group">
+      <button type="button" id="globe-up" data-i18n-title="globe.backToSpace" data-i18n-aria="globe.backToSpace">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg>
+      </button>
+      <button type="button" data-mode="satellite" aria-pressed="true" data-i18n="globe.satellite">Satellite</button>
+      <button type="button" data-mode="map" aria-pressed="false" data-i18n="globe.map">Map</button>
+    </div>
     <div id="lang-switcher"></div>
   </header>
 
   <div id="globe-container">
+    <!-- the Earth from space (Three.js) -->
+    <div id="globe-space" class="globe-layer"></div>
+    <!-- below ~1 400 km: satellite / street map (MapLibre) -->
+    <div id="globe-near" class="globe-layer"></div>
     <div id="globe-loading" class="globe-loading">
       <div class="globe-loading-dot"></div>
     </div>
+    <div class="globe-switch-spinner" aria-hidden="true"><div class="globe-loading-dot"></div></div>
+    <p id="globe-credit" class="globe-credit"></p>
   </div>
 
-  <!-- Photo pin popup — lives outside container, positioned via project() -->
-  <div id="globe-popup" class="globe-popup" data-open="false">
-    <button id="globe-popup-close" class="globe-popup-close" aria-label="Close">×</button>
-    <div class="globe-popup-inner">
-      <span class="map-popup-album globe-popup-album"></span>
-      <strong class="globe-popup-title"></strong>
-      <span class="map-popup-date globe-popup-date"></span>
-      <img class="globe-popup-img" alt="">
-      <a class="map-popup-view globe-popup-link"></a>
-    </div>
-  </div>
-
-  <script src="vendor/topojson-client/topojson-client.min.js"></script>
-<script type="module" src="pages/globe.js"></script>
+  <script type="module" src="pages/globe.js"></script>
 </body>
 </html>

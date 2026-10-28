@@ -11,6 +11,9 @@ const fs     = require('fs');
 const path   = require('path');
 
 const TILE_ORIGIN = 'https://tile.openstreetmap.org';
+// Globe near view (components/globe/near-view.js): satellite imagery and the
+// OpenFreeMap style, vector tiles, fonts and sprites — fetched by MapLibre's worker.
+const GLOBE_ORIGINS = ['https://tiles.maps.eox.at', 'https://tiles.openfreemap.org'];
 
 /** 'sha256-…' sources for the inline <script> blocks of the given HTML files. */
 function inlineScriptHashes(publicDir, files = ['globe.html']) {
@@ -29,9 +32,9 @@ function directives(publicDir) {
     defaultSrc:     ["'self'"],
     scriptSrc:      ["'self'", ...inlineScriptHashes(publicDir)],
     styleSrc:       ["'self'", "'unsafe-inline'"],
-    imgSrc:         ["'self'", 'data:', 'blob:', TILE_ORIGIN],
+    imgSrc:         ["'self'", 'data:', 'blob:', TILE_ORIGIN, ...GLOBE_ORIGINS],
     mediaSrc:       ["'self'", 'blob:'],
-    connectSrc:     ["'self'"],
+    connectSrc:     ["'self'", ...GLOBE_ORIGINS],
     fontSrc:        ["'self'", 'data:'],
     workerSrc:      ["'self'"],
     manifestSrc:    ["'self'"],
@@ -59,4 +62,4 @@ function logViolation(body) {
 
 function _reset() { seen.clear(); }
 
-module.exports = { TILE_ORIGIN, inlineScriptHashes, directives, logViolation, _reset };
+module.exports = { TILE_ORIGIN, GLOBE_ORIGINS, inlineScriptHashes, directives, logViolation, _reset };

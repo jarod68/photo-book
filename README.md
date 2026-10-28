@@ -129,6 +129,15 @@ An uploaded file never replaces one already in the album. A name already taken �
 
 A photo's title, caption and place come from its file (XMP / IPTC / EXIF; the title falls back to the file name). Admins can change them without touching the file: **Admin → Albums → photos button** lists every photo of the album with the file's values as placeholders. A saved value is stored in `photo_overrides` and shown everywhere (viewer, map popups); clearing a field reverts to the file's value. Overrides follow album renames and are deleted with their photo or album.
 
+### 3D globe
+
+`globe.html` shows the photos on the Earth in two views that hand over to each other:
+
+- **From space** (Three.js, `public/components/globe/space-view.js`): NASA Blue Marble by day and Black Marble city lights by night, with the day/night line at the sun's real position (updated every minute), sun glint on the oceans only, an atmosphere halo and a starfield with the Milky Way. Photos are round thumbnails, grouped with a count when they overlap on screen; country names are in the reader's language.
+- **Close up** (MapLibre GL 6 in globe projection, `public/components/globe/near-view.js`): below ~1 400 km (zooming in, or clicking a photo or a group), the page cross-fades to a map that goes down to the street — **Satellite** (EOxCloudless 2024, Sentinel-2, about 10 m per pixel, with borders and place names from OpenFreeMap) or **Map** (OpenFreeMap Liberty, OpenStreetMap data). Photos are clustered thumbnails; a click opens the photo card. Zooming out — or the globe button — goes back to space. Both views show the Earth at the same apparent size at the switch (`public/utils/globe-math.js`).
+
+Everything is free and keyless: the NASA imagery is public domain and served by the app (`public/textures/earth/`, 2K / 4K / 8K WebP made by `scripts/earth-textures.js` from the NASA sources and a Natural Earth ocean mask; phones get 4K). EOxCloudless is CC BY-NC-SA 4.0 (non-commercial use, with the attribution shown on the map); OpenFreeMap has no limits and needs no key. These two tile hosts are the only additions to the Content-Security-Policy (`img-src` / `connect-src`). MapLibre (1.5 MB) is self-hosted under `/vendor/maplibre-gl/` and downloaded in the background a few seconds after the globe appears. `?still&at=2026-06-21T12:00:00Z` stops the rotation and fixes the sun (screenshots).
+
 ### Chronological order
 
 - **Home**: albums can be sorted A–Z, most recent first (by the last capture date) or oldest first (by the first capture date); albums without dates come last.
@@ -314,9 +323,9 @@ All `/api/admin/*` routes first pass through `requireAuth` (→ `401` if no sess
 
 ### Content-Security-Policy and self-hosted libraries
 
-The browser libraries — Leaflet 1.9.4, Leaflet.markercluster 1.5.3, Pannellum 2.5.7, Three.js 0.168.0, topojson-client 3.1.0 and the world-atlas country outlines — are `devDependencies` with exact versions, copied by `npm run build` to `dist/public/vendor/` and served by the app under `/vendor/` (the list is in `services/vendor.js`; running from the repository, the server maps the same paths to `node_modules`). Nothing is loaded from a CDN at run time, so a compromised CDN cannot inject code, and `npm audit` covers these libraries too.
+The browser libraries — Leaflet 1.9.4, Leaflet.markercluster 1.5.3, Pannellum 2.5.7, Three.js 0.168.0 and MapLibre GL 6.14.0 — are `devDependencies` with exact versions, copied by `npm run build` to `dist/public/vendor/` and served by the app under `/vendor/` (the list is in `services/vendor.js`; running from the repository, the server maps the same paths to `node_modules`). Nothing is loaded from a CDN at run time, so a compromised CDN cannot inject code, and `npm audit` covers these libraries too.
 
-Every response carries a strict `Content-Security-Policy` (`services/csp.js`): scripts, styles, fonts, data and workers from the site only; images also from `data:`, `blob:` and the OpenStreetMap tile server; no plugins, no framing (`frame-ancestors 'none'`). The only inline script, the globe's import map, is allowed by its SHA-256 hash, computed at startup from the served HTML. Inline styles stay allowed (style attributes, and Leaflet / Pannellum set styles too). Browsers report violations to `POST /api/csp-report`; each distinct one is logged once and appears in **Admin → System → Recent errors**.
+Every response carries a strict `Content-Security-Policy` (`services/csp.js`): scripts, styles, fonts, data and workers from the site only; images also from `data:`, `blob:` and the OpenStreetMap tile server; images and requests from the globe's two tile hosts (EOX, OpenFreeMap); no plugins, no framing (`frame-ancestors 'none'`). The only inline script, the globe's import map, is allowed by its SHA-256 hash, computed at startup from the served HTML. Inline styles stay allowed (style attributes, and Leaflet / Pannellum set styles too). Browsers report violations to `POST /api/csp-report`; each distinct one is logged once and appears in **Admin → System → Recent errors**.
 
 ### Backend
 
@@ -572,7 +581,7 @@ scripts/e2e-server.sh stop
 
 `npm run test:robot` and `npm run test:visual` do the same in one command (start, run, stop).
 
-The visual suite covers the home page, login, viewer, map, sharing, admin, and the screens added in October 2026 (`features.spec.js`: album card, sort menu, photo editor, upload report, search, chronological strip, edited photo info, slideshow) on an album prepared by `global.setup.js`.
+The visual suite covers the home page, login, viewer, map, sharing, admin, the 3D globe (`globe.spec.js`: space view with a fixed sun, then down to the map and back — the map tiles come from the network), and the screens added in October 2026 (`features.spec.js`: album card, sort menu, photo editor, upload report, search, chronological strip, edited photo info, slideshow) on an album prepared by `global.setup.js`.
 
 **Visual baselines** are made in the same image as CI, never on a laptop (macOS renders fonts differently). After an intended UI change, run **Actions → Update visual baselines** on the branch — or put `[update-baselines]` in a commit message there — and review the images it commits; the next push checks against them.
 
