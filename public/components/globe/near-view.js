@@ -82,8 +82,8 @@ export class NearView {
    * @param {{ photos: object[], lang: string, t: Function, onFar: Function }} opts
    *   onFar({ lat, lng, zoom }): the user zoomed out below FAR_ZOOM
    */
-  constructor(container, { photos, lang, t, onFar }) {
-    Object.assign(this, { container, photos, lang, t, onFar });
+  constructor(container, { photos, lang, t, onFar, onPoint = () => {} }) {
+    Object.assign(this, { container, photos, lang, t, onFar, onPoint });
     this.mode = 'satellite';
     this.markers = new Map();        // "c<cluster id>" / "p<photo index>" → maplibregl.Marker
     this.ready = null;
@@ -116,6 +116,14 @@ export class NearView {
     this.map.addControl(new ml.NavigationControl({ visualizePitch: true }), 'top-right');
     this.map.on('style.load', () => this.addPhotos());
     this.map.on('render', () => this.syncMarkers());
+    // pointer over the map / tap on it (time-zone card): page coordinates
+    const at = (e, tap) => {
+      const r = this.container.getBoundingClientRect();
+      this.onPoint({ lat: e.lngLat.lat, lng: e.lngLat.lng, x: r.left + e.point.x, y: r.top + e.point.y, tap });
+    };
+    this.map.on('mousemove', (e) => at(e, false));
+    this.map.on('mouseout', () => this.onPoint(null));
+    this.map.on('click', (e) => { if (e.originalEvent.pointerType !== 'mouse') at(e, true); });
     // back to space when the user zooms out far enough
     this.map.on('zoom', (e) => {
       if (e.originalEvent && this.map.getZoom() < FAR_ZOOM) {

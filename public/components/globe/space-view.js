@@ -60,9 +60,20 @@ const EARTH_FRAG = /* glsl */ `
   uniform sampler2D nightMap;
   uniform sampler2D waterMap;
   uniform vec3 sunDir;
+  // time-zone overlay (optional): index image, per-zone colours, hovered zone
+  uniform sampler2D tzMap;
+  uniform sampler2D tzLut;
+  uniform float tzOn;
+  uniform float tzHover;
+  uniform vec2 tzSize;
   varying vec2 vUv;
   varying vec3 vNormalW;
   varying vec3 vPosW;
+  // zone number + 1 stored in red (low byte) and green (high byte); 0 = none
+  float tzId(vec2 uv) {
+    vec4 c = texture2D(tzMap, uv);
+    return floor(c.r * 255.0 + 0.5) + floor(c.g * 255.0 + 0.5) * 256.0;
+  }
   void main() {
     vec3 n = normalize(vNormalW);
     vec3 v = normalize(cameraPosition - vPosW);
@@ -89,6 +100,19 @@ const EARTH_FRAG = /* glsl */ `
     // atmospheric scattering at the limb, brighter on the day side
     float fres = pow(1.0 - max(dot(n, v), 0.0), 3.5);
     col += fres * vec3(0.30, 0.58, 1.0) * (0.12 + 0.9 * smoothstep(-0.25, 0.6, cs));
+
+    if (tzOn > 0.0) {
+      float id = tzId(vUv);
+      vec3 zc = texture2D(tzLut, vec2((id + 0.5) / 512.0, 0.5)).rgb;
+      vec2 px = 1.0 / tzSize;
+      float edge = min(1.0, step(0.5, abs(tzId(vUv + vec2(px.x, 0.0)) - id)) + step(0.5, abs(tzId(vUv + vec2(0.0, px.y)) - id)));
+      float hover = 1.0 - step(0.5, abs(id - tzHover));
+      // a tint that follows the light: clear by day, faint at night (city lights stay)
+      vec3 tint = zc * (0.10 + 0.80 * day);
+      col = mix(col, tint, tzOn * (0.20 + 0.25 * hover) * (0.55 + 0.45 * day));
+      col += tzOn * hover * zc * 0.06;
+      col = mix(col, vec3(1.0, 0.97, 0.88), tzOn * edge * (0.28 + 0.15 * day + 0.45 * hover));
+    }
 
     gl_FragColor = vec4(col, 1.0);
     #include <colorspace_fragment>
@@ -215,8 +239,9 @@ export class SpaceView {
    *   onGroup(photos): a group of photos within a few degrees (a city, a region) was clicked
    *   at: a fixed date for the sun (screenshots); still: no auto-rotation
    */
-  constructor(container, { photos, lang, onNear, onPhoto, onGroup, at = null, still = false }) {
+  constructor(container, { photos, lang, onNear, onPhoto, onGroup, onPoint = () => {}, at = null, still = false }) {
     this.at = at;
+    this.onPoint = onPoint;      // pointer over the Earth ({ lat, lng, x, y, tap }) or off it (null)
     this.container = container;
     this.onNear = onNear;
     this.onPhoto = onPhoto;
@@ -234,7 +259,7 @@ export class SpaceView {
 
     this.labels = new CSS2DRenderer();
     this.labels.setSize(W, H);
-    Object.assign(this.labels.domElement.style, { position: 'absolute', inset: '0', pointerEvents: 'none' });
+    Object.assign(this.labels.domElement.style, { position: 'absolute', inset: '0', pointerEvents: 'none', zIndex: '1' });
     container.appendChild(this.labels.domElement);
 
     this.scene = new THREE.Scene();
@@ -316,7 +341,13 @@ export class SpaceView {
     this.scene.add(new THREE.Points(geo, this.starMat));
   }
 
-  async buildEarth() {
+  buildEarth() {
+    // resolves as soon as the Earth exists (the sharp textures come later)
+    this.earthReady = new Promise((resolve) => { this.earthCreated = resolve; });
+    this.loadEarth();
+  }
+
+  async loadEarth() {
     const caps = this.renderer.capabilities;
     // 8K textures (128 MB each once decoded) on large screens only: phones and
     // tablets (coarse pointer) get 4K, which mobile Safari keeps in memory.
@@ -330,10 +361,14 @@ export class SpaceView {
 
     this.earthMat = new THREE.ShaderMaterial({
       vertexShader: EARTH_VERT, fragmentShader: EARTH_FRAG,
-      uniforms: { dayMap: { value: day }, nightMap: { value: night }, waterMap: { value: water }, sunDir: { value: this.sun } },
+      uniforms: {
+        dayMap: { value: day }, nightMap: { value: night }, waterMap: { value: water }, sunDir: { value: this.sun },
+        tzMap: { value: null }, tzLut: { value: null }, tzOn: { value: 0 }, tzHover: { value: 0 }, tzSize: { value: new THREE.Vector2(1, 1) },
+      },
     });
     this.earth = new THREE.Mesh(new THREE.SphereGeometry(1, 192, 128), this.earthMat);
     this.scene.add(this.earth);
+    this.earthCreated();
 
     const atmo = new THREE.Mesh(new THREE.SphereGeometry(ATMO_R, 96, 64), new THREE.ShaderMaterial({
       vertexShader: ATMO_VERT, fragmentShader: ATMO_FRAG,
@@ -443,7 +478,12 @@ export class SpaceView {
       if (!down || Math.hypot(e.clientX - down.x, e.clientY - down.y) > 6) { down = null; return; }
       down = null;
       const s = hit(e);
-      if (!s) return;
+      if (!s) {
+        // a tap on the Earth itself (touch screens: the hover card)
+        const p = this.surfaceAt(e.clientX, e.clientY);
+        if (p) this.onPoint({ ...p, x: e.clientX, y: e.clientY, tap: true });
+        return;
+      }
       const items = s.userData.items;
       if (items.length === 1) { this.onPhoto(items[0]); return; }
       const c = items.reduce((a, p) => a.add(p.pos), new THREE.Vector3()).normalize();
@@ -459,8 +499,67 @@ export class SpaceView {
         if (down && Math.hypot(e.clientX - down.x, e.clientY - down.y) > 6) this.cancelFlight();   // a drag
         return;
       }
-      el.style.cursor = hit(e) ? 'pointer' : '';
+      const marker = hit(e);
+      el.style.cursor = marker ? 'pointer' : '';
+      const p = marker ? null : this.surfaceAt(e.clientX, e.clientY);
+      this.onPoint(p ? { ...p, x: e.clientX, y: e.clientY, tap: false } : null);
     });
+    el.addEventListener('pointerleave', () => this.onPoint(null));
+  }
+
+  // ── Time-zone overlay ─────────────────────────────────────────────────────
+
+  /**
+   * Show (layer) or hide (null) the time zones. layer: { url, width, colors }
+   * — url of the index image, its width, and colors: Uint8Array(512 × 4)
+   * RGBA per zone number + 1 (setTimezoneColors updates them).
+   */
+  async setTimezones(layer) {
+    await this.earthReady;
+    const u = this.earthMat.uniforms;
+    if (!layer) { u.tzOn.value = 0; this.tzHover = null; return; }
+    if (!u.tzMap.value) {
+      const t = await loadTexture(layer.url, false);
+      t.magFilter = t.minFilter = THREE.NearestFilter;    // an index: never blend two zones
+      t.generateMipmaps = false;
+      u.tzMap.value = t;
+      u.tzSize.value.set(layer.width, layer.width / 2);
+      this.tzLut = new THREE.DataTexture(new Uint8Array(512 * 4), 512, 1);
+      this.tzLut.colorSpace = THREE.SRGBColorSpace;
+      u.tzLut.value = this.tzLut;
+    }
+    this.setTimezoneColors(layer.colors);
+    u.tzOn.value = 1;
+  }
+
+  setTimezoneColors(colors) {
+    if (!this.tzLut) return;
+    this.tzLut.image.data.set(colors);
+    this.tzLut.needsUpdate = true;
+  }
+
+  /** Highlight the zone with this number + 1 (0: none). */
+  setTimezoneHover(n) {
+    if (this.earthMat) this.earthMat.uniforms.tzHover.value = n;
+  }
+
+  /** { lat, lng } of the Earth's surface under a page position, or null. */
+  surfaceAt(clientX, clientY) {
+    if (!this.earth) return null;
+    const r = this.renderer.domElement.getBoundingClientRect();
+    this.ray ??= new THREE.Raycaster();
+    this.ray.setFromCamera(new THREE.Vector2(((clientX - r.left) / r.width) * 2 - 1, -((clientY - r.top) / r.height) * 2 + 1), this.camera);
+    const hit = this.ray.intersectObject(this.earth, false)[0];
+    return hit ? xyzToLonLat([hit.point.x, hit.point.y, hit.point.z]) : null;
+  }
+
+  /** Page position of a place (for tests), or null when it is behind the Earth. */
+  screenPoint(lat, lng) {
+    const p = v3(lat, lng);
+    if (p.dot(this.camera.position) <= 1) return null;
+    p.project(this.camera);
+    const r = this.renderer.domElement.getBoundingClientRect();
+    return { x: r.left + (p.x + 1) / 2 * r.width, y: r.top + (1 - p.y) / 2 * r.height };
   }
 
   /** Screen positions of the visible markers (for tests): [{ x, y, count }]. */

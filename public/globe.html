@@ -28,6 +28,10 @@
       <h1 class="globe-title" data-i18n="globe.title">Globe 3D</h1>
       <p id="globe-count" class="globe-count"></p>
     </div>
+    <button type="button" id="globe-tz-btn" class="globe-tz-btn" aria-pressed="false" data-i18n-title="globe.timezones">
+      <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+      <span data-i18n="globe.timezones">Time zones</span>
+    </button>
     <div id="globe-modes" class="globe-modes" role="group">
       <button type="button" id="globe-up" data-i18n-title="globe.backToSpace" data-i18n-aria="globe.backToSpace">
         <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg>
@@ -47,6 +51,7 @@
       <div class="globe-loading-dot"></div>
     </div>
     <div class="globe-switch-spinner" aria-hidden="true"><div class="globe-loading-dot"></div></div>
+    <div id="globe-tz-tip" class="globe-tz-tip" hidden></div>
     <p id="globe-credit" class="globe-credit"></p>
   </div>
 

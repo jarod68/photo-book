@@ -95,6 +95,8 @@ export default {
   'globe.title':   'Globe 3D',
   'globe.satellite': 'Satellite',
   'globe.map': 'Plan',
+  'globe.timezones': 'Fuseaux horaires',
+  'globe.tzCredit': 'fuseaux : timezone-boundary-builder (© contributeurs OpenStreetMap, ODbL)',
   'globe.backToSpace': 'Vue de l’espace',
   'globe.credit': 'Images : NASA Blue Marble &amp; Black Marble · côtes : Natural Earth',
 

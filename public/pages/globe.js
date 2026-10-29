@@ -11,6 +11,7 @@ import '../utils/admin-shortcut.js';
 import { getMapPhotos } from '../api/client.js';
 import { showBuildTag } from '../utils/build-tag.js';
 import { distanceToZoom, zoomToDistance } from '../utils/globe-math.js';
+import { loadTimezones, zoneIndexAt, zoneLabel, offsetMinutes } from '../utils/timezones.js';
 import { SpaceView, FOV, NEAR_DISTANCE } from '../components/globe/space-view.js';
 import { NearView, FAR_ZOOM } from '../components/globe/near-view.js';
 
@@ -23,6 +24,10 @@ const countEl  = document.getElementById('globe-count');
 const modesEl  = document.getElementById('globe-modes');
 const creditEl = document.getElementById('globe-credit');
 const lang     = getLang();
+
+const tzBtn    = document.getElementById('globe-tz-btn');
+const tzTip    = document.getElementById('globe-tz-tip');
+const TZ_KEY   = 'pb.globeTimezones';
 
 let state = 'space';
 let busy  = false;
@@ -68,6 +73,77 @@ async function goFar({ lat, lng, zoom }) {
   busy = false;
 }
 
+// ── Time zones (optional overlay, local time on hover / tap) ─────────────────
+
+let tz = null;            // { names, index } once loaded
+let tzOn = false;
+let tzTimer = null;
+let tipPoint = null;      // last point shown in the card
+let tipSticky = false;    // shown by a tap (touch screens): stays until the next tap
+
+// One colour per zone from its current offset: six distinct hues in turn, so
+// neighbouring hours never look alike; zones off the hour (India, Nepal,
+// Newfoundland…) in gold.
+const HOUR_COLORS = [[0.30, 0.62, 1.00], [0.25, 0.85, 0.75], [0.55, 0.90, 0.35], [1.00, 0.72, 0.30], [1.00, 0.42, 0.45], [0.75, 0.48, 1.00]];
+const OFF_HOUR = [1.0, 0.86, 0.25];
+function zoneColors(names) {
+  const out = new Uint8Array(512 * 4);
+  const now = at ?? new Date();
+  names.forEach((name, i) => {
+    const m = offsetMinutes(name, now);
+    const c = m % 60 ? OFF_HOUR : HOUR_COLORS[(((m / 60) % 6) + 6) % 6];
+    out.set([c[0] * 255, c[1] * 255, c[2] * 255, 255], (i + 1) * 4);
+  });
+  return out;
+}
+
+async function setTimezones(on) {
+  tzOn = on;
+  tzBtn.setAttribute('aria-pressed', String(on));
+  try { localStorage.setItem(TZ_KEY, on ? '1' : '0'); } catch { /* private mode */ }
+  creditEl.innerHTML = t('globe.credit') + (on ? ` · ${t('globe.tzCredit')}` : '');
+  clearInterval(tzTimer);
+  if (!on) { space.setTimezones(null); showTip(null); return; }
+  const touch = matchMedia('(pointer: coarse)').matches;
+  tz = await loadTimezones(touch ? 2048 : 4096);
+  if (!tzOn) return;
+  await space.setTimezones({ url: `/textures/earth/tz-index-${tz.index.width}.png`, width: tz.index.width, colors: zoneColors(tz.names) });
+  // offsets change with summer time, and the card's clock moves on
+  tzTimer = setInterval(() => { space.setTimezoneColors(zoneColors(tz.names)); if (tipPoint) showTip(tipPoint); }, 30_000);
+}
+
+function showTip(p) {
+  if (!tzOn || !tz || !p) {
+    tzTip.hidden = true;
+    tipPoint = null;
+    space.setTimezoneHover(0);
+    return;
+  }
+  const n = zoneIndexAt(tz.index, p.lat, p.lng);
+  if (n < 0) { showTip(null); return; }
+  tipPoint = p;
+  const z = zoneLabel(tz.names[n], at ?? new Date(), lang);
+  tzTip.innerHTML = `<strong>${z.time}</strong><span>${z.place ? `${z.place} · ` : ''}${z.offset}</span><small>${z.day}</small>`;
+  const box = document.getElementById('globe-container').getBoundingClientRect();
+  const x = Math.min(p.x - box.left + 16, box.width - 180), y = Math.max(8, p.y - box.top - 70);
+  tzTip.style.transform = `translate(${x}px, ${y}px)`;
+  tzTip.hidden = false;
+  space.setTimezoneHover(n + 1);
+}
+
+// hover: follow the pointer; tap (touch): show until the next tap
+function onPoint(p) {
+  if (p?.tap) {
+    // a second tap in the same zone closes the card
+    const same = tipPoint && tz && zoneIndexAt(tz.index, p.lat, p.lng) === zoneIndexAt(tz.index, tipPoint.lat, tipPoint.lng);
+    tipSticky = !same;
+    showTip(same ? null : p);
+    return;
+  }
+  if (tipSticky) return;
+  showTip(p);
+}
+
 // ?at=2026-06-21T12:00:00Z fixes the sun, ?still stops the rotation (reproducible screenshots)
 const params = new URLSearchParams(location.search);
 const at = params.get('at') ? new Date(params.get('at')) : null;
@@ -79,9 +155,9 @@ async function init() {
     ? t('map.photos', { n: photos.length, s: photos.length > 1 ? 's' : '' })
     : t('map.noPhotos');
 
-  near = new NearView(nearEl, { photos, lang, t, onFar: goFar });
+  near = new NearView(nearEl, { photos, lang, t, onFar: goFar, onPoint });
   space = new SpaceView(spaceEl, {
-    photos, lang, at, still,
+    photos, lang, at, still, onPoint,
     onNear: (view) => goNear(view),
     onPhoto: async (photo) => {
       if (busy) return;
@@ -113,6 +189,10 @@ async function init() {
     near.setMode(btn.dataset.mode);
   });
   creditEl.innerHTML = t('globe.credit');
+  tzBtn.addEventListener('click', () => setTimezones(!tzOn));
+  let saved = null;
+  try { saved = localStorage.getItem(TZ_KEY); } catch { /* private mode */ }
+  if (saved === '1' || params.has('tz')) setTimezones(true);
   window.addEventListener('resize', () => near.resize());
 }
 

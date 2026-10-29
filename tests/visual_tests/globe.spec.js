@@ -46,3 +46,19 @@ test('globe: a group goes down to the map, the globe button comes back up', asyn
   await page.click('#globe-up');
   await expect(page.locator('body')).not.toHaveClass(/globe-is-near/, { timeout: 20_000 });
 });
+
+test('globe: time zones overlay, local time on hover', async ({ page }) => {
+  await page.goto(`${URL}&tz`);
+  await page.waitForFunction(() => document.getElementById('globe-space').globeView?.sharp, null, { timeout: 45_000 });
+  await expect(page.locator('#globe-tz-btn')).toHaveAttribute('aria-pressed', 'true');
+  const paris = await page.evaluate(() => document.getElementById('globe-space').globeView.screenPoint(46.5, 2.5));
+  await page.mouse.move(paris.x, paris.y, { steps: 3 });
+  // 21 June 2026, 12:00 UTC: summer time in Paris
+  await expect(page.locator('#globe-tz-tip')).toContainText('14:00');
+  await expect(page.locator('#globe-tz-tip')).toContainText('UTC+2');
+  await expect(page.locator('#globe-space')).toHaveScreenshot('globe-timezones.png', { maxDiffPixelRatio: 0.02, timeout: 30_000 });
+  // off again, and remembered
+  await page.click('#globe-tz-btn');
+  await expect(page.locator('#globe-tz-tip')).toBeHidden();
+  expect(await page.evaluate(() => localStorage.getItem('pb.globeTimezones'))).toBe('0');
+});

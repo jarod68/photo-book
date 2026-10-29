@@ -95,6 +95,8 @@ export default {
   'globe.title':     'Globo 3D',
   'globe.satellite': 'Satélite',
   'globe.map': 'Mapa',
+  'globe.timezones': 'Husos horarios',
+  'globe.tzCredit': 'husos: timezone-boundary-builder (© colaboradores de OpenStreetMap, ODbL)',
   'globe.backToSpace': 'Vista desde el espacio',
   'globe.credit': 'Imágenes: NASA Blue Marble &amp; Black Marble · costas: Natural Earth',
 

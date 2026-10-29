@@ -496,6 +496,29 @@ body {
 #globe-up { display: flex; align-items: center; border-right: 1px solid rgba(255,255,255,0.12); }
 #globe-up:hover { color: #fff; }
 
+/* Time-zone switch and the local-time card */
+.globe-tz-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: transparent; border: 1px solid rgba(255,255,255,0.12); border-radius: var(--ctl-r);
+  color: rgba(238,238,242,0.6); font: inherit; font-size: 12px; padding: 5px 10px; cursor: pointer;
+}
+.globe-tz-btn:hover { color: #fff; }
+.globe-tz-btn[aria-pressed="true"] { background: rgba(250,204,21,0.16); border-color: rgba(250,204,21,0.45); color: #fde68a; }
+.globe-tz-tip {
+  position: absolute; left: 0; top: 0; z-index: 20; pointer-events: none;
+  display: flex; flex-direction: column; gap: 1px; min-width: 120px;
+  padding: 8px 12px; border-radius: 10px;
+  background: rgba(10,14,26,0.88); border: 1px solid rgba(250,204,21,0.35);
+  backdrop-filter: blur(8px); box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+  color: #eeeef2; font: 12px/1.35 -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+.globe-tz-tip strong { font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; color: #fde68a; }
+.globe-tz-tip small { color: rgba(238,238,242,0.55); }
+@media (max-width: 560px) {
+  .globe-tz-btn span { display: none; }
+  .globe-credit { font-size: 8.5px; bottom: 4px; }
+}
+
 /* While the near view gets ready */
 .globe-switch-spinner {
   position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
@@ -509,6 +532,8 @@ body {
   position: absolute;
   right: 10px;
   bottom: 8px;
+  max-width: calc(100% - 110px);   /* clear of the build stamp, bottom left */
+  text-align: right;
   margin: 0;
   font-size: 10px;
   color: rgba(238,238,242,0.38);
