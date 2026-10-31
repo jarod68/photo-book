@@ -1,0 +1,15 @@
+# GitHub Actions only: one grouped pull request a month with the new major /
+# minor versions of the actions in .github/workflows (deprecated runtimes,
+# like Node 20, show up here before they break the build). npm dependencies
+# stay pinned and updated by hand.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      actions:
+        patterns: ['*']
+    commit-message:
+      prefix: ci

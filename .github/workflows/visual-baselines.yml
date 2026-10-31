@@ -18,7 +18,7 @@ concurrency:
 
 jobs:
   update:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     # never commits straight to main; on push, only when asked in the message
     if: >-
       github.ref != 'refs/heads/main' &&
@@ -34,8 +34,8 @@ jobs:
     env:
       POSTGRES_HOST: postgres
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 26
           cache: npm

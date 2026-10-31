@@ -13,14 +13,17 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+# Runners: an explicit Ubuntu LTS (not ubuntu-latest), so an image change is
+# a reviewed commit rather than a silent switch. Actions: their current major
+# versions (Node 24 runtime); .github/dependabot.yml proposes the next ones.
 jobs:
   # Blocking gate: unit + integration tests (Vitest) with coverage thresholds
   # (vitest.config.mjs — the run fails below them).
   test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 26
           cache: npm
@@ -30,7 +33,7 @@ jobs:
   # End-to-end: the built app against a real PostgreSQL, driven by the Robot
   # Framework suites (tests/integration_tests) in Chromium.
   robot:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     needs: test
     services:
       postgres:
@@ -39,12 +42,12 @@ jobs:
         ports: ["5432:5432"]
         options: --health-cmd "pg_isready -U photobook" --health-interval 2s --health-timeout 5s --health-retries 30
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 26
           cache: npm
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
           cache: pip
@@ -72,7 +75,7 @@ jobs:
   # (same browsers and fonts as the baselines). After an intended UI change,
   # refresh them with Actions → "Update visual baselines" on the branch.
   visual:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     needs: test
     container: mcr.microsoft.com/playwright:v1.64.1-noble
     services:
@@ -83,8 +86,8 @@ jobs:
     env:
       POSTGRES_HOST: postgres
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 26
           cache: npm
@@ -109,20 +112,20 @@ jobs:
   # listed but don't block. Runs before `docker`, so a vulnerable image is never
   # pushed.
   sbom:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     needs: test
     permissions:
       contents: read
       security-events: write   # upload the CVEs to Security → Code scanning
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 26
           cache: npm
       - run: npm ci && npm run build      # the image copies dist/
-      - uses: docker/setup-buildx-action@v3
-      - uses: docker/build-push-action@v6
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/build-push-action@v7
         with:
           context: .
           platforms: linux/amd64
@@ -167,23 +170,23 @@ jobs:
   # for promotion / rollback) and :qa, which Keel rolls out to qa.book.holtz.fr.
   # :latest (prod) is never touched here — see promote.yml.
   docker:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     needs: [test, robot, visual, sbom]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 26
           cache: npm
       - run: npm ci && npm run build
-      - uses: docker/setup-qemu-action@v3        # emulation for the arm64 build
-      - uses: docker/setup-buildx-action@v3
-      - uses: docker/login-action@v3
+      - uses: docker/setup-qemu-action@v4        # emulation for the arm64 build
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/login-action@v4
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-      - uses: docker/build-push-action@v6
+      - uses: docker/build-push-action@v7
         with:
           context: .
           platforms: linux/amd64,linux/arm64
