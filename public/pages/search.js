@@ -48,7 +48,7 @@ async function run() {
   const res = await fetch(`/api/search?${query}`).catch(() => null);
   if (mine !== seq) return;   // a newer search was started meanwhile
   if (!res?.ok) { countEl.textContent = t('search.failed'); return; }
-  const { total, results, facets } = await res.json();
+  const { total, results, facets, approximate } = await res.json();
 
   if (!facetsLoaded) {
     fillSelect(cameraEl, facets.cameras);
@@ -63,6 +63,7 @@ async function run() {
   countEl.textContent = total > results.length
     ? t('search.countLimited', { n: results.length, total })
     : t('search.count', { n: total, s: total !== 1 ? 's' : '' });
+  if (approximate) countEl.textContent += ` · ${t('search.approximate')}`;
   grid.replaceChildren(...results.map(renderResult));
   if (!results.length) {
     const p = document.createElement('p');

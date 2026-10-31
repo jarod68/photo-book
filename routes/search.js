@@ -32,7 +32,7 @@ router.get('/', async (req, res) => {
         entries.push(search.toEntry(album, p));
       }
     }
-    res.json(search.search(entries, filters));
+    res.json(search.search(search.withAlbumCountries(entries), filters));
   } catch (err) {
     sendError(res, err);
   }

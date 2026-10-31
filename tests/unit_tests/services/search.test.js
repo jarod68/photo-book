@@ -2,7 +2,8 @@ import { createRequire } from 'module';
 import { describe, it, expect } from 'vitest';
 
 const _require = createRequire(import.meta.url);
-const { toEntry, parseQuery, search, cameraOf, norm } = _require('../../../services/search.js');
+const { toEntry, parseQuery, search, cameraOf, norm, withAlbumCountries, editDistance } = _require('../../../services/search.js');
+const { countryOf } = _require('../../../services/geo-names.js');
 
 const photo = (filename, extra = {}) => ({ filename, type: 'photo', name: filename.replace(/\..*/, ''), description: '', location: null, takenAt: null, exif: null, url: `/photos/x/${filename}`, thumbUrl: `/t/${filename}`, ...extra });
 const entries = [
@@ -68,5 +69,60 @@ describe('search (F6)', () => {
     expect(cameraOf({ exif: { make: 'SONY', model: '' } })).toBe('SONY');
     expect(cameraOf({ exif: null })).toBeNull();
     expect(norm('Éàç')).toBe('eac');
+  });
+});
+
+describe('search — pays, continents, dates, fautes de frappe', () => {
+  const world = withAlbumCountries([
+    toEntry('New York', photo('NY_1.jpg', { location: 'Manhattan, États-Unis', takenAt: '2025-06-03T10:00:00.000Z' })),
+    toEntry('New York', photo('NY_2.jpg', { takenAt: '2025-06-04T10:00:00.000Z' })),            // no place: the album's
+    toEntry('Islande', photo('IS_1.jpg', { location: 'Reykjavik, Islande', takenAt: '2025-03-03T10:00:00.000Z' })),
+    toEntry('Japon', photo('JP_1.jpg', { location: 'Tokyo, Japon', takenAt: '2025-04-03T10:00:00.000Z' })),
+    toEntry('Londres', photo('UK_1.jpg', { location: 'London, UK' })),
+  ]);
+  const find = (q) => {
+    const { filters } = parseQuery({ q });
+    return search(world, filters);
+  };
+  const names = (q) => find(q).results.map((e) => e.filename).sort();
+
+  it('reconnaît le pays d\'un lieu dans n\'importe quelle langue', () => {
+    expect(countryOf('Manhattan, États-Unis')).toBe('US');
+    expect(countryOf('Berlin, Deutschland')).toBe('DE');
+    expect(countryOf('London, UK')).toBe('GB');
+    expect(countryOf('Quelque part')).toBeNull();
+  });
+
+  it('trouve un pays par son code, ses noms et surnoms ; une photo sans lieu prend ceux de son album', () => {
+    for (const q of ['usa', 'us', 'united states', 'estados unidos', 'etats-unis', 'amerique']) {
+      expect(names(q), q).toEqual(['NY_1.jpg', 'NY_2.jpg']);
+    }
+    expect(names('iceland')).toEqual(['IS_1.jpg']);
+    expect(names('japan')).toEqual(['JP_1.jpg']);
+    expect(names('england')).toEqual(['UK_1.jpg']);
+    expect(names('royaume-uni')).toEqual(['UK_1.jpg']);
+  });
+
+  it('continents', () => {
+    expect(names('europe')).toEqual(['IS_1.jpg', 'UK_1.jpg']);
+    expect(names('asie')).toEqual(['JP_1.jpg']);
+    expect(names('amerique du nord')).toEqual(['NY_1.jpg', 'NY_2.jpg']);
+  });
+
+  it('mois et année en toutes lettres', () => {
+    expect(names('juin 2025')).toEqual(['NY_1.jpg', 'NY_2.jpg']);
+    expect(names('march')).toEqual(['IS_1.jpg']);
+    expect(names('abril')).toEqual(['JP_1.jpg']);
+  });
+
+  it('sans résultat exact : tolère une faute de frappe, et le signale', () => {
+    expect(find('japon').approximate).toBe(false);
+    const r = find('japn');
+    expect(r.results.map((e) => e.filename)).toEqual(['JP_1.jpg']);
+    expect(r.approximate).toBe(true);
+    expect(names('reykjavk')).toEqual(['IS_1.jpg']);
+    expect(names('xyzzy')).toEqual([]);
+    expect(editDistance('japn', 'japon', 1)).toBe(1);
+    expect(editDistance('tokoy', 'tokyo', 1)).toBe(1);   // transposition
   });
 });
