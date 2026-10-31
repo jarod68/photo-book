@@ -16,7 +16,8 @@ Open Home Page
     New Browser    ${BROWSER}    headless=${HEADLESS}
     New Context    locale=fr-FR
     New Page       ${BASE_URL}
-    Wait For Elements State    css=#album-grid a.album-card >> nth=0    visible    timeout=8s
+    # the Explore row's map card: present even with no album
+    Wait For Elements State    css=a.album-card >> nth=0    visible    timeout=8s
 
 Close All Browsers
     Close Browser

@@ -1,4 +1,4 @@
 /* Applied to every toHaveScreenshot() (playwright.config.js → stylePath):
-   hide the build stamp (its text changes with every commit) and the
-   non-production strip. */
-.build-tag, .env-strip { visibility: hidden !important; }
+   hide the build stamp (its text changes with every commit), the
+   non-production strip and the login backdrop (a random album cover). */
+.build-tag, .env-strip, .login-backdrop { visibility: hidden !important; }

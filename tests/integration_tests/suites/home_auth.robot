@@ -35,7 +35,7 @@ Admin Sees Logout Button
     Should Be Equal As Integers    ${count}    1
 
 Album Cards Are Present Including Dedicated Album
-    ${count}=    Get Element Count    css=#album-grid a.album-card
+    ${count}=    Get Element Count    css=a.album-card
     Should Be True    ${count} >= 3
 
 User Album Card Links To Viewer
