@@ -180,6 +180,15 @@ describe('photoMeta (cas supplémentaires)', () => {
     expect(meta.name).toBe('Coucher de soleil');
   });
 
+  it('360° : point de vue initial GPano (cap relatif au centre de l\'image)', async () => {
+    const deps = { exifr: makeExifr({ ProjectionType: 'equirectangular', PoseHeadingDegrees: 350, InitialViewHeadingDegrees: 20, InitialViewPitchDegrees: -5, InitialHorizontalFOVDegrees: 75 }), fs: makeFs({ exists: true }), fsPromises: makeFsp(), sharp: makeSharp().fn };
+    const meta = await photoMeta('Paris', 'pano.jpg', '/albums/Paris', deps);
+    expect(meta.is360).toBe(true);
+    expect(meta.initialView).toEqual({ yaw: 30, pitch: -5, hfov: 75 });
+    const flat = await photoMeta('Paris', 'photo.jpg', '/albums/Paris', { ...deps, exifr: makeExifr({ InitialViewHeadingDegrees: 20 }) });
+    expect(flat.initialView).toBeNull();   // only for 360° photos
+  });
+
   it('détecte is360 via UsePanoramaViewer=true', async () => {
     const deps = { exifr: makeExifr({ UsePanoramaViewer: true }), fs: makeFs({ exists: true }), fsPromises: makeFsp(), sharp: makeSharp().fn };
     const meta = await photoMeta('Paris', 'pano.jpg', '/albums/Paris', deps);

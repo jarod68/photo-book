@@ -128,6 +128,11 @@ function toExifrShape(t) {
     // XMP
     ProjectionType: text(xmp.ProjectionType),
     UsePanoramaViewer: bool(xmp.UsePanoramaViewer),
+    // GPano: where a 360° photo should open (degrees)
+    PoseHeadingDegrees: num(xmp.PoseHeadingDegrees),
+    InitialViewHeadingDegrees: num(xmp.InitialViewHeadingDegrees),
+    InitialViewPitchDegrees: num(xmp.InitialViewPitchDegrees),
+    InitialHorizontalFOVDegrees: num(xmp.InitialHorizontalFOVDegrees),
     Lens: text(xmp.Lens),
     // Fields image.js has always looked for under these names, which exifr
     // never produced (it named them title / description / Caption / State /

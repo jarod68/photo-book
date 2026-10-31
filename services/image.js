@@ -42,13 +42,16 @@ const DERIVATIVES = {
   medium:  { dir: () => MEDIUM_DIR,   suffix: '.jpg',       width: () => 1280,                         quality: 82, route: 'medium' },
   // full-size JPEG for formats browsers cannot display (HEIC/HEIF, TIFF)
   display: { dir: () => MEDIUM_DIR,   suffix: '.full.jpg',  width: () => 6000,                         quality: 90, route: 'medium', only: (f) => NEEDS_DISPLAY.has(ext(f)) },
+  // 360° photos only: a 4096 px panorama, sharp yet light enough for phones
+  pano:    { dir: () => MEDIUM_DIR,   suffix: '.pano.jpg',  width: () => 4096,                         quality: 85, route: 'medium', only: () => false },
 };
-// The derivatives made ahead of time for a file. `anyDisplay`: also the
-// full-size display JPEG, which albums with a hidden or approximate GPS
-// position get on demand for every image (services/gps-privacy.js) — kept by
+// The derivatives made ahead of time for a file. `anyDisplay`: also those made
+// on demand for some images — the full-size display JPEG, which albums with a
+// hidden or approximate GPS position get for every image
+// (services/gps-privacy.js), and the panorama of 360° photos — kept by
 // the cleanup and deleted with the photo.
 const kindsFor = (filename, { anyDisplay = false } = {}) => Object.keys(DERIVATIVES)
-  .filter((k) => !DERIVATIVES[k].only || DERIVATIVES[k].only(filename) || (anyDisplay && k === 'display' && isImage(filename)));
+  .filter((k) => !DERIVATIVES[k].only || DERIVATIVES[k].only(filename) || (anyDisplay && (k === 'display' || k === 'pano') && isImage(filename)));
 
 // HEIC/HEIF (HEVC) is not decodable by the prebuilt sharp: heic-decode
 // (libheif in WebAssembly) produces raw RGBA that sharp then resizes. A 12 MP
@@ -133,6 +136,20 @@ const ensureMedium = (albumName, filename, filePath, _deps = {}, mtimeMs, source
   ensureDerivative('medium', albumName, filename, filePath, { mtimeMs, source }, _deps);
 const ensureDisplay = (albumName, filename, filePath, _deps = {}, mtimeMs, source) =>
   ensureDerivative('display', albumName, filename, filePath, { mtimeMs, source }, _deps);
+const ensurePano = (albumName, filename, filePath, _deps = {}, mtimeMs, source) =>
+  ensureDerivative('pano', albumName, filename, filePath, { mtimeMs, source }, _deps);
+
+// Where a 360° photo opens, from its GPano metadata (yaw relative to the
+// image centre); null when the camera did not record it.
+function panoView(x) {
+  const heading = x.InitialViewHeadingDegrees, pose = x.PoseHeadingDegrees ?? 0;
+  const view = {
+    yaw:   heading != null ? ((((heading - pose) % 360) + 540) % 360) - 180 : null,
+    pitch: x.InitialViewPitchDegrees ?? null,
+    hfov:  x.InitialHorizontalFOVDegrees ?? null,
+  };
+  return view.yaw == null && view.pitch == null && view.hfov == null ? null : view;
+}
 
 // ── EXIF metadata extraction ──────────────────────────────────────────────────
 
@@ -167,6 +184,8 @@ async function photoMeta(albumName, file, albumPath, _deps = {}) {
   let iptcLocation = null;
   let exifOut      = null;
   let takenAt      = null;   // capture date (ISO), for the map, timeline, sorting, search
+  let initialView  = null;   // 360°: { yaw, pitch, hfov } from GPano
+  let exifDims     = null;
 
   try {
     const exifData = await _exifr.parse(filePath, {
@@ -177,10 +196,9 @@ async function photoMeta(albumName, file, albumPath, _deps = {}) {
     if (proj === 'equirectangular' || proj === 'Equirectangular' || exifData.UsePanoramaViewer === true) {
       is360 = true;
     }
-    if (!is360 && exifData.ImageWidth && exifData.ImageHeight) {
-      const r = exifData.ImageWidth / exifData.ImageHeight;
-      is360 = r >= 1.95 && r <= 2.05;
-    }
+    const w = exifData.ImageWidth || exifData.ExifImageWidth, h = exifData.ImageHeight || exifData.ExifImageHeight;
+    if (w && h) exifDims = { w, h };
+    initialView = panoView(exifData);
 
     const PLACEHOLDERS = new Set(['default', 'Default', 'DEFAULT', 'OLYMPUS DIGITAL CAMERA', '']);
     const clean = v => {
@@ -244,16 +262,30 @@ async function photoMeta(albumName, file, albumPath, _deps = {}) {
     }
   } catch (_) { /* use filename defaults */ }
 
+  // Not tagged as 360°: an equirectangular 2:1 photo is one. Most JPEGs carry
+  // no dimensions in their EXIF, so read them from the image header (cheap) —
+  // otherwise the viewer found out only after downloading the whole original,
+  // showing it flat first and then jumping into the panorama.
+  if (!is360 && !isVideo(file)) {
+    const dims = exifDims ?? await Promise.resolve().then(() => (_deps.sharp ?? sharp)(filePath).metadata())
+      .then((m) => (m?.width && m?.height ? { w: m.width, h: m.height } : null), () => null);
+    if (dims) {
+      const r = dims.w / dims.h;
+      is360 = r >= 1.95 && r <= 2.05 && dims.w >= 3000;
+    }
+  }
+
   const mtimeMs = await srcMtime(filePath, _deps.fsPromises ?? fs.promises).catch(() => undefined);
   const logFail = (kind) => (err) => { console.error(`${kind} failed:`, albumName, file, err.message); return null; };
   const source = lazySource(filePath);   // HEIC: decoded once for every derivative
-  const [previewUrl, mediumUrl, thumbUrl, displayUrl] = await Promise.all([
+  const [previewUrl, mediumUrl, thumbUrl, displayUrl, panoUrl] = await Promise.all([
     ensurePreview(albumName, file, filePath, is360, _deps, mtimeMs, source).catch(() => null),
     ensureMedium(albumName, file, filePath, _deps, mtimeMs, source).catch(logFail('ensureMedium')),
     ensureThumb(albumName, file, filePath, _deps, mtimeMs, source).catch(logFail('ensureThumb')),
     NEEDS_DISPLAY.has(ext(file))
       ? ensureDisplay(albumName, file, filePath, _deps, mtimeMs, source).catch(logFail('ensureDisplay'))
       : null,
+    is360 ? ensurePano(albumName, file, filePath, _deps, mtimeMs, source).catch(logFail('ensurePano')) : null,
   ]);
 
   let gps = null;
@@ -273,6 +305,8 @@ async function photoMeta(albumName, file, albumPath, _deps = {}) {
     mediumUrl,
     thumbUrl,
     displayUrl,                // full-size JPEG when the original is HEIC / TIFF
+    panoUrl,                   // 360°: a 4096 px panorama (phones)
+    initialView: is360 ? initialView : null,
     mtimeMs:     mtimeMs ?? null,
     name:        String(name).trim(),
     description: String(description).trim(),
@@ -395,4 +429,4 @@ async function deletePhotoFiles(album, filename, database, _deps = {}) {
   await cleanup.deletePhotoRows(database.db, album, filename);
 }
 
-module.exports = { PHOTOS_DIR, PREVIEWS_DIR, MEDIUM_DIR, IMAGE_EXT, VIDEO_EXT, isImage, isVideo, isMedia, isAlbumDir, ensurePreview, ensureMedium, ensureThumb, ensureDisplay, derivUrl, derivName, photoMeta, preGenerateAll, pruneDerivatives, withConcurrency, deletePhotoFiles };
+module.exports = { PHOTOS_DIR, PREVIEWS_DIR, MEDIUM_DIR, IMAGE_EXT, VIDEO_EXT, isImage, isVideo, isMedia, isAlbumDir, ensurePreview, ensureMedium, ensureThumb, ensureDisplay, derivUrl, derivName, photoMeta, preGenerateAll, pruneDerivatives, ensurePano, withConcurrency, deletePhotoFiles };

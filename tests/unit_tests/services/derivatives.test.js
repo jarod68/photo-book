@@ -58,6 +58,23 @@ describe('derived images', () => {
     fs.rmSync(file);
   });
 
+  it('a 2:1 photo without EXIF dimensions is a 360° panorama, with a 4096 px panorama derivative', async () => {
+    await sharp({ create: { width: 6000, height: 3000, channels: 3, background: '#336699' } }).jpeg().toFile(path.join(album, 'PANO.jpg'));
+    await sharp({ create: { width: 2000, height: 1000, channels: 3, background: '#996633' } }).jpeg().toFile(path.join(album, 'BANNER.jpg'));
+    const pano = await photoMeta('Perth', 'PANO.jpg', album);
+    expect(pano.is360).toBe(true);
+    expect(pano.panoUrl.split('?')[0]).toBe('/medium/Perth/PANO.jpg.pano.jpg');
+    expect((await sharp(pathOf(pano.panoUrl)).metadata()).width).toBe(4096);
+    expect((await sharp(pathOf(pano.previewUrl)).metadata()).width).toBe(1536);   // the first, light panorama
+    const banner = await photoMeta('Perth', 'BANNER.jpg', album);                  // too small to be a 360° photo
+    expect(banner.is360).toBe(false);
+    expect(banner.panoUrl).toBeNull();
+    // deleting the photo deletes its panorama too
+    await image.deletePhotoFiles('Perth', 'PANO.jpg', { dbReady: false });
+    expect(fs.existsSync(pathOf(pano.panoUrl))).toBe(false);
+    fs.rmSync(path.join(album, 'BANNER.jpg'));
+  });
+
   it('a damaged JPEG still gets derivatives; a file that does not decode gets none', async () => {
     const good = await sharp({ create: { width: 800, height: 600, channels: 3, background: '#3366cc' } }).jpeg().toBuffer();
     fs.writeFileSync(path.join(album, 'CUT.jpg'), good.subarray(0, Math.floor(good.length * 0.6)));   // truncated

@@ -75,7 +75,9 @@ export class PhotoViewer {
     // full-size JPEG the server made for them (the download keeps the original).
     const fullUrl = photo.displayUrl || photo.url;
     if (photo.is360) {
-      this._show360(fullUrl, photo.previewUrl);
+      // phones get the 4096 px panorama rather than the (often 8–12K) original
+      const touch = matchMedia('(pointer: coarse)').matches;
+      this._show360({ full: (touch && photo.panoUrl) || fullUrl, light: photo.previewUrl, view: photo.initialView });
     } else {
       // photo.mediumUrl can be null if the server failed to generate the file.
       // Derive it from photo.url as a fallback: /photos/A/f.EXT → /medium/A/f.EXT.jpg
@@ -96,7 +98,14 @@ export class PhotoViewer {
 
   // ── 360° ───────────────────────────────────────────────────────────────────
 
-  _show360(url, previewUrl) {
+  /**
+   * Open a 360° photo with no jolt: the light 1536 px panorama shows at once,
+   * already in 3D and at the photo's initial view; the sharp one downloads
+   * meanwhile and cross-fades in at the very same view (a Pannellum scene
+   * change). No flat preview, no jump.
+   * @param {{ full: string, light?: string|null, view?: {yaw?, pitch?, hfov?}|null }} p
+   */
+  _show360({ full, light = null, view = null }) {
     this._pnl.style.display = 'block';
     this._img.style.display = 'none';
     this._img.classList.remove('loaded');
@@ -108,25 +117,47 @@ export class PhotoViewer {
       this._gyroBtn.classList.toggle('active', this._gyroOn);
     }
 
+    const at = { yaw: view?.yaw ?? 0, pitch: view?.pitch ?? 0, hfov: view?.hfov ?? 90 };
+    const progressive = !!light && light !== full;
+    const scene = (panorama) => ({ type: 'equirectangular', panorama, ...at });
+    const token = Symbol();
+    this._panoToken = token;
+
     // One rAF so the browser paints display:block before Pannellum reads
     // the container dimensions for WebGL (0×0 → onLoad never fires).
     requestAnimationFrame(() => {
+      if (this._panoToken !== token) return;
       try {
         this._viewer = pannellum.viewer('pnl-container', {
-          type:               'equirectangular',
-          panorama:           url,
-          preview:            previewUrl || undefined,
-          autoLoad:           true,
-          showZoomCtrl:       false,
-          showFullscreenCtrl: false,
-          showControls:       false,
-          mouseZoom:          true,
-          hfov:               90,
+          default: {
+            firstScene:         progressive ? 'light' : 'full',
+            sceneFadeDuration:  700,
+            autoLoad:           true,
+            showZoomCtrl:       false,
+            showFullscreenCtrl: false,
+            showControls:       false,
+            mouseZoom:          true,
+          },
+          scenes: progressive ? { light: scene(light), full: scene(full) } : { full: scene(full) },
         });
-        this._viewer.on('load', () => this._onViewerLoad());
+        let first = true;
+        this._viewer.on('load', () => { if (first) { first = false; this._onViewerLoad(); } });
       } catch (e) {
         console.error('Pannellum init error:', e);
+        return;
       }
+      if (!progressive) return;
+      // fetch the sharp panorama; once it is in the cache, switch scenes
+      // keeping where the user is looking
+      const pre = new Image();
+      pre.crossOrigin = 'anonymous';           // same request as Pannellum's: shares the cache
+      pre.onload = () => {
+        const v = this._viewer;
+        if (this._panoToken !== token || !v || v.getScene() !== 'light') return;
+        const swap = () => v.loadScene('full', v.getPitch(), v.getYaw(), v.getHfov());
+        if (v.isLoaded()) swap(); else v.on('load', function once() { v.off('load', once); swap(); });
+      };
+      pre.src = full;
     });
   }
 
@@ -298,7 +329,7 @@ export class PhotoViewer {
         if (check360(this._img.naturalWidth, this._img.naturalHeight)) {
           this._badge.classList.add('visible');
           onDetect360?.();
-          this._show360(url);
+          this._show360({ full: url });
           return;
         }
         this._img.classList.add('loaded');
@@ -318,7 +349,7 @@ export class PhotoViewer {
         if (check360(pre.naturalWidth, pre.naturalHeight)) {
           this._badge.classList.add('visible');
           onDetect360?.();
-          this._show360(url);
+          this._show360({ full: url });
           return;
         }
         // Replace medium handler before changing src to prevent re-entry.
@@ -355,6 +386,7 @@ export class PhotoViewer {
   // ── Helpers ────────────────────────────────────────────────────────────────
 
   _destroyPannellum() {
+    this._panoToken = null;                 // a pending sharp panorama no longer applies
     if (this._viewer) {
       this._teardownGyroLoop();  // preserve _gyroOn so next photo re-activates
       try { this._viewer.destroy(); } catch (_) {}

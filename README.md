@@ -104,6 +104,10 @@ For each photo, three derived JPEGs are made by sharp (EXIF orientation applied)
 
 Derivatives persist across restarts on their own volumes (`PREVIEWS_DIR`, `MEDIUM_DIR`; default `public/previews`, `public/medium`).
 
+### 360° photos
+
+A photo is shown as a 360° panorama when its XMP says so (`ProjectionType: equirectangular`, `UsePanoramaViewer`) or when it is 2:1 and at least 3000 px wide — its size read from the image header, since most JPEGs carry none in their EXIF. It opens with no jolt: the light 1536 px panorama (the preview) appears at once, already in 3D and at the photo's initial view (GPano `InitialViewHeadingDegrees` / `InitialViewPitchDegrees` / `InitialHorizontalFOVDegrees` when the camera recorded them); the sharp panorama downloads meanwhile and cross-fades in at the same view. Phones get a 4096 px panorama (`<file>.pano.jpg`, made for 360° photos only) instead of the often 8–12K original.
+
 ### Supported formats
 
 | Kind | Extensions | How it is shown |

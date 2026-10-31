@@ -125,8 +125,8 @@ describe('deletePhotoFiles', () => {
     expect(mockQuery).not.toHaveBeenCalled();
   });
 
-  it('appelle unlink 5 fois (original + preview, vignette, medium, copie sans métadonnées)', async () => {
+  it('appelle unlink 6 fois (original + preview, vignette, medium, copie sans métadonnées, panorama 360°)', async () => {
     await deletePhotoFiles('Paris', 'photo.jpg', mockDb, { fsPromises: { unlink: mockUnlink } });
-    expect(mockUnlink).toHaveBeenCalledTimes(5);
+    expect(mockUnlink).toHaveBeenCalledTimes(6);
   });
 });
