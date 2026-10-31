@@ -49,6 +49,34 @@ describe('places (F6)', () => {
     expect(f).toHaveBeenCalledTimes(1);
   });
 
+  it('garde pour la recherche l\'adresse large et les noms étrangers du lieu', async () => {
+    const query = vi.fn(async () => ({ rows: [] }));
+    database._setState({ query }, true);
+    const f = vi.fn().mockResolvedValue({ ok: true, json: async () => ({
+      address: { suburb: 'Manhattan', city: 'New York', county: 'New York County', state: 'New York', country: 'États-Unis', postcode: '10024' },
+      namedetails: { name: 'New York', 'name:es': 'Nueva York', 'name:ja': 'ニューヨーク', wikidata: 'Q60' },
+    }) });
+    expect(await places.lookup(40.78, -73.97, { fetch: f })).toBe('Manhattan, États-Unis');
+    const terms = await places.cachedTerms(40.78, -73.97);
+    expect(terms).toContain('New York County');
+    expect(terms).toContain('Nueva York');
+    expect(terms).not.toContain('10024');
+    expect(terms).not.toContain('ニューヨーク');
+    expect(f.mock.calls[0][0]).toContain('namedetails=1');
+    expect(query.mock.calls.some(([sql, params]) => sql.includes('terms') && params[2] === terms)).toBe(true);
+  });
+
+  it('fillMissing complète les lieux mis en cache avant les mots de recherche', async () => {
+    // an old row: location but no terms → fetched again; a row without a place → left alone
+    database._setState({ query: vi.fn(async (sql, params) => ({
+      rows: sql.startsWith('SELECT') ? (params[0] === '1.000,1.000' ? [{ location: 'Ancien, Pays', terms: null }] : [{ location: null, terms: null }]) : [],
+    })) }, true);
+    const f = ok({ city: 'Ancien', country: 'Pays' });
+    const n = await places.fillMissing([{ gps: { lat: 1, lng: 1 }, location: null }, { gps: { lat: 2, lng: 2 }, location: null }], { fetch: f });
+    expect(n).toBe(1);
+    expect(f).toHaveBeenCalledTimes(1);
+  });
+
   it('fillMissing ne traite que les photos GPS sans lieu', async () => {
     const f = ok({ city: 'Perth', country: 'Australie' });
     const n = await places.fillMissing([

@@ -181,6 +181,15 @@ const MIGRATIONS = [
                CHECK (gps_privacy IN ('exact', 'approx', 'hidden'))`);
     },
   },
+  {
+    version: 7,
+    name: 'place search words',
+    async up(q) {
+      // the wider address and other-language names of a place, for search;
+      // NULL = cached before this column (fetched again in the background)
+      await q('ALTER TABLE place_cache ADD COLUMN terms TEXT');
+    },
+  },
 ];
 
 const LOCK_KEY = 726571;   // arbitrary, constant: pg_advisory_xact_lock key

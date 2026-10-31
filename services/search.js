@@ -1,23 +1,46 @@
 'use strict';
-// Photo search (F6): free text over title, caption, place, album, file name
-// and camera — plus the place's country in every language with its code,
-// nicknames and continent (services/geo-names.js), and the capture month
-// and year in words; filters on capture date range, camera and album. Works
-// on the cached photo index, so a search reads no file.
+// Photo search (F6). Works on the cached photo index, so a search reads no file.
 //
-// Every word must match (the start of a word or inside it). A photo with no
-// place takes the countries of its album's other photos. When nothing
-// matches, the search tolerates a typo per word (results flagged
-// `approximate`).
+// Each photo is a set of fields, each with a weight: its title, album and
+// place count most; then its caption, the album's description, the place's
+// wider address and other-language names (services/places.js), its country
+// in every language with code, nicknames and continent (services/geo-names.js),
+// its date in words (day, month, season, year) and kind (video, 360°); then
+// file name and camera. Text is compared without accents, case, ligatures or
+// punctuation.
+//
+// The query's words are matched against the words of those fields — a whole
+// word, the start of one ("pari" → Paris), a light plural ("plages" →
+// plage), or inside a word for 4+ letters and numbers — and small words
+// ("de", "the", "photos") are left out. Every word must match; results are
+// ranked by how well (the field's weight × whole word > start > inside),
+// then most recent first. When no photo matches every word, the search
+// falls back to approximate matching: a typo per word (two from 8 letters),
+// then the photos that match most of the words — flagged `approximate`.
+// Filters: capture date range, camera, album.
 
 const { countryOf, countryTerms } = require('./geo-names');
 
 const MAX_RESULTS = 200;
 const MONTH_LANGS = ['fr', 'en', 'es'];
 
-// Lower case, accents removed, hyphens and apostrophes as spaces: "Été à
-// Évora" matches "ete evora", "États-Unis" matches "etats unis".
-const norm = (s) => String(s ?? '').normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().replace(/[-'’]/g, ' ');
+// Lower case, accents and ligatures removed, punctuation as spaces (but "_"
+// and "." kept inside file names): "Été à Évora" matches "ete evora",
+// "États-Unis" "etats unis", "Œuvre" "oeuvre".
+const norm = (s) => String(s ?? '').normalize('NFD').replace(/\p{M}/gu, '').toLowerCase()
+  .replace(/œ/g, 'oe').replace(/æ/g, 'ae').replace(/ß/g, 'ss').replace(/ø/g, 'o').replace(/ł/g, 'l')
+  .replace(/[^\p{L}\p{N}_.]+/gu, ' ').replace(/(^|\s)\.+|\.+(\s|$)/g, ' ').trim();
+
+const words = (s) => norm(s).split(' ').filter(Boolean);
+
+// Words that say nothing about a photo, in French, English and Spanish.
+const STOP = new Set(('de du des la le les un une et en a au aux dans sur pour par avec ' +
+  'the of a an and in on at to for with from my our ' +
+  'el los las del y con por para mi ' +
+  'photo photos foto fotos picture pictures image images pic pics').split(' '));
+
+// A light plural: "plages" → "plage", "chevaux" stays (too irregular).
+const stem = (w) => (w.length > 4 && /[^s]s$/.test(w) ? w.slice(0, -1) : w);
 
 const cameraOf = (p) => {
   const make = (p.exif?.make ?? '').trim(), model = (p.exif?.model ?? '').trim();
@@ -29,25 +52,45 @@ const cameraOf = (p) => {
   return [make, model].filter(Boolean).join(' ') || null;
 };
 
-// "juillet july julio 2025" for a capture date (camera-local time stored as UTC)
+// ── Date in words ────────────────────────────────────────────────────────────
+
 const monthFmts = MONTH_LANGS.map((l) => new Intl.DateTimeFormat(l, { month: 'long', timeZone: 'UTC' }));
-function dateWords(ms) {
+const SEASONS = [   // northern hemisphere; flipped south of the equator
+  'hiver winter invierno', 'printemps spring primavera', 'ete summer verano', 'automne autumn fall otono',
+];
+/** "14 juin june junio ete summer verano 2025" (camera-local time stored as UTC). */
+function dateWords(ms, lat) {
   if (Number.isNaN(ms)) return '';
   const d = new Date(ms);
-  return [...new Set(monthFmts.map((f) => f.format(d)))].join(' ') + ` ${d.getUTCFullYear()}`;
+  let season = Math.floor(((d.getUTCMonth() + 1) % 12) / 3);   // Dec–Feb = 0 (winter)
+  if (lat < 0) season = (season + 2) % 4;
+  return [d.getUTCDate(), ...new Set(monthFmts.map((f) => f.format(d))), SEASONS[season], d.getUTCFullYear()].join(' ');
 }
 
-/** One searchable entry per photo (overrides and place already applied). */
-function toEntry(album, p) {
+// ── Index ────────────────────────────────────────────────────────────────────
+
+// field → weight in the score
+const WEIGHTS = { name: 5, album: 4, place: 4, description: 3, area: 3, country: 2, when: 2, kind: 2, albumText: 1.5, file: 1, camera: 1 };
+
+/**
+ * One searchable entry per photo (overrides, privacy and place applied).
+ * extra: { placeTerms: the place's wider address / names, albumDescription }
+ */
+function toEntry(album, p, extra = {}) {
   const camera = cameraOf(p);
   const time = p.takenAt ? Date.parse(p.takenAt) : NaN;
-  const country = countryOf(p.location);
+  const country = countryOf(p.location) ?? countryOf(extra.placeTerms);
+  const kind = [p.type === 'video' && 'video film', p.is360 && '360 panorama panoramique'].filter(Boolean).join(' ');
+  const fields = {
+    name: p.name, album, place: p.location, description: p.description, area: extra.placeTerms,
+    country: country && countryTerms(country), when: dateWords(time, p.gps?.lat ?? 0), kind,
+    albumText: extra.albumDescription, file: p.filename, camera,
+  };
   return {
     album, filename: p.filename, type: p.type, name: p.name, description: p.description || '',
     location: p.location || null, camera, takenAt: p.takenAt || null,
     thumbUrl: p.thumbUrl || null, url: p.url,
-    _text: norm([p.name, p.description, p.location, album, p.filename, camera, country && countryTerms(country), dateWords(time)]
-      .filter(Boolean).join(' ')),
+    _fields: Object.entries(fields).filter(([, v]) => v).map(([k, v]) => ({ w: WEIGHTS[k], words: words(v) })),
     _time: time,
     _country: country,
   };
@@ -65,10 +108,12 @@ function withAlbumCountries(entries) {
   }
   for (const e of entries) {
     const codes = !e._country && byAlbum.get(e.album);
-    if (codes) e._text += ' ' + norm([...codes].map(countryTerms).join(' '));
+    if (codes) e._fields.push({ w: WEIGHTS.country * 0.75, words: words([...codes].map(countryTerms).join(' ')) });
   }
   return entries;
 }
+
+// ── Query ────────────────────────────────────────────────────────────────────
 
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -81,10 +126,12 @@ function parseQuery(query = {}) {
   const fromMs = from ? Date.parse(`${from}T00:00:00Z`) : null;
   const toMs   = to   ? Date.parse(`${to}T23:59:59.999Z`) : null;   // the whole last day
   if (Number.isNaN(fromMs) || Number.isNaN(toMs)) return { error: 'Invalid date' };
-  return { filters: { terms: norm(q).split(/\s+/).filter(Boolean), fromMs, toMs, camera: one(query.camera) || null, album: one(query.album) || null } };
+  const all = [...new Set(words(q))];
+  const kept = all.filter((w) => !STOP.has(w));
+  return { filters: { terms: kept.length ? kept : all, fromMs, toMs, camera: one(query.camera) || null, album: one(query.album) || null } };
 }
 
-function matches(e, { terms, fromMs, toMs, camera, album }) {
+function passesFilters(e, { fromMs, toMs, camera, album }) {
   if (album && e.album !== album) return false;
   if (camera && e.camera !== camera) return false;
   if (fromMs !== null || toMs !== null) {
@@ -92,10 +139,10 @@ function matches(e, { terms, fromMs, toMs, camera, album }) {
     if (fromMs !== null && e._time < fromMs) return false;
     if (toMs !== null && e._time > toMs) return false;
   }
-  return terms.every((t) => e._text.includes(t));
+  return true;
 }
 
-// ── Typo tolerance (only when nothing matches exactly) ──────────────────────
+// ── Matching ─────────────────────────────────────────────────────────────────
 
 /** Damerau–Levenshtein distance, stopping early above `max`. */
 function editDistance(a, b, max) {
@@ -116,43 +163,80 @@ function editDistance(a, b, max) {
   return prev[b.length];
 }
 
-// a word of 4+ letters may have one typo, of 8+ two; it is compared with each
-// word of the photo and with that word's start of the same length (the
-// search matches word starts too)
-function nearWord(term, words) {
-  const max = term.length >= 8 ? 2 : term.length >= 4 ? 1 : 0;
-  if (!max) return words.some((w) => w.includes(term));
-  return words.some((w) => w.includes(term)
-    || editDistance(term, w, max) <= max
-    || (w.length > term.length && editDistance(term, w.slice(0, term.length), max) <= max));
+/**
+ * How well one query word matches one word of a photo: 1 whole word (or the
+ * same plural), 0.75 its start, 0.4 inside it (4+ letters or a number),
+ * 0.5 with a typo when `fuzzy`; 0 no match.
+ */
+function wordScore(t, w, fuzzy) {
+  if (w === t || stem(w) === stem(t)) return 1;
+  if (w.startsWith(t)) return 0.75;
+  if ((t.length >= 4 || /^\d+$/.test(t)) && w.includes(t)) return 0.4;
+  if (fuzzy && t.length >= 4) {
+    const max = t.length >= 8 ? 2 : 1;
+    if (editDistance(t, w, max) <= max) return 0.5;
+    if (w.length > t.length && editDistance(t, w.slice(0, t.length), max) <= max) return 0.4;
+  }
+  return 0;
 }
 
-function matchesApprox(e, filters) {
-  if (!matches(e, { ...filters, terms: [] })) return false;
-  e._words ??= e._text.split(' ');
-  return filters.terms.every((t) => nearWord(t, e._words));
+/** Best score of a query word over a photo's fields (field weight × match). */
+function termScore(e, t, fuzzy) {
+  let best = 0;
+  for (const f of e._fields) {
+    if (f.w <= best) continue;
+    for (const w of f.words) {
+      const s = f.w * wordScore(t, w, fuzzy);
+      if (s > best) best = s;
+      if (best === f.w) break;
+    }
+  }
+  return best;
 }
 
-/** Matching photos, most recent first (undated last), plus the filter choices. */
+/** { score, matched } of a photo for the query words. */
+function scoreOf(e, terms, fuzzy) {
+  let score = 0, matched = 0;
+  for (const t of terms) {
+    const s = termScore(e, t, fuzzy);
+    if (s > 0) { score += s; matched++; }
+  }
+  return { score, matched };
+}
+
+/** Matching photos, best first (then most recent; undated last), plus the filter choices. */
 function search(entries, filters) {
-  let hits = entries.filter((e) => matches(e, filters));
-  const approximate = !hits.length && filters.terms.length > 0;
-  if (approximate) hits = entries.filter((e) => matchesApprox(e, filters));
-  hits.sort((a, b) => {
-    const ta = Number.isNaN(a._time) ? -Infinity : a._time, tb = Number.isNaN(b._time) ? -Infinity : b._time;
-    return tb - ta || a.album.localeCompare(b.album) || a.filename.localeCompare(b.filename);
-  });
+  const pool = entries.filter((e) => passesFilters(e, filters));
+  const { terms } = filters;
+  let hits, approximate = false;
+  if (!terms.length) {
+    hits = pool.map((e) => ({ e, score: 0 }));
+  } else {
+    const rank = (fuzzy) => pool.map((e) => ({ e, ...scoreOf(e, terms, fuzzy) }));
+    hits = rank(false).filter((h) => h.matched === terms.length);
+    if (!hits.length) {
+      // approximate: a typo allowed; every word if possible, else as many as can be
+      const ranked = rank(true).filter((h) => h.matched > 0);
+      const best = Math.max(0, ...ranked.map((h) => h.matched));
+      hits = ranked.filter((h) => h.matched === best && (best === terms.length || best >= Math.ceil(terms.length / 2)));
+      approximate = hits.length > 0;
+    }
+  }
+  const timeOf = (e) => (Number.isNaN(e._time) ? -Infinity : e._time);
+  hits.sort((a, b) => b.score - a.score || timeOf(b.e) - timeOf(a.e)
+    || a.e.album.localeCompare(b.e.album) || a.e.filename.localeCompare(b.e.filename));
+
   const cameras = new Map();
   let min = Infinity, max = -Infinity;
   for (const e of entries) {
     if (e.camera) cameras.set(e.camera, (cameras.get(e.camera) ?? 0) + 1);
     if (!Number.isNaN(e._time)) { min = Math.min(min, e._time); max = Math.max(max, e._time); }
   }
-  const strip = ({ _text, _time, _country, _words, ...e }) => e;
+  const strip = ({ _fields, _time, _country, ...e }) => e;
   return {
     total: hits.length,
-    approximate: approximate && hits.length > 0,
-    results: hits.slice(0, MAX_RESULTS).map(strip),
+    approximate,
+    results: hits.slice(0, MAX_RESULTS).map((h) => strip(h.e)),
     facets: {
       cameras: [...cameras].map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count || a.name.localeCompare(b.name)),
       albums:  [...new Set(entries.map((e) => e.album))].sort((a, b) => a.localeCompare(b)),

@@ -895,6 +895,17 @@ describe('confidentialité de la position GPS (F10)', () => {
     expect(res.body.photos[0].gps).toEqual({ lat: 48.858370, lng: 2.294481 });
   });
 
+  it('recherche : un album à position masquée ne livre pas son lieu ; un album arrondi garde sa ville', async () => {
+    _require('../../../services/places.js')._reset();
+    mockQuery.mockImplementation(async (sql, params) => {
+      if (sql.includes('place_cache')) return { rows: params[0] === '48.858,2.294' ? [{ location: 'Paris, France', terms: 'Paris ; Île-de-France' }] : [] };
+      return settings(sql);
+    });
+    const res = await request(app).get('/api/search?q=paris');
+    expect(res.body.results.map((r) => [r.album, r.location]).sort()).toEqual([['Approx', 'Paris, France'], ['Open', 'Paris, France']]);
+    expect((await request(app).get('/api/search?q=ile de france')).body.results.map((r) => r.album).sort()).toEqual(['Approx', 'Open']);
+  });
+
   it('carte : albums masqués absents, approximatifs arrondis', async () => {
     const res = await request(app).get('/api/map');
     expect(res.body.map((m) => [m.album, m.gps])).toEqual([

@@ -24,7 +24,10 @@ describe('search (F6)', () => {
     expect(files(run({ q: 'ete evora' }))).toEqual(['IMG_1.jpg']);
     expect(files(run({ q: 'RIBEIRA' }))).toEqual(['DSC_11.jpg']);
     expect(files(run({ q: 'porto portugal' }))).toEqual(['DSC_10.jpg']);
-    expect(files(run({ q: 'porto inexistant' }))).toEqual([]);
+    // a word that matches nothing: the photos matching the others, flagged approximate
+    expect(run({ q: 'porto inexistant' }).approximate).toBe(true);
+    expect(files(run({ q: 'porto inexistant' }))).toEqual(['DSC_11.jpg', 'DSC_10.jpg']);
+    expect(files(run({ q: 'xyzzy plugh' }))).toEqual([]);
   });
 
   it('cherche aussi dans l\'album, le nom de fichier et l\'appareil', () => {
@@ -126,3 +129,67 @@ describe('search — pays, continents, dates, fautes de frappe', () => {
     expect(editDistance('tokoy', 'tokyo', 1)).toBe(1);   // transposition
   });
 });
+
+describe('search — fiabilité générale', () => {
+  const E = (album, file, extra = {}, ctx = {}) => toEntry(album, photo(file, extra), ctx);
+  const lib = withAlbumCountries([
+    E('Bretagne', 'P1.jpg', { name: 'Plage de Saint-Malo', location: 'Saint-Malo, France', takenAt: '2024-07-14T16:00:00.000Z' }),
+    E('Bretagne', 'P2.jpg', { name: 'Martin pêcheur', takenAt: '2024-07-15T08:00:00.000Z' }),
+    E('Art', 'ART_1.jpg', { name: 'Musée', takenAt: '2023-01-10T10:00:00.000Z' }, { albumDescription: 'Expositions et galeries' }),
+    E('New York', 'NY.jpg', { location: 'Manhattan, États-Unis', gps: { lat: 40.78, lng: -73.97 }, takenAt: '2025-12-24T10:00:00.000Z' },
+      { placeTerms: 'Manhattan ; New York ; New York County ; New York ; Nueva York' }),
+    E('Sydney', 'SYD.jpg', { location: 'Sydney, Australie', gps: { lat: -33.86, lng: 151.2 }, takenAt: '2025-12-24T10:00:00.000Z' }),
+    E('Vidéos', 'clip.mp4', { type: 'video', name: 'Feu d\'artifice' }),
+    E('Panos', 'pano.jpg', { is360: true, name: 'Sommet' }),
+    E('Divers', 'IMG_2024.jpg', { name: 'Œuvre d’art' }),
+  ]);
+  const find = (q) => { const { filters } = parseQuery({ q }); return search(lib, filters); };
+  const names = (q) => find(q).results.map((e) => e.filename);
+
+  it('ignore les mots vides : « photos de la plage en bretagne »', () => {
+    expect(names('photos de la plage en bretagne')).toEqual(['P1.jpg']);
+  });
+
+  it('pluriel léger et début de mot', () => {
+    expect(names('plages')).toEqual(['P1.jpg']);
+    expect(names('saint mal')).toEqual(['P1.jpg']);
+  });
+
+  it('pas de correspondance parasite au milieu des mots courts : « art » ne trouve pas « Martin »', () => {
+    // the title « Œuvre d'art » (whole word), the album « Art », « Feu d'artifice » (start of a word)
+    expect(names('art')).toEqual(['IMG_2024.jpg', 'ART_1.jpg', 'clip.mp4']);
+    expect(names('art')).not.toContain('P2.jpg');
+  });
+
+  it('classe par pertinence : le titre et l\'album avant le nom de fichier', () => {
+    expect(names('2024')[0]).toBe('P2.jpg');                      // dates: the newest of 2024 first…
+    expect(names('2024')).toContain('IMG_2024.jpg');              // …the file name counts too
+    expect(names('musee')).toEqual(['ART_1.jpg']);
+  });
+
+  it('description d\'album, ligatures, type de média, 360°', () => {
+    expect(names('galeries')).toEqual(['ART_1.jpg']);
+    expect(names('oeuvre')).toEqual(['IMG_2024.jpg']);
+    expect(names('video')).toEqual(['clip.mp4']);
+    expect(names('panorama')).toEqual(['pano.jpg']);
+  });
+
+  it('lieu détaillé : ville, état, noms étrangers', () => {
+    expect(names('new york')).toEqual(['NY.jpg']);
+    expect(names('nueva york')).toEqual(['NY.jpg']);
+  });
+
+  it('jour, mois et saison (inversée dans l\'hémisphère sud)', () => {
+    expect(names('14 juillet')).toEqual(['P1.jpg']);
+    expect(names('ete 2024').sort()).toEqual(['P1.jpg', 'P2.jpg']);
+    expect(names('hiver 2025')).toEqual(['NY.jpg']);              // 24 December in New York…
+    expect(names('summer 2025')).toEqual(['SYD.jpg']);            // …is summer in Sydney
+  });
+
+  it('un mot sans correspondance n\'annule pas tout : résultats approchés', () => {
+    const r = find('plage zanzibar');
+    expect(r.approximate).toBe(true);
+    expect(r.results.map((e) => e.filename)).toEqual(['P1.jpg']);
+  });
+});
+
