@@ -12,7 +12,9 @@
  *  - night: NASA Black Marble 2016 (city lights, VIIRS)
  *  - water: Natural Earth 1:50m land (world-atlas), rasterised here — the
  *           ocean mask that makes the sun glint on water only
- * Outputs: day-{2048,4096,8192}.webp, night-{2048,4096,8192}.webp, water-4096.webp
+ *  - moon:  NASA SVS CGI Moon Kit, LRO LROC colour mosaic (public domain)
+ * Outputs: day-{2048,4096,8192}.webp, night-{2048,4096,8192}.webp, water-4096.webp,
+ *          moon-1024.webp (the Moon is a small disc on screen)
  */
 const fs    = require('fs');
 const path  = require('path');
@@ -26,6 +28,7 @@ const CACHE = path.resolve(process.argv[2] || path.join(require('os').tmpdir(), 
 const SOURCES = {
   day:   'https://eoimages.gsfc.nasa.gov/images/imagerecords/73000/73909/world.topo.bathy.200412.3x21600x10800.jpg',
   night: 'https://eoimages.gsfc.nasa.gov/images/imagerecords/144000/144898/BlackMarble_2016_3km.jpg',
+  moon:  'https://svs.gsfc.nasa.gov/vis/a000000/a004700/a004720/lroc_color_poles_2k.tif',
 };
 const SIZES = [2048, 4096, 8192];   // texture widths (height = width / 2)
 
@@ -57,6 +60,7 @@ async function landSvg(width) {
 async function main() {
   fs.mkdirSync(CACHE, { recursive: true });
   fs.mkdirSync(OUT, { recursive: true });
+  if (process.env.MOON_ONLY) return moon();
   const src = { day: await download(SOURCES.day), night: await download(SOURCES.night) };
 
   for (const [kind, file] of Object.entries(process.env.WATER_ONLY ? {} : src)) {
@@ -74,6 +78,16 @@ async function main() {
   const out = path.join(OUT, 'water-4096.webp');
   await sharp(Buffer.from(await landSvg(4096))).negate({ alpha: false }).greyscale().blur(1.2)
     .webp({ quality: 85, effort: 6 }).toFile(out);
+  console.log(`${path.relative(ROOT, out)}  ${(fs.statSync(out).size / 1024).toFixed(0)} KB`);
+  await moon();
+}
+
+async function moon() {
+  const out = path.join(OUT, 'moon-1024.webp');
+  await sharp(await download(SOURCES.moon), { limitInputPixels: false })
+    .resize(1024, 512, { fit: 'fill', kernel: 'lanczos3' })
+    .webp({ quality: 82, effort: 6 })
+    .toFile(out);
   console.log(`${path.relative(ROOT, out)}  ${(fs.statSync(out).size / 1024).toFixed(0)} KB`);
 }
 

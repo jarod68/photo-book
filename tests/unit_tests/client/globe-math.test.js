@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  lonLatToXyz, xyzToLonLat, subsolarPoint, sphereRadiusPx, distanceToZoom, zoomToDistance, clusterScreen, angularDistance,
+  lonLatToXyz, xyzToLonLat, subsolarPoint, moonPosition, planetPositions, skyToLonLat, sphereRadiusPx, distanceToZoom, zoomToDistance, clusterScreen, angularDistance,
 } from '../../../public/utils/globe-math.js';
 
 describe('globe-math', () => {
@@ -22,6 +22,41 @@ describe('globe-math', () => {
     near(subsolarPoint(new Date(Date.UTC(2026, 5, 21, 12, 0))), 23.44, 0.4);     // June solstice
     near(subsolarPoint(new Date(Date.UTC(2026, 10, 3, 12, 0))), -15.15, -4.1);   // 3 November
     near(subsolarPoint(new Date(Date.UTC(2026, 11, 21, 0, 0))), -23.44, 179.5);  // December solstice, midnight UTC
+  });
+
+  // références : astronomy-engine 2.1.19 (géocentrique, équateur de la date)
+  const sep = (a, b) => {
+    const R = Math.PI / 180;
+    return Math.acos(Math.min(1, Math.sin(a.dec * R) * Math.sin(b.dec * R) + Math.cos(a.dec * R) * Math.cos(b.dec * R) * Math.cos((a.ra - b.ra) * R))) / R;
+  };
+  it('Lune : position à 0,1° près, distance à 100 km près', () => {
+    for (const [iso, ra, dec, km] of [['2024-04-08T18:00:00Z', 17.58, 7.82, 359771], ['2026-10-31T20:00:00Z', 117.59, 23.74, 369447]]) {
+      const m = moonPosition(new Date(iso));
+      expect(sep(m, { ra, dec })).toBeLessThan(0.1);
+      expect(Math.abs(m.distanceKm - km)).toBeLessThan(100);
+    }
+  });
+
+  it('planètes : position à 0,2° près, magnitude à ±1', () => {
+    const ref = {
+      '2024-04-08T18:00:00Z': { venus: [4.66, 0.39, -3.8], mars: [344.85, -7.81, 1.2], jupiter: [46.82, 16.71, -2.0], saturn: [346.34, -7.68, 1.0] },
+      '2026-10-31T20:00:00Z': { venus: [202.58, -14.73, -4.2], mars: [141.49, 16.79, 0.9], jupiter: [146.84, 14.07, -2.0], saturn: [9.59, 1.21, 0.4] },
+    };
+    for (const [iso, bodies] of Object.entries(ref)) {
+      const got = Object.fromEntries(planetPositions(new Date(iso)).map((p) => [p.name, p]));
+      expect(Object.keys(got)).toEqual(['mercury', 'venus', 'mars', 'jupiter', 'saturn', 'uranus', 'neptune']);
+      for (const [name, [ra, dec, mag]] of Object.entries(bodies)) {
+        expect(sep(got[name], { ra, dec })).toBeLessThan(0.2);
+        expect(Math.abs(got[name].magnitude - mag)).toBeLessThan(1);
+      }
+    }
+  });
+
+  it('ciel → point au zénith : la longitude tourne avec le temps sidéral', () => {
+    const d = new Date('2026-10-31T20:00:00Z');
+    const a = skyToLonLat({ ra: 100, dec: 20 }, d), b = skyToLonLat({ ra: 100, dec: 20 }, new Date(d.getTime() + 3600e3));
+    expect(a.lat).toBe(20);
+    expect(((a.lng - b.lng + 360) % 360)).toBeCloseTo(15.04, 1);   // 15.04° per hour, westward
   });
 
   it('distance de caméra ↔ zoom de carte : inverses l\'une de l\'autre', () => {

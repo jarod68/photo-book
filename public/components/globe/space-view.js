@@ -5,6 +5,9 @@
  *    terminator at the sun's real position (updated every minute), sun glint
  *    on the oceans only (Natural Earth water mask), a scattering rim;
  *  - an atmosphere halo, a starfield with a Milky Way band;
+ *  - the sky of the moment: the Sun, the Moon (NASA LRO map, lit by the Sun:
+ *    its real phase; five times its size so it reads as a disc) and the
+ *    seven planets, in their real directions (utils/globe-math.js);
  *  - the photos as round thumbnails, grouped on screen when they overlap
  *    (with a count); a click flies to the photo or zooms into the group;
  *  - localised country names (Intl.DisplayNames).
@@ -18,7 +21,9 @@ import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer
 import { LineSegments2 } from 'three/addons/lines/LineSegments2.js';
 import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js';
 import { LineMaterial } from 'three/addons/lines/LineMaterial.js';
-import { lonLatToXyz, xyzToLonLat, subsolarPoint, clusterScreen, angularDistance } from '../../utils/globe-math.js';
+import {
+  lonLatToXyz, xyzToLonLat, subsolarPoint, clusterScreen, angularDistance, moonPosition, planetPositions, skyToLonLat,
+} from '../../utils/globe-math.js';
 
 export const FOV = 45;
 export const NEAR_DISTANCE = 1.22;       // closer than this (≈1 400 km up): the near view takes over
@@ -178,6 +183,46 @@ const STAR_FRAG = /* glsl */ `
     gl_FragColor = vec4(vTint * a, a);
   }`;
 
+// The Moon: lit by the Sun (its phase), a faint earthshine on the night side.
+const MOON_FRAG = /* glsl */ `
+  uniform sampler2D map;
+  uniform vec3 sunDir;
+  varying vec2 vUv;
+  varying vec3 vNormalW;
+  void main() {
+    vec3 n = normalize(vNormalW);
+    float cs = dot(n, sunDir);
+    float lit = smoothstep(-0.03, 0.12, cs) * (0.35 + 0.65 * max(cs, 0.0));
+    vec3 col = texture2D(map, vUv).rgb * (lit * 1.15 + 0.03);
+    gl_FragColor = vec4(col, 1.0);
+    #include <colorspace_fragment>
+  }`;
+
+// The Sun: a white core in a wide warm glow (a point sprite, added light)
+const SUN_FRAG = /* glsl */ `
+  void main() {
+    float d = length(gl_PointCoord - 0.5) * 2.0;
+    float core = smoothstep(0.06, 0.04, d);
+    float glow = exp(-d * 9.0) * 1.1 + exp(-d * 3.0) * 0.35 + exp(-d * 1.2) * 0.08;
+    vec3 col = vec3(1.0) * core + vec3(1.0, 0.86, 0.62) * glow;
+    float a = clamp(core + glow, 0.0, 1.0) * smoothstep(1.0, 0.85, d);
+    gl_FragColor = vec4(col * a, a);
+  }`;
+
+const MOON_R = 1737.4 / 6371;   // in Earth radii
+const MOON_SCALE = 5;           // real size: ~10 px on screen, a dot; ×5 shows its face
+const SKY_R = 70;               // the Sun and planets: on a sphere inside the stars (80)
+const SKY_NAMES = {
+  fr: { sun: 'Soleil', moon: 'Lune', mercury: 'Mercure', venus: 'Vénus', mars: 'Mars', jupiter: 'Jupiter', saturn: 'Saturne', uranus: 'Uranus', neptune: 'Neptune' },
+  en: { sun: 'Sun', moon: 'Moon', mercury: 'Mercury', venus: 'Venus', mars: 'Mars', jupiter: 'Jupiter', saturn: 'Saturn', uranus: 'Uranus', neptune: 'Neptune' },
+  es: { sun: 'Sol', moon: 'Luna', mercury: 'Mercurio', venus: 'Venus', mars: 'Marte', jupiter: 'Júpiter', saturn: 'Saturno', uranus: 'Urano', neptune: 'Neptuno' },
+};
+// planet colours (as seen by eye / in a small telescope)
+const PLANET_TINT = {
+  mercury: [0.86, 0.8, 0.74], venus: [1, 0.97, 0.88], mars: [1, 0.55, 0.36], jupiter: [1, 0.9, 0.76],
+  saturn: [1, 0.87, 0.6], uranus: [0.62, 0.9, 0.95], neptune: [0.5, 0.66, 1],
+};
+
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
 const v3 = (lat, lng, r = 1) => new THREE.Vector3(...lonLatToXyz(lat, lng, r));
@@ -302,6 +347,7 @@ export class SpaceView {
     this.buildStars();
     this.buildEarth();
     this.buildLabels(lang);
+    this.buildSky(lang);
     this.buildMarkers(photos);
     this.bindPointer();
 
@@ -314,6 +360,7 @@ export class SpaceView {
   updateSun() {
     const s = subsolarPoint(this.at ?? new Date());
     this.sun.copy(v3(s.lat, s.lng)).normalize();
+    if (this.skyBodies) this.updateSky();
   }
 
   // ── Scene ────────────────────────────────────────────────────────────────
@@ -348,6 +395,101 @@ export class SpaceView {
       transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
     });
     this.scene.add(new THREE.Points(geo, this.starMat));
+  }
+
+  // The Sun, the Moon and the planets, placed by updateSky() (every minute).
+  buildSky(lang) {
+    const names = SKY_NAMES[lang] ?? SKY_NAMES.en;
+    const label = (key, extra = '') => {
+      const div = document.createElement('div');
+      div.className = `globe-label globe-sky-label ${extra}`;
+      div.textContent = names[key];
+      const obj = new CSS2DObject(div);
+      obj.center.set(0.5, -0.9);    // under the body
+      this.scene.add(obj);
+      return obj;
+    };
+
+    this.sunPoint = new THREE.Points(
+      new THREE.BufferGeometry().setAttribute('position', new THREE.Float32BufferAttribute([0, 0, 0], 3)),
+      new THREE.ShaderMaterial({
+        vertexShader: 'uniform float px; void main() { gl_PointSize = px; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+        fragmentShader: SUN_FRAG,
+        uniforms: { px: { value: 220 * this.renderer.getPixelRatio() } },
+        transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+      }),
+    );
+    this.scene.add(this.sunPoint);
+
+    const moonMat = new THREE.ShaderMaterial({
+      vertexShader: EARTH_VERT, fragmentShader: MOON_FRAG,
+      uniforms: { map: { value: null }, sunDir: { value: this.sun } },
+    });
+    loadTexture(`${TEX}/moon-1024.webp`).then((t) => { moonMat.uniforms.map.value = t; }).catch(() => {});
+    this.moon = new THREE.Mesh(new THREE.SphereGeometry(MOON_R * MOON_SCALE, 64, 32), moonMat);
+    this.scene.add(this.moon);
+
+    const n = planetPositions().length;
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(new Float32Array(n * 3), 3));
+    geo.setAttribute('size', new THREE.Float32BufferAttribute(new Float32Array(n), 1));
+    geo.setAttribute('tint', new THREE.Float32BufferAttribute(new Float32Array(n * 3), 3));
+    this.planets = new THREE.Points(geo, this.starMat);   // the stars' round soft dots
+    this.planets.frustumCulled = false;
+    this.scene.add(this.planets);
+
+    // bodies with a name: { obj (label), pos (updated), body radius for the label offset }
+    this.skyBodies = [
+      { key: 'sun', obj: label('sun', 'globe-sky-label--sun'), pos: new THREE.Vector3() },
+      { key: 'moon', obj: label('moon', 'globe-sky-label--moon'), pos: new THREE.Vector3() },
+      ...planetPositions().map((p) => ({ key: p.name, obj: label(p.name), pos: new THREE.Vector3() })),
+    ];
+    this.updateSky();
+  }
+
+  updateSky() {
+    const date = this.at ?? new Date();
+    const [sun, moonBody, ...planetBodies] = this.skyBodies;
+
+    sun.pos.copy(this.sun).multiplyScalar(SKY_R);
+    this.sunPoint.position.copy(sun.pos);
+
+    const m = moonPosition(date), g = skyToLonLat(m, date);
+    moonBody.pos.copy(v3(g.lat, g.lng, m.distanceKm / 6371));
+    this.moon.position.copy(moonBody.pos);
+    // the same face towards the Earth, north up (libration left out): the
+    // map's longitude 0 is the sphere's +X
+    const x = moonBody.pos.clone().negate().normalize();
+    const z = new THREE.Vector3().crossVectors(x, new THREE.Vector3(0, 1, 0)).normalize();
+    const y = new THREE.Vector3().crossVectors(z, x);
+    this.moon.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(x, y, z));
+
+    const geo = this.planets.geometry;
+    planetPositions(date).forEach((p, i) => {
+      const ll = skyToLonLat(p, date);
+      const pos = v3(ll.lat, ll.lng, SKY_R);
+      planetBodies[i].pos.copy(pos);
+      geo.attributes.position.setXYZ(i, pos.x, pos.y, pos.z);
+      // brighter = bigger: Venus ~15 px, Jupiter ~12, Uranus / Neptune a faint 3
+      geo.attributes.size.setX(i, Math.min(15, Math.max(3, 9 - 1.5 * p.magnitude)));
+      const b = Math.min(1.25, Math.max(0.45, 1 - 0.1 * p.magnitude));
+      const c = PLANET_TINT[p.name];
+      geo.attributes.tint.setXYZ(i, c[0] * b, c[1] * b, c[2] * b);
+    });
+    for (const k of ['position', 'size', 'tint']) geo.attributes[k].needsUpdate = true;
+    for (const s of this.skyBodies) s.obj.position.copy(s.pos);
+  }
+
+  /** Sky labels: hidden when their body is behind the Earth. */
+  updateSkyLabels() {
+    const cam = this.camera.position;
+    const dir = new THREE.Vector3(), near = new THREE.Vector3();
+    for (const s of this.skyBodies) {
+      dir.subVectors(s.pos, cam).normalize();
+      const t = -cam.dot(dir);
+      const hidden = t > 0 && near.copy(cam).addScaledVector(dir, t).length() < 1;
+      if (hidden !== s.hidden) { s.obj.element.style.opacity = hidden ? '0' : ''; s.hidden = hidden; }
+    }
   }
 
   buildEarth() {
@@ -699,6 +841,7 @@ export class SpaceView {
 
     const moved = !this.lastCam || !this.lastCam.equals(cam);
     if (moved || this.markersDirty) {
+      this.updateSkyLabels();
       this.layoutMarkers();
       this.markersDirty = false;
       this.lastCam = cam.clone();

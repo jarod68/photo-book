@@ -482,6 +482,16 @@ body {
   transition: opacity 0.4s;
   will-change: transform, opacity;
 }
+/* the Sun, the Moon and the planets: quieter than the countries */
+.globe-sky-label {
+  color: rgba(255,236,214,0.62);
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  text-transform: none;
+  font-style: italic;
+}
+.globe-sky-label--moon { padding-top: 34px; }   /* below the disc (~45 px on screen) */
+.globe-sky-label--sun  { padding-top: 16px; }   /* below the glow's core */
 
 /* ── Two layers: space (Three.js) and near (MapLibre), cross-faded ──────── */
 .globe-layer { position: absolute; inset: 0; transition: opacity 0.45s ease; }
