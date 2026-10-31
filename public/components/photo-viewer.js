@@ -21,6 +21,9 @@ export class PhotoViewer {
     this._root       = root;
     this._pnl        = pnlContainer;
     this._img        = stdImg;
+    // the browser's own image drag-and-drop would cancel the pan (pointercancel)
+    stdImg.draggable = false;
+    stdImg.addEventListener('dragstart', (e) => e.preventDefault());
     this._badge      = badge;
     this._nameEl     = nameEl;
     this._descEl     = descEl;
@@ -44,6 +47,10 @@ export class PhotoViewer {
     this._scale = 1;
     this._tx    = 0;
     this._ty    = 0;
+    this._goal  = null;    // { s, tx, ty, tau }: where the eased animation heads
+    this._raf   = null;
+    this._hfovGoal = null; // 360°: field of view the eased wheel zoom heads to
+    this._hfovRaf  = null;
 
     this._initInteraction();
     this._initPanoControls();
@@ -136,7 +143,9 @@ export class PhotoViewer {
             showZoomCtrl:       false,
             showFullscreenCtrl: false,
             showControls:       false,
-            mouseZoom:          true,
+            mouseZoom:          false,   // our wheel zoom, eased (_zoomPano)
+            minHfov:            30,
+            maxHfov:            120,
           },
           scenes: progressive ? { light: scene(light), full: scene(full) } : { full: scene(full) },
         });
@@ -386,6 +395,7 @@ export class PhotoViewer {
   // ── Helpers ────────────────────────────────────────────────────────────────
 
   _destroyPannellum() {
+    this._stopPanoZoom();
     this._panoToken = null;                 // a pending sharp panorama no longer applies
     if (this._viewer) {
       this._teardownGyroLoop();  // preserve _gyroOn so next photo re-activates
@@ -402,7 +412,7 @@ export class PhotoViewer {
 
     zoomIn.addEventListener('click', () => {
       if (this._viewer) {
-        this._viewer.setHfov(Math.max(30, this._viewer.getHfov() - 15), 300);
+        this._zoomPano(1 / 1.35);
       } else {
         const r = this._root.getBoundingClientRect();
         this._zoomAt(1.5, r.width / 2, r.height / 2);
@@ -411,7 +421,7 @@ export class PhotoViewer {
 
     zoomOut.addEventListener('click', () => {
       if (this._viewer) {
-        this._viewer.setHfov(Math.min(120, this._viewer.getHfov() + 15), 300);
+        this._zoomPano(1.35);
       } else {
         const r = this._root.getBoundingClientRect();
         this._zoomAt(1 / 1.5, r.width / 2, r.height / 2);
@@ -420,6 +430,7 @@ export class PhotoViewer {
 
     recenter.addEventListener('click', () => {
       if (this._viewer) {
+        this._stopPanoZoom();
         this._viewer.setYaw(0, 600);
         this._viewer.setPitch(0, 600);
         this._viewer.setHfov(90, 600);
@@ -507,15 +518,19 @@ export class PhotoViewer {
     const root = this._root;
 
     // ── Mouse wheel ───────────────────────────────────────────────────────────
+    // Proportional to the scroll (a trackpad's small steps zoom a little, a
+    // mouse notch ~20 %), then eased: no jumps.
     root.addEventListener('wheel', e => {
-      if (this._img.style.display === 'none') return;
+      const pano = this._viewer && this._pnl.style.display !== 'none';
+      if (!pano && this._img.style.display === 'none') return;
+      if (e.target.closest('.photo-map-mini, .exif-panel')) return;
       e.preventDefault();
+      const px = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? root.clientHeight : 1;
+      // ctrlKey: a trackpad pinch, in much smaller steps
+      const factor = Math.exp(-e.deltaY * px * (e.ctrlKey ? 0.01 : 0.002));
+      if (pano) { this._zoomPano(1 / factor); return; }
       const rect = root.getBoundingClientRect();
-      this._zoomAt(
-        e.deltaY < 0 ? 1.15 : 1 / 1.15,
-        e.clientX - rect.left,
-        e.clientY - rect.top,
-      );
+      this._zoomAt(factor, e.clientX - rect.left, e.clientY - rect.top);
     }, { passive: false });
 
     // ── Pointer (mouse + touch) ───────────────────────────────────────────────
@@ -523,6 +538,7 @@ export class PhotoViewer {
     let dragId     = null;
     let dragSx = 0, dragSy = 0, dragBx = 0, dragBy = 0;
     let pinch      = null;           // { dist0, scale0, tx0, ty0, cx, cy }
+    const track    = [];             // recent drag positions { t, x, y }: release velocity
 
     // Tap detection — track origin + whether pointer moved significantly.
     // Used by the click handler below to distinguish tap from drag.
@@ -544,6 +560,8 @@ export class PhotoViewer {
       if (e.target.closest('button, a, .photo-map-mini')) return;
       ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
       root.setPointerCapture(e.pointerId);
+      this._stopAnim();
+      track.length = 0;
 
       const edge = EDGE_PX();
       isEdgeDrag = e.clientX < edge || e.clientX > window.innerWidth - edge;
@@ -583,22 +601,18 @@ export class PhotoViewer {
         const [a, b] = [...ptrs.values()];
         const dist   = Math.hypot(b.x - a.x, b.y - a.y);
         const next   = Math.max(1, Math.min(12, pinch.scale0 * dist / pinch.dist0));
-        if (next === 1) {
-          this._scale = 1; this._tx = 0; this._ty = 0;
-        } else {
-          const lx    = (pinch.cx - pinch.tx0) / pinch.scale0;
-          const ly    = (pinch.cy - pinch.ty0) / pinch.scale0;
-          this._scale = next;
-          this._tx    = pinch.cx - next * lx;
-          this._ty    = pinch.cy - next * ly;
-        }
-        this._applyZoom();
+        // the point under the fingers stays under them, and follows them
+        const rect = root.getBoundingClientRect();
+        const mx   = (a.x + b.x) / 2 - rect.left, my = (a.y + b.y) / 2 - rect.top;
+        const lx   = (pinch.cx - pinch.tx0) / pinch.scale0;
+        const ly   = (pinch.cy - pinch.ty0) / pinch.scale0;
+        this._setView(next, mx - next * lx, my - next * ly);
 
       } else if (dragId === e.pointerId && this._scale > 1) {
         // Single-finger drag pan
-        this._tx = dragBx + (e.clientX - dragSx);
-        this._ty = dragBy + (e.clientY - dragSy);
-        this._applyZoom();
+        this._setView(this._scale, dragBx + (e.clientX - dragSx), dragBy + (e.clientY - dragSy));
+        track.push({ t: e.timeStamp, x: e.clientX, y: e.clientY });
+        while (track.length > 2 && e.timeStamp - track[0].t > 100) track.shift();
       }
     }, { passive: false });
 
@@ -613,9 +627,19 @@ export class PhotoViewer {
             this._onSwipe?.(dx < 0 ? 'left' : 'right');
           }
         }
+        // released while moving: glide on (velocity of the last 100 ms)
+        const first = track[0], last = track[track.length - 1];
+        const dt = last && e.timeStamp - first.t;
+        if (this._scale > 1 && dt > 0 && e.timeStamp - last.t < 60) {
+          const GLIDE = 0.3;   // s: distance = speed × GLIDE, eased out
+          const vx = ((last.x - first.x) / dt) * 1000, vy = ((last.y - first.y) / dt) * 1000;
+          if (Math.hypot(vx, vy) > 150) this._animateTo(this._scale, this._tx + vx * GLIDE, this._ty + vy * GLIDE, GLIDE * 1000);
+        }
+        track.length = 0;
         dragId     = null;
         isEdgeDrag = false;
         this._img.style.cursor = this._scale > 1 ? 'grab' : '';
+        if (!this._raf) this._settle();
       }
       pinch = null;
       // If one finger remains after a pinch, re-anchor drag
@@ -640,11 +664,12 @@ export class PhotoViewer {
         clearTimeout(_clickTimer);
         _clickTimer = null;
         if (this._viewer) {
+          this._stopPanoZoom();
           this._viewer.setYaw(0, 600);
           this._viewer.setPitch(0, 600);
           this._viewer.setHfov(90, 600);
         } else {
-          this._resetZoom();
+          this._animateTo(1, 0, 0);
         }
       } else {
         // First click — wait to see if a second follows
@@ -656,18 +681,80 @@ export class PhotoViewer {
     });
   }
 
+  // ── Eased zoom & pan (standard photos) ──────────────────────────────────────
+  // The view is (scale, tx, ty): img transform translate(tx, ty) scale(s),
+  // origin top-left. Direct gestures (drag, pinch) set it at once; the wheel,
+  // the buttons, a double-click and a released drag animate towards a goal
+  // with exponential easing, frame-rate independent.
+
+  /** Zoom by `factor` keeping the point (cx, cy) of the viewer in place — eased. */
   _zoomAt(factor, cx, cy) {
-    const next = Math.max(1, Math.min(12, this._scale * factor));
-    if (next === 1) {
-      this._scale = 1; this._tx = 0; this._ty = 0;
-    } else {
-      const lx = (cx - this._tx) / this._scale;
-      const ly = (cy - this._ty) / this._scale;
-      this._tx    = cx - next * lx;
-      this._ty    = cy - next * ly;
-      this._scale = next;
-    }
+    const g    = this._goal ?? { s: this._scale, tx: this._tx, ty: this._ty };
+    const next = Math.max(1, Math.min(12, g.s * factor));
+    const lx = (cx - g.tx) / g.s, ly = (cy - g.ty) / g.s;
+    this._animateTo(next, cx - next * lx, cy - next * ly);
+  }
+
+  /**
+   * Keep the photo in view: centred along an axis where it is smaller than
+   * the viewer, otherwise no empty band on either side. The <img> fills the
+   * viewer with object-fit: contain, so the photo is a centred box inside it.
+   */
+  _clamp(s, tx, ty) {
+    const W = this._root.clientWidth, H = this._root.clientHeight;
+    const nw = this._img.naturalWidth, nh = this._img.naturalHeight;
+    const fit = nw && nh ? Math.min(W / nw, H / nh) : 1;
+    const cw = nw ? nw * fit : W, ch = nh ? nh * fit : H;
+    const axis = (t, size, c) => {
+      const o = (size - c) / 2;
+      if (s * c <= size) return (size - s * c) / 2 - s * o;
+      return Math.min(-s * o, Math.max(size - s * (o + c), t));
+    };
+    return { s, tx: axis(tx, W, cw), ty: axis(ty, H, ch) };
+  }
+
+  /** Set the view at once (drag, pinch). */
+  _setView(s, tx, ty) {
+    this._stopAnim();
+    ({ s: this._scale, tx: this._tx, ty: this._ty } = this._clamp(s, tx, ty));
+    this._img.style.willChange = 'transform';
     this._applyZoom();
+  }
+
+  /** Ease the view towards (s, tx, ty); `tau`: the easing's time scale in ms. */
+  _animateTo(s, tx, ty, tau = 90) {
+    this._goal = { ...this._clamp(s, tx, ty), tau };
+    this._img.style.willChange = 'transform';
+    if (this._raf) return;
+    let prev = null;
+    const step = (now) => {
+      prev ??= now - 16;   // first frame: one frame's worth
+      const g = this._goal;
+      if (!g) { this._raf = null; return; }
+      const k = 1 - Math.exp(-(now - prev) / g.tau);
+      prev = now;
+      this._scale += (g.s - this._scale) * k;
+      this._tx    += (g.tx - this._tx) * k;
+      this._ty    += (g.ty - this._ty) * k;
+      const done = Math.abs(g.s - this._scale) < 0.002 * g.s && Math.abs(g.tx - this._tx) < 0.5 && Math.abs(g.ty - this._ty) < 0.5;
+      if (done) ({ s: this._scale, tx: this._tx, ty: this._ty } = g);
+      this._applyZoom();
+      if (done) { this._goal = null; this._raf = null; this._settle(); return; }
+      this._raf = requestAnimationFrame(step);
+    };
+    this._raf = requestAnimationFrame(step);
+  }
+
+  _stopAnim() {
+    if (this._raf) cancelAnimationFrame(this._raf);
+    this._raf = null;
+    this._goal = null;
+  }
+
+  // At rest: let the browser redraw the zoomed photo sharp (a will-change
+  // layer keeps the resolution it had when the motion started).
+  _settle() {
+    this._img.style.willChange = '';
   }
 
   _applyZoom() {
@@ -677,9 +764,42 @@ export class PhotoViewer {
   }
 
   _resetZoom() {
+    this._stopAnim();
     this._scale = 1; this._tx = 0; this._ty = 0;
     this._img.style.transform       = '';
     this._img.style.transformOrigin = '';
     this._img.style.cursor          = '';
+    this._settle();
+  }
+
+  // ── Eased zoom (360°) ────────────────────────────────────────────────────────
+
+  /** Multiply the 360° field of view by `factor` (> 1 zooms out), eased. */
+  _zoomPano(factor) {
+    const v = this._viewer;
+    if (!v) return;
+    const from = this._hfovGoal ?? v.getHfov();
+    this._hfovGoal = Math.max(30, Math.min(120, from * factor));
+    if (this._hfovRaf) return;
+    let prev = null;
+    const step = (now) => {
+      prev ??= now - 16;   // first frame: one frame's worth
+      const goal = this._hfovGoal, view = this._viewer;
+      if (goal == null || !view) { this._hfovRaf = null; return; }
+      const k = 1 - Math.exp(-(now - prev) / 90);
+      prev = now;
+      const h = view.getHfov();
+      const done = Math.abs(goal - h) < 0.05;
+      view.setHfov(done ? goal : h + (goal - h) * k, false);
+      if (done || Math.abs(view.getHfov() - h) < 1e-4) { this._hfovGoal = null; this._hfovRaf = null; return; }
+      this._hfovRaf = requestAnimationFrame(step);
+    };
+    this._hfovRaf = requestAnimationFrame(step);
+  }
+
+  _stopPanoZoom() {
+    if (this._hfovRaf) cancelAnimationFrame(this._hfovRaf);
+    this._hfovRaf = null;
+    this._hfovGoal = null;
   }
 }
