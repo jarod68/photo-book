@@ -17,6 +17,19 @@ async function checkAlreadyLoggedIn() {
 
 checkAlreadyLoggedIn();
 
+// Backdrop: the cover of a random visible album, blurred behind the card
+// (none when no album is visible: the plain dark page).
+fetch('/api/albums').then(r => r.json()).then(albums => {
+  const covers = albums.map(a => a.coverPreview || a.cover).filter(Boolean);
+  if (!covers.length) return;
+  const img = document.createElement('img');
+  img.className = 'login-backdrop';
+  img.alt = '';
+  img.onload = () => img.classList.add('loaded');
+  img.src = covers[Math.floor(Math.random() * covers.length)];
+  document.body.prepend(img);
+}).catch(() => {});
+
 form.addEventListener('submit', async e => {
   e.preventDefault();
   errorEl.hidden = true;

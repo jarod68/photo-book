@@ -78,6 +78,8 @@ router.get('/top-photos', async (req, res) => {
       views:    Number(r.views),
       likes:    likeMap.get(`${r.album}/${r.filename}`) ?? 0,
       url:      `/photos/${encodeURIComponent(r.album)}/${encodeURIComponent(r.filename)}`,
+      // the strip's thumbnail (services/image.js, kind "thumb"); may not exist yet
+      thumbUrl: `/previews/${encodeURIComponent(r.album)}/${encodeURIComponent(r.filename)}.thumb.jpg`,
     }));
     res.json({ photos });
   } catch (err) {

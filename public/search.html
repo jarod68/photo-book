@@ -20,19 +20,27 @@
   </header>
 
   <form id="search-form" class="search-filters" role="search">
-    <input id="search-q" class="search-input" type="search" name="q" autocomplete="off"
-           data-i18n-placeholder="search.placeholder" placeholder="Title, place, album, camera…">
-    <label class="search-field"><span data-i18n="search.from">From</span>
-      <input id="search-from" type="date" name="from"></label>
-    <label class="search-field"><span data-i18n="search.to">To</span>
-      <input id="search-to" type="date" name="to"></label>
-    <select id="search-camera" name="camera" class="search-select">
-      <option value="" data-i18n="search.anyCamera">All cameras</option>
-    </select>
-    <select id="search-album" name="album" class="search-select">
-      <option value="" data-i18n="search.anyAlbum">All albums</option>
-    </select>
-    <button id="search-reset" type="reset" class="search-reset" data-i18n="search.reset">Clear</button>
+    <div class="search-box">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+      <input id="search-q" class="search-input" type="search" name="q" autocomplete="off"
+             data-i18n-placeholder="search.placeholder" placeholder="Title, place, album, camera…">
+    </div>
+    <div class="search-chips">
+      <div class="search-chip search-dates">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>
+        <label class="search-field"><span data-i18n="search.from">From</span>
+          <input id="search-from" type="date" name="from"></label>
+        <label class="search-field"><span data-i18n="search.to">To</span>
+          <input id="search-to" type="date" name="to"></label>
+      </div>
+      <select id="search-camera" name="camera" class="search-chip search-select">
+        <option value="" data-i18n="search.anyCamera">All cameras</option>
+      </select>
+      <select id="search-album" name="album" class="search-chip search-select">
+        <option value="" data-i18n="search.anyAlbum">All albums</option>
+      </select>
+      <button id="search-reset" type="reset" class="search-reset" data-i18n="search.reset">Clear</button>
+    </div>
   </form>
 
   <main id="search-results" class="search-grid"></main>

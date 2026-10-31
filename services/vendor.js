@@ -23,6 +23,9 @@ const VENDOR_FILES = {
   'maplibre-gl/maplibre-gl.mjs':                'maplibre-gl/dist/maplibre-gl.mjs',
   'maplibre-gl/maplibre-gl-worker.mjs':         'maplibre-gl/dist/maplibre-gl-worker.mjs',
   'maplibre-gl/maplibre-gl.css':                'maplibre-gl/dist/maplibre-gl.css',
+  // display typeface of the titles (SIL Open Font License), Latin and Latin Extended
+  'fonts/fraunces-latin.woff2':                 '@fontsource-variable/fraunces/files/fraunces-latin-wght-normal.woff2',
+  'fonts/fraunces-latin-ext.woff2':             '@fontsource-variable/fraunces/files/fraunces-latin-ext-wght-normal.woff2',
 };
 
 module.exports = { VENDOR_FILES };

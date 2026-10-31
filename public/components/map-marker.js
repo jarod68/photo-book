@@ -5,12 +5,13 @@
  * optional location label pill to the right of the pin.
  */
 
-const COLOR_DEFAULT = '#3b82f6'; // cobalt blue
-const COLOR_CURRENT = '#ef4444'; // red — current photo
+// pin fill / number colour: the app's coral; the current photo inverted (white pin)
+const COLOR_DEFAULT = { fill: '#ff8a5b', text: '#1d0e07', stroke: 'white' };
+const COLOR_CURRENT = { fill: 'white',   text: '#1d0e07', stroke: '#ff8a5b' };
 
 /**
  * @param {number}       num           - number shown inside the pin
- * @param {boolean}      isCurrent     - current photo gets a red, larger pin
+ * @param {boolean}      isCurrent     - current photo gets a white, larger pin
  * @param {string|null}  locationLabel - city/place name displayed next to pin
  * @returns {L.DivIcon}
  */
@@ -29,9 +30,9 @@ export function buildMarkerIcon(num, isCurrent, locationLabel) {
   const html = `<div class="map-marker-wrap${isCurrent ? ' current' : ''}">
     <svg width="${w}" height="${h}" viewBox="0 0 28 38" xmlns="http://www.w3.org/2000/svg">
       <path d="M14 1C7.4 1 2 6.4 2 13c0 8.4 12 23.5 12 23.5S26 21.4 26 13C26 6.4 20.6 1 14 1z"
-            fill="${color}" stroke="white" stroke-width="2"/>
+            fill="${color.fill}" stroke="${color.stroke}" stroke-width="2"/>
       <text x="14" y="13" text-anchor="middle" dominant-baseline="central"
-            fill="white" font-size="${fs}" font-weight="700"
+            fill="${color.text}" font-size="${fs}" font-weight="700"
             font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">${num}</text>
     </svg>
     ${label}

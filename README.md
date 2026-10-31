@@ -329,7 +329,7 @@ All `/api/admin/*` routes first pass through `requireAuth` (→ `401` if no sess
 
 ### Content-Security-Policy and self-hosted libraries
 
-The browser libraries — Leaflet 1.9.4, Leaflet.markercluster 1.5.3, Pannellum 2.5.7, Three.js 0.168.0 and MapLibre GL 6.14.0 — are `devDependencies` with exact versions, copied by `npm run build` to `dist/public/vendor/` and served by the app under `/vendor/` (the list is in `services/vendor.js`; running from the repository, the server maps the same paths to `node_modules`). Nothing is loaded from a CDN at run time, so a compromised CDN cannot inject code, and `npm audit` covers these libraries too.
+The browser libraries — Leaflet 1.9.4, Leaflet.markercluster 1.5.3, Pannellum 2.5.7, Three.js 0.168.0 and MapLibre GL 6.14.0, and the Fraunces typeface of the titles (@fontsource-variable/fraunces 5.3.0, SIL Open Font License) — are `devDependencies` with exact versions, copied by `npm run build` to `dist/public/vendor/` and served by the app under `/vendor/` (the list is in `services/vendor.js`; running from the repository, the server maps the same paths to `node_modules`). Nothing is loaded from a CDN at run time, so a compromised CDN cannot inject code, and `npm audit` covers these libraries too.
 
 Every response carries a strict `Content-Security-Policy` (`services/csp.js`): scripts, styles, fonts, data and workers from the site only; images also from `data:`, `blob:` and the OpenStreetMap tile server; images and requests from the globe's two tile hosts (EOX, OpenFreeMap); no plugins, no framing (`frame-ancestors 'none'`). The only inline script, the globe's import map, is allowed by its SHA-256 hash, computed at startup from the served HTML. Inline styles stay allowed (style attributes, and Leaflet / Pannellum set styles too). Browsers report violations to `POST /api/csp-report`; each distinct one is logged once and appears in **Admin → System → Recent errors**.
 
@@ -355,6 +355,8 @@ Requests never touch the disk synchronously: albums and photos are read through 
 ### Frontend
 
 The frontend is vanilla JavaScript with ES modules — no bundler, no framework.
+
+**Look.** Dark throughout, with one warm accent — coral `#ff8a5b` (`--accent` in `style.css`; `--accent-ink` for text on it, `--accent-soft` for accent text on dark) — and Fraunces for titles over the system sans-serif. Secondary text is 62 % white, enough contrast for WCAG AA. The home page opens on the latest album (its cover full width, title, "open" button), then **Explore** (map, globe) and the **Albums** grid; the login page sits on a blurred album cover. The Leaflet maps are dark too: OpenStreetMap tiles inverted by a CSS filter (`utils/base-map.js`; the free dark tile services all want an API key now). On phones the admin tables become cards.
 
 ```
 public/

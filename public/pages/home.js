@@ -2,11 +2,14 @@ import { t, applyTranslations, initLangSwitcher } from '../utils/i18n.js';
 import { createAlbumCard } from '../components/album-card.js';
 import { showBuildTag } from '../utils/build-tag.js';
 import { sortAlbums, loadOrder, saveOrder } from '../utils/order.js';
+import { formatDateRange } from '../utils/format.js';
 
 applyTranslations();
 initLangSwitcher('lang-switcher');
 
 const grid   = document.getElementById('album-grid');
+const explore = document.getElementById('explore-grid');
+const hero   = document.getElementById('home-hero');
 const sumEl  = document.getElementById('summary');
 const authEl = document.getElementById('home-auth');
 const sortEl = document.getElementById('album-sort');
@@ -28,8 +31,8 @@ async function init() {
   sumEl.textContent =
     `${albums.length} ${t('word.album', { s: aS })} · ${totalPhotos} ${t('word.photo', { s: pS })}`;
 
-  grid.appendChild(createMapCard());
-  grid.appendChild(createGlobeCard());
+  explore.appendChild(createMapCard());
+  explore.appendChild(createGlobeCard());
 
   if (albums.length === 0) {
     const p = document.createElement('p');
@@ -39,13 +42,41 @@ async function init() {
     return;
   }
 
-  // Album cards follow the map and globe cards; re-sorted in place (F5).
+  renderHero(albums);
+
+  // Album cards, re-sorted in place (F5).
   const cards = new Map(albums.map(a => [a.name, createAlbumCard(a)]));
   const place = (mode) => sortAlbums(albums, mode).forEach(a => grid.appendChild(cards.get(a.name)));
   sortEl.value = loadOrder(SORT_KEY, 'name', ['name', 'recent', 'oldest']);
   sortEl.hidden = albums.length < 2;
   sortEl.addEventListener('change', () => { saveOrder(SORT_KEY, sortEl.value); place(sortEl.value); });
   place(sortEl.value);
+}
+
+// The latest album (by its last photo's date) across the top: its cover, big
+// title, an "open" button. The header floats over it.
+function renderHero(albums) {
+  const latest = sortAlbums(albums.filter(a => a.cover && a.count > 0), 'recent')[0];
+  if (!latest) return;
+  const href  = `viewer.html?album=${encodeURIComponent(latest.name)}`;
+  const dates = formatDateRange(latest.dateFrom, latest.dateTo);
+  const meta  = t('album.photos', { n: latest.count, s: latest.count !== 1 ? 's' : '' }) + (dates ? ` · ${dates}` : '');
+  hero.innerHTML = `
+    <img class="home-hero-img" alt="" decoding="async">
+    <div class="home-hero-text">
+      <p class="home-hero-kicker">${esc(t('home.latest'))}</p>
+      <h2 class="home-hero-title">${esc(latest.name)}</h2>
+      <p class="home-hero-meta">${esc(meta)}</p>
+      ${latest.description ? `<p class="home-hero-desc">${esc(latest.description)}</p>` : ''}
+      <a class="home-hero-cta" href="${href}">${esc(t('home.open'))}
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+      </a>
+    </div>`;
+  const img = hero.querySelector('img');
+  img.onload = () => hero.classList.add('loaded');
+  img.src = latest.coverPreview || latest.cover;
+  hero.hidden = false;
+  document.body.classList.add('has-hero');
 }
 
 function renderAuth(user) {
@@ -90,13 +121,13 @@ function createMapCard() {
   visual.className = 'album-card-map-visual';
   visual.innerHTML = `
     <svg class="album-card-map-dots" viewBox="0 0 260 174" xmlns="http://www.w3.org/2000/svg">
-      ${_pin(52,  62,  '#3b82f6', 0.9)}
-      ${_pin(110, 44,  '#3b82f6', 0.75)}
+      ${_pin(52,  62,  '#ff8a5b', 0.9)}
+      ${_pin(110, 44,  '#ff8a5b', 0.75)}
       ${_pin(168, 80,  '#ef4444', 1.0)}
-      ${_pin(210, 52,  '#3b82f6', 0.7)}
-      ${_pin(78,  118, '#3b82f6', 0.65)}
-      ${_pin(145, 130, '#3b82f6', 0.55)}
-      ${_pin(225, 115, '#3b82f6', 0.6)}
+      ${_pin(210, 52,  '#ff8a5b', 0.7)}
+      ${_pin(78,  118, '#ff8a5b', 0.65)}
+      ${_pin(145, 130, '#ff8a5b', 0.55)}
+      ${_pin(225, 115, '#ff8a5b', 0.6)}
       ${_line(52,68, 110,50)}
       ${_line(110,50, 168,86)}
       ${_line(168,86, 210,58)}

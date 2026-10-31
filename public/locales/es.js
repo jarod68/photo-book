@@ -26,6 +26,10 @@ export default {
   'home.sortName': 'A–Z',
   'home.sortRecent': 'Más recientes',
   'home.sortOldest': 'Más antiguos',
+  'home.explore': 'Explorar',
+  'home.albums': 'Álbumes',
+  'home.latest': 'Último álbum',
+  'home.open': 'Abrir el álbum',
   'word.album':        'álbum{s}',
   'word.photo':        'foto{s}',
 

@@ -12,7 +12,7 @@ import { addBaseLayer } from '../utils/base-map.js';
 applyTranslations();
 initLangSwitcher('lang-switcher');
 
-const ROUTE_COLOR = '#3b82f6';
+const ROUTE_COLOR = '#ff8a5b';   // the app's accent (--accent)
 const ARROW_TS    = [0.2, 0.5, 0.8];
 
 // ── Directional arrow icon (follows the curve tangent) ───────────────────────

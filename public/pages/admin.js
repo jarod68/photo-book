@@ -105,9 +105,9 @@ function renderAlbumRow(a, readOnly = false) {
         <a class="admin-link" href="/viewer.html?album=${encodeURIComponent(a.album)}">${esc(a.album)}</a>
         <span class="admin-visibility-badge admin-visibility-badge--${vis}">${vis}</span>
       </td>
-      <td class="num">${a.photos}</td>
-      <td class="num">${a.views.toLocaleString()}</td>
-      <td class="num">${a.likes.toLocaleString()}</td>
+      <td class="num" data-label="${esc(t('admin.col.photos'))}">${a.photos}</td>
+      <td class="num" data-label="${esc(t('admin.col.views'))}">${a.views.toLocaleString()}</td>
+      <td class="num" data-label="${esc(t('admin.col.likes'))}">${a.likes.toLocaleString()}</td>
       <td class="admin-row-actions">
         <button class="admin-icon-btn" data-settings="${esc(a.album)}" title="${t('admin.settings')}">${iconGear()}</button>
         <button class="admin-icon-btn" data-photos="${esc(a.album)}" title="${t('admin.editPhotos')}">${iconImages()}</button>
@@ -208,12 +208,16 @@ async function loadTopPhotos() {
     }
     body.innerHTML = photos.map(p => `
       <tr>
-        <td><a class="admin-link" href="${p.url}" target="_blank">${esc(p.filename)}</a></td>
-        <td>${esc(p.album)}</td>
-        <td class="num">${p.views.toLocaleString()}</td>
-        <td class="num">${p.likes.toLocaleString()}</td>
+        <td><a class="admin-link admin-photo-link" href="viewer.html?album=${encodeURIComponent(p.album)}&photo=${encodeURIComponent(p.filename)}">
+          <img class="admin-thumb" src="${esc(p.thumbUrl)}" alt="" loading="lazy">
+          <span>${esc(p.filename)}</span></a></td>
+        <td data-label="${esc(t('admin.col.album'))}">${esc(p.album)}</td>
+        <td class="num" data-label="${esc(t('admin.col.views'))}">${p.views.toLocaleString()}</td>
+        <td class="num" data-label="${esc(t('admin.col.likes'))}">${p.likes.toLocaleString()}</td>
       </tr>
     `).join('');
+    // no thumbnail yet (not generated): an empty square rather than a broken image
+    body.querySelectorAll('.admin-thumb').forEach(img => { img.onerror = () => { img.style.visibility = 'hidden'; }; });
   } catch (_) {
     body.innerHTML = `<tr><td colspan="4" class="admin-error">${t('admin.failedLoad')}</td></tr>`;
   }
@@ -675,8 +679,8 @@ function renderUserRow(u) {
           <option value="admin"${u.role === 'admin' ? ' selected' : ''}>admin</option>
         </select>
       </td>
-      <td class="admin-date">${esc(fmt(u.created_at))}</td>
-      <td class="admin-date">${esc(fmt(u.last_login_at))}</td>
+      <td class="admin-date" data-label="${esc(t('admin.col.created'))}">${esc(fmt(u.created_at))}</td>
+      <td class="admin-date" data-label="${esc(t('admin.col.lastLogin'))}">${esc(fmt(u.last_login_at))}</td>
       <td class="admin-row-actions">
         <button class="admin-icon-btn" data-pwd="${u.id}" data-username="${esc(u.username)}" title="${t('admin.changePassword')}">${iconKey()}</button>
         <button class="admin-icon-btn admin-icon-btn--danger" data-del="${u.id}" data-username="${esc(u.username)}"

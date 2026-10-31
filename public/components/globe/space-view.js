@@ -217,7 +217,7 @@ function markerCanvas(img, count) {
     const s = Math.max((2 * r) / img.width, (2 * r) / img.height);
     g.drawImage(img, cx - (img.width * s) / 2, cy - (img.height * s) / 2, img.width * s, img.height * s);
   } else {
-    g.fillStyle = '#3b82f6'; g.fillRect(0, 0, S, S);
+    g.fillStyle = '#ff8a5b'; g.fillRect(0, 0, S, S);
   }
   g.restore();
   if (count > 1) {
@@ -225,10 +225,10 @@ function markerCanvas(img, count) {
     g.font = '600 34px -apple-system, "Segoe UI", sans-serif';
     const w = Math.max(44, g.measureText(label).width + 22);
     const bx = cx + r * 0.62 - w / 2, by = cy - r - 8;
-    g.fillStyle = '#3b82f6';
+    g.fillStyle = '#ff8a5b';   // the app's accent
     g.beginPath(); g.roundRect(bx, by, w, 44, 22); g.fill();
     g.lineWidth = 4; g.strokeStyle = '#fff'; g.stroke();
-    g.fillStyle = '#fff'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillStyle = '#1d0e07'; g.textAlign = 'center'; g.textBaseline = 'middle';
     g.fillText(label, bx + w / 2, by + 23);
   }
   const t = new THREE.CanvasTexture(c);
