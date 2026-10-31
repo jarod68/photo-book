@@ -11,7 +11,7 @@ import '../utils/admin-shortcut.js';
 import { getMapPhotos } from '../api/client.js';
 import { showBuildTag } from '../utils/build-tag.js';
 import { distanceToZoom, zoomToDistance } from '../utils/globe-math.js';
-import { loadTimezones, zoneIndexAt, zoneLabel, offsetMinutes } from '../utils/timezones.js';
+import { loadTimezones, loadBorders, zoneIndexAt, zoneLabel, offsetMinutes } from '../utils/timezones.js';
 import { SpaceView, FOV, NEAR_DISTANCE } from '../components/globe/space-view.js';
 import { NearView, FAR_ZOOM } from '../components/globe/near-view.js';
 
@@ -97,6 +97,19 @@ function zoneColors(names) {
   return out;
 }
 
+// Borders where the hour changes now (summer time moves some): redrawn only
+// when that set changes.
+let bordersKey = '';
+function drawBorders(borders) {
+  const now = at ?? new Date();
+  const offsets = tz.names.map((n) => offsetMinutes(n, now));
+  const shown = borders.filter((b) => offsets[b.a] !== offsets[b.b]);
+  const key = shown.length + ':' + offsets.join(',');
+  if (key === bordersKey) return;
+  bordersKey = key;
+  space.setTimezoneBorders(shown);
+}
+
 async function setTimezones(on) {
   tzOn = on;
   tzBtn.setAttribute('aria-pressed', String(on));
@@ -105,11 +118,17 @@ async function setTimezones(on) {
   clearInterval(tzTimer);
   if (!on) { space.setTimezones(null); showTip(null); return; }
   const touch = matchMedia('(pointer: coarse)').matches;
-  tz = await loadTimezones(touch ? 2048 : 4096);
+  const [zones, borders] = await Promise.all([loadTimezones(touch ? 2048 : 4096), loadBorders()]);
+  tz = zones;
   if (!tzOn) return;
   await space.setTimezones({ url: `/textures/earth/tz-index-${tz.index.width}.png`, width: tz.index.width, colors: zoneColors(tz.names) });
+  drawBorders(borders);
   // offsets change with summer time, and the card's clock moves on
-  tzTimer = setInterval(() => { space.setTimezoneColors(zoneColors(tz.names)); if (tipPoint) showTip(tipPoint); }, 30_000);
+  tzTimer = setInterval(() => {
+    space.setTimezoneColors(zoneColors(tz.names));
+    drawBorders(borders);
+    if (tipPoint) showTip(tipPoint);
+  }, 30_000);
 }
 
 function showTip(p) {

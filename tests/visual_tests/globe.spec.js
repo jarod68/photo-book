@@ -56,7 +56,8 @@ test('globe: time zones overlay, local time on hover', async ({ page }) => {
   // 21 June 2026, 12:00 UTC: summer time in Paris
   await expect(page.locator('#globe-tz-tip')).toContainText('14:00');
   await expect(page.locator('#globe-tz-tip')).toContainText('UTC+2');
-  await expect(page.locator('#globe-space')).toHaveScreenshot('globe-timezones.png', { maxDiffPixelRatio: 0.02, timeout: 30_000 });
+  await page.waitForFunction(() => document.getElementById('globe-space').globeView.tzBorders);
+  await expect(page.locator('#globe-space')).toHaveScreenshot('globe-timezones.png', { maxDiffPixelRatio: 0.02, timeout: 60_000 });
   // off again, and remembered
   await page.click('#globe-tz-btn');
   await expect(page.locator('#globe-tz-tip')).toBeHidden();

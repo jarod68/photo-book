@@ -44,3 +44,25 @@ describe('timezones', () => {
     expect(l.day).toMatch(/29/);                      // already the next day in Tokyo
   });
 });
+
+describe('decodeBorders', () => {
+  it('lit le format binaire : zones, premier point absolu, puis écarts (millièmes de degré)', async () => {
+    const { decodeBorders } = await import('../../../public/utils/timezones.js');
+    const buf = new ArrayBuffer(4 + 16 + 2 * 4 + 16);
+    const v = new DataView(buf);
+    let o = 0;
+    v.setUint32(o, 2, true); o += 4;
+    // border 1: zones 3 / 300, three points
+    v.setUint16(o, 3, true); v.setUint16(o + 2, 300, true); v.setUint32(o + 4, 3, true);
+    v.setInt32(o + 8, 2350, true); v.setInt32(o + 12, 48850, true); o += 16;
+    v.setInt16(o, 10, true); v.setInt16(o + 2, -5, true); o += 4;
+    v.setInt16(o, -2000, true); v.setInt16(o + 2, 1000, true); o += 4;
+    // border 2: one point only (degenerate but valid)
+    v.setUint16(o, 0, true); v.setUint16(o + 2, 1, true); v.setUint32(o + 4, 1, true);
+    v.setInt32(o + 8, -179999, true); v.setInt32(o + 12, -89000, true);
+    const [b1, b2] = decodeBorders(buf);
+    expect(b1.a).toBe(3); expect(b1.b).toBe(300);
+    expect([...b1.coords].map((x) => +x.toFixed(3))).toEqual([2.35, 48.85, 2.36, 48.845, 0.36, 49.845]);
+    expect([...b2.coords].map((x) => +x.toFixed(3))).toEqual([-179.999, -89]);
+  });
+});

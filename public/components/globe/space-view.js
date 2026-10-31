@@ -15,6 +15,9 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
+import { LineSegments2 } from 'three/addons/lines/LineSegments2.js';
+import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js';
+import { LineMaterial } from 'three/addons/lines/LineMaterial.js';
 import { lonLatToXyz, xyzToLonLat, subsolarPoint, clusterScreen, angularDistance } from '../../utils/globe-math.js';
 
 export const FOV = 45;
@@ -74,6 +77,8 @@ const EARTH_FRAG = /* glsl */ `
     vec4 c = texture2D(tzMap, uv);
     return floor(c.r * 255.0 + 0.5) + floor(c.g * 255.0 + 0.5) * 256.0;
   }
+  vec3 tzColor(float id) { return texture2D(tzLut, vec2((id + 0.5) / 512.0, 0.5)).rgb; }
+  float tzIs(float id) { return 1.0 - step(0.5, abs(id - tzHover)); }
   void main() {
     vec3 n = normalize(vNormalW);
     vec3 v = normalize(cameraPosition - vPosW);
@@ -102,16 +107,20 @@ const EARTH_FRAG = /* glsl */ `
     col += fres * vec3(0.30, 0.58, 1.0) * (0.12 + 0.9 * smoothstep(-0.25, 0.6, cs));
 
     if (tzOn > 0.0) {
-      float id = tzId(vUv);
-      vec3 zc = texture2D(tzLut, vec2((id + 0.5) / 512.0, 0.5)).rgb;
+      // The index cannot be filtered (it holds zone numbers): look up the
+      // colour of the four nearest texels and blend those, so the tint has
+      // smooth edges instead of 10 km steps. The borders are vector lines.
+      vec2 st = vUv * tzSize - 0.5;
+      vec2 f = fract(st);
+      vec2 base = (floor(st) + 0.5) / tzSize;
       vec2 px = 1.0 / tzSize;
-      float edge = min(1.0, step(0.5, abs(tzId(vUv + vec2(px.x, 0.0)) - id)) + step(0.5, abs(tzId(vUv + vec2(0.0, px.y)) - id)));
-      float hover = 1.0 - step(0.5, abs(id - tzHover));
+      float i00 = tzId(base), i10 = tzId(base + vec2(px.x, 0.0)), i01 = tzId(base + vec2(0.0, px.y)), i11 = tzId(base + px);
+      vec3 zc = mix(mix(tzColor(i00), tzColor(i10), f.x), mix(tzColor(i01), tzColor(i11), f.x), f.y);
+      float hover = mix(mix(tzIs(i00), tzIs(i10), f.x), mix(tzIs(i01), tzIs(i11), f.x), f.y);
       // a tint that follows the light: clear by day, faint at night (city lights stay)
       vec3 tint = zc * (0.10 + 0.80 * day);
       col = mix(col, tint, tzOn * (0.20 + 0.25 * hover) * (0.55 + 0.45 * day));
       col += tzOn * hover * zc * 0.06;
-      col = mix(col, vec3(1.0, 0.97, 0.88), tzOn * edge * (0.28 + 0.15 * day + 0.45 * hover));
     }
 
     gl_FragColor = vec4(col, 1.0);
@@ -517,7 +526,8 @@ export class SpaceView {
   async setTimezones(layer) {
     await this.earthReady;
     const u = this.earthMat.uniforms;
-    if (!layer) { u.tzOn.value = 0; this.tzHover = null; return; }
+    if (!layer) { u.tzOn.value = 0; this.tzHover = null; if (this.tzBorders) this.tzBorders.visible = false; return; }
+    if (this.tzBorders) this.tzBorders.visible = true;
     if (!u.tzMap.value) {
       const t = await loadTexture(layer.url, false);
       t.magFilter = t.minFilter = THREE.NearestFilter;    // an index: never blend two zones
@@ -530,6 +540,35 @@ export class SpaceView {
     }
     this.setTimezoneColors(layer.colors);
     u.tzOn.value = 1;
+  }
+
+  /**
+   * Draw these borders as sharp vector lines: [{ coords: Float32Array [lng, lat, …] }]
+   * (only those where the hour changes — the page picks them).
+   */
+  setTimezoneBorders(borders) {
+    const pos = [];
+    for (const { coords } of borders) {
+      for (let k = 0; k + 3 < coords.length; k += 2) {
+        pos.push(...lonLatToXyz(coords[k + 1], coords[k], 1.0008), ...lonLatToXyz(coords[k + 3], coords[k + 2], 1.0008));
+      }
+    }
+    if (!this.tzBorders) {
+      const W = this.container.clientWidth, H = this.container.clientHeight;
+      this.tzBorderMat = new LineMaterial({
+        color: 0xfff1d0, linewidth: 1.3, transparent: true, opacity: 0.75, depthTest: true,
+        resolution: new THREE.Vector2(W, H),
+      });
+      this.tzBorders = new LineSegments2(new LineSegmentsGeometry(), this.tzBorderMat);
+      this.tzBorders.renderOrder = 2;
+      this.scene.add(this.tzBorders);
+    } else {
+      this.tzBorders.geometry.dispose();
+      this.tzBorders.geometry = new LineSegmentsGeometry();
+    }
+    this.tzBorders.geometry.setPositions(pos);
+    this.tzBorders.computeLineDistances?.();
+    this.tzBorders.visible = this.earthMat?.uniforms.tzOn.value > 0;
   }
 
   setTimezoneColors(colors) {
@@ -635,6 +674,7 @@ export class SpaceView {
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(W, H);
     this.labels.setSize(W, H);
+    this.tzBorderMat?.resolution.set(W, H);
     this.markersDirty = true;
   }
 

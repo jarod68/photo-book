@@ -81,6 +81,36 @@ export function loadTimezones(width = 4096) {
   return loading;
 }
 
+/**
+ * Borders from tz-lines.bin (format in scripts/timezone-textures.js):
+ * [{ a, b, coords: Float32Array [lng, lat, lng, lat, …] }].
+ */
+export function decodeBorders(buffer) {
+  const v = new DataView(buffer);
+  let o = 0;
+  const count = v.getUint32(o, true); o += 4;
+  const out = new Array(count);
+  for (let i = 0; i < count; i++) {
+    const a = v.getUint16(o, true), b = v.getUint16(o + 2, true), n = v.getUint32(o + 4, true);
+    let x = v.getInt32(o + 8, true), y = v.getInt32(o + 12, true);
+    o += 16;
+    const coords = new Float32Array(n * 2);
+    coords[0] = x / 1000; coords[1] = y / 1000;
+    for (let k = 1; k < n; k++) {
+      x += v.getInt16(o, true); y += v.getInt16(o + 2, true); o += 4;
+      coords[2 * k] = x / 1000; coords[2 * k + 1] = y / 1000;
+    }
+    out[i] = { a, b, coords };
+  }
+  return out;
+}
+
+let bordersLoading = null;
+export function loadBorders() {
+  bordersLoading ??= fetch('/textures/earth/tz-lines.bin').then((r) => r.arrayBuffer()).then(decodeBorders);
+  return bordersLoading;
+}
+
 /** Zone name at a point, or null. */
 export function zoneAt(tz, lat, lng) {
   const n = zoneIndexAt(tz.index, lat, lng);
