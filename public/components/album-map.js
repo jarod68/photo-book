@@ -1,4 +1,5 @@
 import { buildMarkerIcon, shortLocation } from './map-marker.js';
+import { addBaseLayer } from '../utils/base-map.js';
 
 /**
  * AlbumMap — full-screen overlay showing all GPS locations of an album.
@@ -70,10 +71,7 @@ export class AlbumMap {
   _buildMap(allPhotos, geoPhotos, currentIndex) {
     if (!this._map) {
       this._map = L.map(this._canvas);
-      L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        maxZoom: 19,
-        attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-      }).addTo(this._map);
+      addBaseLayer(this._map);
     }
 
     this._markers.forEach(({ marker }) => marker.remove());

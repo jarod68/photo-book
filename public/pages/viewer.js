@@ -130,40 +130,66 @@ exifToggle.addEventListener('click', e => {
   exifPanel.hidden = !open;
   exifToggle.classList.toggle('active', open);
   viewerEl.classList.toggle('exif-open', open);
+  if (open) photoMap.refresh();   // its size changes (and on phones it was hidden)
 });
 
 exifPanel.addEventListener('click', e => e.stopPropagation());
+// phones: the panel is a bottom sheet over the photo's bar (and its ⓘ):
+// a tap anywhere else closes it
+document.addEventListener('click', e => {
+  if (exifPanel.hidden || !matchMedia('(max-width: 760px)').matches) return;
+  if (!e.target.closest('#exif-panel, #exif-toggle, .photo-map-mini')) closeExifPanel();
+}, true);
+
+// Grouped, with icons: the camera and its lens, the date, the shot's settings
+// as chips, the size. The panel is sized to its content (and on small screens
+// also holds the mini-map, hidden from the photo otherwise): shown when the
+// photo has EXIF data or a position.
+const EXIF_ICONS = {
+  camera: '<path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>',
+  date:   '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>',
+  size:   '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 15l5-5 4 4 3-3 6 6"/>',
+};
+const exifIcon = (name) => `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${EXIF_ICONS[name]}</svg>`;
 
 function renderExif(photo) {
   const exif = photo?.exif;
-  if (!exif) {
+  if (!exif && !photo?.gps) {
     exifToggle.hidden = true;
     closeExifPanel();
     return;
   }
   exifToggle.hidden = false;
-
-  const rows = [];
-  const add = (key, val) => {
-    if (val != null && val !== '') rows.push([t(key), val]);
-  };
-
-  if (exif.make || exif.model) {
-    add('exif.camera', [exif.make, exif.model].filter(Boolean).join(' '));
-  }
-  add('exif.lens',         exif.lens);
-  add('exif.dateTime',     exif.dateTime ? exif.dateTime.replace('T', ' ').replace(/\.\d+Z?$/, '') : null);
-  add('exif.iso',          exif.iso      != null ? `ISO ${exif.iso}` : null);
-  add('exif.aperture',     exif.aperture != null ? `f/${exif.aperture}` : null);
-  add('exif.shutterSpeed', exif.shutterSpeed);
-  add('exif.focalLength',  exif.focalLength != null ? `${exif.focalLength} mm` + (exif.focalLength35 ? ` (${exif.focalLength35} mm équiv.)` : '') : null);
-  add('exif.dimensions',   exif.width && exif.height ? `${exif.width} × ${exif.height}` : null);
+  if (!exif) { exifTable.innerHTML = ''; return; }
 
   // EXIF values come from untrusted image metadata — escape before injecting
   const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-  exifTable.innerHTML = rows.map(([k, v]) =>
-    `<tr><th>${k}</th><td>${esc(v)}</td></tr>`,
-  ).join('');
+  const row = (icon, label, main, sub) => main
+    ? `<div class="exif-row" title="${esc(label)}">${exifIcon(icon)}<div><div class="exif-main">${esc(main)}</div>${sub ? `<div class="exif-sub">${esc(sub)}</div>` : ''}</div></div>`
+    : '';
+
+  // the EXIF time is the camera's local clock: shown as is (formatted in UTC)
+  let date = null;
+  if (exif.dateTime) {
+    const d = new Date(exif.dateTime.replace(/\.\d+/, '').replace(/Z?$/, 'Z'));
+    date = Number.isNaN(d.getTime()) ? exif.dateTime
+      : new Intl.DateTimeFormat(getLang(), { timeZone: 'UTC', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(d)
+        + ' · ' + new Intl.DateTimeFormat(getLang(), { timeZone: 'UTC', hour: '2-digit', minute: '2-digit' }).format(d);
+  }
+  const chips = [
+    ['exif.aperture',     exif.aperture != null ? `f/${exif.aperture}` : null],
+    ['exif.shutterSpeed', exif.shutterSpeed],
+    ['exif.iso',          exif.iso != null ? `ISO ${exif.iso}` : null],
+    ['exif.focalLength',  exif.focalLength != null ? `${exif.focalLength} mm` : null, exif.focalLength35 ? `${exif.focalLength35} mm (24×36)` : null],
+  ].filter(([, v]) => v != null && v !== '');
+  const mp = exif.width && exif.height ? (exif.width * exif.height) / 1e6 : 0;
+
+  exifTable.innerHTML = [
+    row('camera', t('exif.camera'), [exif.make, exif.model].filter(Boolean).join(' ') || exif.lens, exif.make || exif.model ? exif.lens : null),
+    row('date', t('exif.dateTime'), date),
+    chips.length ? `<div class="exif-chips">${chips.map(([k, v, more]) => `<span class="exif-chip" title="${esc(t(k) + (more ? ` · ${more}` : ''))}">${esc(v)}</span>`).join('')}</div>` : '',
+    row('size', t('exif.dimensions'), exif.width && exif.height ? `${exif.width} × ${exif.height}` : null, mp ? `${mp >= 10 ? Math.round(mp) : mp.toFixed(1)} MP` : null),
+  ].join('');
 }
 
 // ── Share modal ───────────────────────────────────────────────────────────────

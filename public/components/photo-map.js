@@ -1,4 +1,5 @@
 import { buildMarkerIcon, shortLocation } from './map-marker.js';
+import { addBaseLayer } from '../utils/base-map.js';
 
 /**
  * PhotoMap — mini-map in the viewer corner + expandable modal.
@@ -72,6 +73,11 @@ export class PhotoMap {
     }
   }
 
+  /** The mini-map was just shown (its size changed): redraw it. */
+  refresh() {
+    if (this._miniMap && this._current) this._showMini(this._current, this._current.name);
+  }
+
   // ── Mini-map (current photo only) ───────────────────────────────────────────
 
   _showMini(gps, name) {
@@ -86,10 +92,7 @@ export class PhotoMap {
       });
       // OSM's tile usage policy requires the attribution on every map.
       this._miniMap.attributionControl.setPrefix(false);
-      L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        maxZoom: 19,
-        attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-      }).addTo(this._miniMap);
+      addBaseLayer(this._miniMap);
       this._miniMarker = L.marker([gps.lat, gps.lng]).addTo(this._miniMap);
       this._miniMap.setView([gps.lat, gps.lng], 13);
       requestAnimationFrame(() => this._miniMap.invalidateSize());
@@ -115,10 +118,7 @@ export class PhotoMap {
 
     if (!this._modalMap) {
       this._modalMap = L.map(this._modalCanvas);
-      L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        maxZoom: 19,
-        attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-      }).addTo(this._modalMap);
+      addBaseLayer(this._modalMap);
     }
 
     // Clear previous markers

@@ -14,8 +14,8 @@
   --border:     rgba(255,255,255,0.09);
   --border-h:   rgba(255,255,255,0.18);
   --text:       #eeeef2;
-  --text-dim:   rgba(238,238,242,0.40);
-  --text-faint: rgba(238,238,242,0.20);
+  --text-dim:   rgba(238,238,242,0.62);   /* ≥ 4.5:1 on --bg (WCAG AA) */
+  --text-faint: rgba(238,238,242,0.36);
   --accent:     #3b82f6;
   --accent-dim: rgba(59,130,246,0.13);
   --accent-h:   #2563eb;
@@ -721,7 +721,7 @@ body {
 }
 .album-tab:hover  { color: var(--text); }
 .album-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
-.album-tab .count { opacity: 0.35; font-size: 11px; margin-left: 5px; }
+.album-tab .count { opacity: 0.6; font-size: 11px; margin-left: 5px; }
 .album-tab-lock { width: 9px; height: 9px; margin-left: 5px; opacity: 0.55; color: #facc15; vertical-align: middle; display: inline-block; }
 
 /* ── Main viewer ────────────────────────────────────────────────────────────── */
@@ -774,7 +774,7 @@ body {
   left: 20px;
   z-index: 10;
   pointer-events: none;
-  max-width: min(480px, calc(100% - 110px));
+  max-width: min(560px, calc(100% - 200px));
 }
 
 .badge-360 {
@@ -803,7 +803,7 @@ body {
 }
 #photo-desc {
   font-size: 12px;
-  color: rgba(238,238,242,0.55);
+  color: rgba(238,238,242,0.72);
   line-height: 1.55;
   text-shadow: 0 1px 4px rgba(0,0,0,0.9);
 }
@@ -811,7 +811,7 @@ body {
 .photo-location {
   display: none;
   font-size: 11px;
-  color: rgba(59,130,246,0.80);
+  color: #7fb0ff;
   margin-bottom: 5px;
   text-shadow: 0 1px 4px rgba(0,0,0,0.9);
   letter-spacing: 0.02em;
@@ -842,7 +842,7 @@ body {
   align-items: center;
   gap: 4px;
   font-size: 11px;
-  color: rgba(255,255,255,0.38);
+  color: rgba(255,255,255,0.66);
   letter-spacing: 0.03em;
 }
 .photo-views:not(:empty) { display: inline-flex; }
@@ -1363,25 +1363,40 @@ body {
   .album-tab-back  { padding: 0 12px; font-size: 22px; }
   .album-map-btn   { padding: 0 10px; }
 
+  /* the photo's bar along the bottom of the viewer, full width */
   #photo-info {
-    bottom: calc(104px + env(safe-area-inset-bottom, 0px));
-    max-width: calc(100% - 120px);
+    bottom: 12px;
+    left: 14px;
+    right: 14px;
+    max-width: none;
   }
-  #photo-name { font-size: 14px; }
+  #photo-name { font-size: 15px; }
+  #photo-meta { gap: 8px; }
+  #photo-meta .photo-location { flex-basis: 100%; margin-bottom: 0; font-size: 12px; }
+  .like-btn, .photo-actions-toggle { height: 38px; padding: 0 12px; }
+  .download-photo-btn, .exif-toggle-btn, .push-subscribe-btn { width: 38px; height: 38px; }
+  .like-btn svg, .download-photo-btn svg, .exif-toggle-btn svg, .push-subscribe-btn svg, .photo-actions-toggle svg { width: 16px; height: 16px; }
 
+  /* 360°: pinch to zoom; recentre and gyroscope top-right */
   #pano-controls {
-    bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+    top: 12px;
+    right: 12px;
+    bottom: auto;
+    flex-direction: row;
     gap: 8px;
   }
+  #pano-zoom-in, #pano-zoom-out { display: none !important; }
   #pano-controls button {
-    width: 44px;
-    height: 44px;
+    width: 40px;
+    height: 40px;
     font-size: 18px;
-    border-radius: 8px;
+    border-radius: 50%;
   }
   #pano-recenter { font-size: 22px; }
 
+  /* the mini-map lives in the info panel (ⓘ), not over the photo */
   .photo-map-mini { width: 150px; height: 108px; }
+  #viewer:not(.exif-open) .photo-map-mini { display: none; }
 
   .map-modal-close,
   .album-map-close {
@@ -1392,7 +1407,12 @@ body {
 }
 
 @media (max-width: 600px) {
-  .home-header { padding: 24px 16px 0; gap: 12px; }
+  .home-header { padding: 24px 16px 0; gap: 12px; flex-wrap: wrap; align-items: center; }
+  .home-header-left { display: contents; }
+  .home-logo { order: 0; flex: 1; min-width: 0; }
+  .home-header-right { order: 1; padding-top: 0; }
+  .home-summary-row { order: 2; flex-basis: 100%; margin-top: 0; }
+  .home-search-btn span { display: none; }
   .home-auth-user { display: none; }
   .home-auth-btn { font-size: var(--ctl-fs); padding: 0 10px; }
   .album-grid  {
@@ -2856,6 +2876,17 @@ a#zip-btn { text-decoration: none; }
   font: 700 11px/1.3 system-ui, sans-serif; letter-spacing: 0.08em;
 }
 .env-nonprod .build-tag { background: #ff6a00; }
+/* scrolling pages: a quiet line at the end of the page, covering nothing */
+.build-tag--footer {
+  position: static; display: block; width: fit-content;
+  margin: 8px auto calc(16px + env(safe-area-inset-bottom, 0px));
+  background: none; color: var(--text-faint);
+}
+.env-nonprod .build-tag--footer { background: #ff6a00; color: #fff; }
+/* in a page's own slot (the viewer's top bar) */
+.build-tag--inline { position: static; background: none; color: var(--text-faint); padding: 0 4px; }
+.env-nonprod .build-tag--inline { background: #ff6a00; color: #fff; }
+@media (max-width: 760px) { .album-nav-build { display: none; } }
 
 /* Videos (F1): viewer player and strip tiles */
 .viewer-video {
@@ -2989,3 +3020,98 @@ a#zip-btn { text-decoration: none; }
   .search-select { flex: 1 1 45%; max-width: none; }
   .home-search-btn span { display: none; }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+   VIEWER — one action bar, info card · DARK LEAFLET MAPS
+═══════════════════════════════════════════════════════════════════════════════ */
+
+/* Photo actions: one size, one style (30 px; 38 px on touch screens) */
+.like-btn, .photo-actions-toggle { height: 30px; }
+.download-photo-btn, .exif-toggle-btn, .push-subscribe-btn { width: 30px; height: 30px; }
+
+/* Zoom controls: a row in the same bar, bottom-right, same buttons */
+@media (pointer: fine) {
+  #pano-controls { bottom: 18px; right: 20px; flex-direction: row; gap: 8px; }
+  #pano-controls button {
+    width: 30px; height: 30px; border-radius: 50%;
+    background: rgba(0,0,0,0.28);
+    border: 1px solid rgba(255,255,255,0.16);
+    color: rgba(255,255,255,0.75);
+    font-size: 15px;
+  }
+  #pano-controls button:hover { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); }
+}
+
+/* Admin shortcut in the viewer's top bar */
+.admin-shortcut-btn--inline {
+  position: static;
+  width: var(--ctl-h); height: var(--ctl-h);
+  border-radius: var(--ctl-r);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  backdrop-filter: none; -webkit-backdrop-filter: none;
+}
+.admin-shortcut-btn--inline svg { width: 13px; height: 13px; }
+
+/* Info card (ⓘ): sized to its content, the mini-map at its top */
+@media (min-width: 761px) {
+  .exif-panel {
+    top: 10px; right: 10px; bottom: auto;
+    width: 288px;
+    max-height: calc(100% - 20px);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 12px 14px;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+  }
+  #viewer.exif-open .photo-map-mini {
+    top: 18px; right: 18px; width: 272px; height: 150px;
+    border-radius: 8px; border-color: var(--border);
+    box-shadow: none; transform: none;
+  }
+  #viewer.exif-open .exif-panel { padding-top: 14px; }
+  #viewer.exif-open:has(.photo-map-mini:not(.hidden)) .exif-panel { padding-top: calc(150px + 22px); }
+  #viewer.exif-open #photo-info { max-width: min(460px, calc(100% - 330px)); }
+}
+.exif-list { display: flex; flex-direction: column; gap: 12px; }
+.exif-list:empty { display: none; }
+.exif-row { display: flex; gap: 10px; align-items: flex-start; }
+.exif-row svg { flex-shrink: 0; margin-top: 1px; color: var(--text-dim); }
+.exif-main { font-size: 12.5px; color: var(--text); line-height: 1.4; overflow-wrap: anywhere; }
+.exif-main::first-letter { text-transform: uppercase; }
+.exif-sub { font-size: 11.5px; color: var(--text-dim); margin-top: 1px; }
+.exif-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.exif-chip {
+  font-size: 11.5px; font-variant-numeric: tabular-nums;
+  padding: 3px 9px; border-radius: 999px;
+  background: var(--surface-h); border: 1px solid var(--border);
+  color: var(--text);
+}
+
+/* Leaflet, dark (tiles: utils/base-map.js) */
+.leaflet-container { background: #0e0f12; font-family: inherit; }
+.leaflet-bar { border: 1px solid var(--border) !important; box-shadow: 0 4px 16px rgba(0,0,0,0.45) !important; }
+.leaflet-bar a, .leaflet-bar a.leaflet-disabled {
+  background: rgba(20,21,25,0.92); color: var(--text);
+  border-bottom-color: var(--border);
+}
+.leaflet-bar a:hover { background: #26272d; color: #fff; }
+.leaflet-bar a.leaflet-disabled { color: var(--text-faint); }
+.leaflet-container .leaflet-control-attribution {
+  background: rgba(13,13,14,0.72); color: var(--text-dim);
+}
+.leaflet-container .leaflet-control-attribution a { color: #8ab4ff; }
+.leaflet-popup-content-wrapper, .leaflet-popup-tip {
+  background: #17181c; color: var(--text);
+  box-shadow: 0 8px 30px rgba(0,0,0,0.55);
+}
+.leaflet-popup-content-wrapper { border: 1px solid var(--border); }
+.leaflet-container a.leaflet-popup-close-button { color: var(--text-dim); }
+.leaflet-container a.leaflet-popup-close-button:hover { color: #fff; }
+.map-popup-inner strong { color: var(--text); }
+.map-popup-date { color: var(--text-dim); }
+.map-popup-view { background: var(--accent); color: #fff !important; }
+.map-popup-view:hover { background: var(--accent-h); }
+/* OSM tiles in dark mode: inverted, hues turned back (water stays blue) */
+.pb-dark-tiles { filter: invert(1) hue-rotate(180deg) brightness(0.92) contrast(0.88) saturate(0.6); }

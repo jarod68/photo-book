@@ -1088,4 +1088,4 @@ if (isAdmin) {
   loadLogs();
 }
 
-showBuildTag();
+showBuildTag({ footer: true });

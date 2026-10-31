@@ -111,4 +111,4 @@ form.addEventListener('submit', e => { e.preventDefault(); run(); });
 form.addEventListener('reset', () => setTimeout(run));   // after the fields are cleared
 
 run();
-showBuildTag();
+showBuildTag({ footer: true });

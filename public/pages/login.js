@@ -52,4 +52,4 @@ form.addEventListener('submit', async e => {
   }
 });
 
-showBuildTag();
+showBuildTag({ footer: true });

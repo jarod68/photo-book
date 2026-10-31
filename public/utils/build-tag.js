@@ -1,9 +1,11 @@
 // Build + environment stamp (GET /version.json → { sha, env }):
-// - the commit this image was built from, in a page corner, so a tester knows
-//   which build to promote to prod ("dev" when running from source);
+// - the commit this image was built from, so a tester knows which build to
+//   promote to prod ("dev" when running from source) — where it covers
+//   nothing: in the page's [data-build-tag] slot if it has one, at the end of
+//   the page with { footer: true } (scrolling pages), else in a corner;
 // - outside production (env "qa"): "[QA]" in the tab title and a hi-vis strip
 //   along the top of the screen, so QA can never be mistaken for prod.
-export function showBuildTag() {
+export function showBuildTag({ footer = false } = {}) {
   fetch('/version.json', { cache: 'no-store' })
     .then((r) => (r.ok ? r.json() : null))
     .catch(() => null)
@@ -14,7 +16,10 @@ export function showBuildTag() {
       const tag = document.createElement('div');
       tag.className = 'build-tag';
       tag.textContent = env ? `build ${sha} · ${env}` : `build ${sha}`;
-      document.body.append(tag);
+      const slot = document.querySelector('[data-build-tag]');
+      if (slot) { tag.classList.add('build-tag--inline'); slot.append(tag); }
+      else if (footer) { tag.classList.add('build-tag--footer'); document.body.append(tag); }
+      else document.body.append(tag);
 
       if (env) {
         document.documentElement.classList.add('env-nonprod');

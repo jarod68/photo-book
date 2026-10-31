@@ -13,4 +13,8 @@ a.innerHTML = `<svg viewBox="0 0 20 20" fill="currentColor" xmlns="http://www.w3
     1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z"
     clip-rule="evenodd"/>
 </svg>`;
-document.body.appendChild(a);
+// in the page's slot when it has one (the viewer's top bar: a corner would
+// cover the thumbnail strip), else fixed in the bottom-right corner
+const slot = document.querySelector('[data-admin-slot]');
+if (slot) { a.classList.add('admin-shortcut-btn--inline'); slot.append(a); }
+else document.body.appendChild(a);

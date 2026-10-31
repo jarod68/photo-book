@@ -33,6 +33,18 @@ describe('build-tag', () => {
     expect(document.documentElement.classList.contains('env-nonprod')).toBe(true);
   });
 
+  it('goes in the page\'s slot when it has one, else at the end of a scrolling page', async () => {
+    serve({ sha: 'a8b1aa5a9ebaa7aac14a', env: 'production' });
+    const slot = document.createElement('span');
+    slot.dataset.buildTag = '';
+    document.body.append(slot);
+    await run();
+    expect(slot.querySelector('.build-tag.build-tag--inline')).not.toBeNull();
+    slot.remove();
+    showBuildTag({ footer: true }); await tick(); await tick();
+    expect(document.body.lastElementChild.classList.contains('build-tag--footer')).toBe(true);
+  });
+
   it('falls back to "dev" when version.json is missing', async () => {
     serve(null, false);
     await run();

@@ -315,7 +315,8 @@ export class PhotoViewer {
   _showStandard(url, mediumUrl, onDetect360) {
     this._destroyPannellum();
     this._pnl.style.display = 'none';
-    this._controls.wrapper.style.display = 'flex';
+    // touch screens zoom photos with a pinch: no buttons over the photo
+    this._controls.wrapper.style.display = this._isTouch ? 'none' : 'flex';
     if (this._gyroBtn) this._gyroBtn.style.display = 'none';
     this._img.classList.remove('loaded');
     this._img.style.display = 'block';

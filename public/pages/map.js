@@ -7,6 +7,7 @@ import {
   centroid, buildSegments, clusterSegment,
 } from '../utils/map-math.js';
 import { showBuildTag } from '../utils/build-tag.js';
+import { addBaseLayer } from '../utils/base-map.js';
 
 applyTranslations();
 initLangSwitcher('lang-switcher');
@@ -97,10 +98,7 @@ async function init() {
     minZoom: 2, maxZoom: 18, worldCopyJump: true,
   }).setView([20, 10], 2);
 
-  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    maxZoom: 19,
-    attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-  }).addTo(map);
+  addBaseLayer(map);
 
   if (photos.length === 0) return;
 
