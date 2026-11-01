@@ -77,10 +77,15 @@ async function main() {
   }
 
   // Static assets copied as they are: the globe's Earth textures (scripts/earth-textures.js)
-  fs.cpSync(path.join(ROOT, 'public', 'textures'), path.join(DIST, 'public', 'textures'), { recursive: true });
+  // and the app icons (scripts/icons.js)
+  for (const dir of ['textures', 'icons']) {
+    fs.cpSync(path.join(ROOT, 'public', dir), path.join(DIST, 'public', dir), { recursive: true });
+  }
 
-  // HTML files are not processed by esbuild — copy as-is
-  for (const f of ['index.html', 'admin.html', 'login.html', 'map.html', 'search.html', 'viewer.html', 'globe.html']) {
+  // HTML pages, the service worker (push notifications: it must be served
+  // from the site root) and the web app manifest — copied as they are
+  for (const f of ['index.html', 'admin.html', 'login.html', 'map.html', 'search.html', 'viewer.html', 'globe.html',
+    'sw.js', 'manifest.webmanifest']) {
     copyFile(path.join(ROOT, 'public', f), path.join(DIST, 'public', f));
   }
 

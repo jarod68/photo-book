@@ -54,3 +54,11 @@ GET Albums Entries Have Name And Count Fields
     ...    () => fetch('/api/albums').then(r => r.json())
     ...    .then(albums => albums.length === 0 || albums.every(a => a.name && 'count' in a))
     Should Be True    ${valid}
+
+Built App Serves The Service Worker And The App Manifest
+    [Documentation]    Push notifications need /sw.js at the site root, the installable app
+    ...                its manifest and icons — files the build must copy (it once forgot sw.js).
+    ${statuses}=    Evaluate JavaScript    ${None}
+    ...    () => Promise.all(['/sw.js', '/manifest.webmanifest', '/icons/icon-192.png', '/icons/maskable-512.png']
+    ...      .map((u) => fetch(u).then((r) => r.status)))
+    Should Be Equal As Strings    ${statuses}    [200, 200, 200, 200]
