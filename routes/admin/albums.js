@@ -139,9 +139,11 @@ router.get('/:album/photos', requireAdmin, async (req, res) => {
     const photos = await library.getAlbumPhotos(req.params.album);
     if (!photos) return res.status(404).json({ error: 'Album not found' });
     const [ovs, info] = await Promise.all([overrides.loadOverrides([req.params.album]), albumInfo.loadAlbumInfo()]);
-    const { coverFile, description } = albumInfo.summarize(photos, info.get(req.params.album));
+    const { coverFile, description, collection } = albumInfo.summarize(photos, info.get(req.params.album));
+    // the names already given, offered when typing a collection
+    const collections = [...new Set([...info.values()].map((i) => i.collection).filter(Boolean))].sort((a, b) => a.localeCompare(b));
     res.json({
-      album:  { cover: coverFile, chosenCover: info.get(req.params.album)?.cover ?? null, description },
+      album:  { cover: coverFile, chosenCover: info.get(req.params.album)?.cover ?? null, description, collection, collections },
       photos: photos.map((p) => overrides.applyOverride(p, ovs.get(`${req.params.album}/${p.filename}`), { withOriginal: true })),
     });
   } catch (err) {
@@ -175,11 +177,15 @@ router.put('/:album/photos/:filename/meta', requireAdmin, express.json(), async 
 // cover: a photo of the album, or null for the first readable photo.
 router.put('/:album/details', requireAdmin, express.json(), async (req, res) => {
   const { album } = req.params;
-  const { cover = null, description = null } = req.body ?? {};
-  if (cover !== null && (typeof cover !== 'string' || !isImage(cover))) return res.status(400).json({ error: 'cover must be a photo' });
-  if (description !== null && typeof description !== 'string') return res.status(400).json({ error: 'description must be a string' });
-  const desc = description?.trim() || null;
+  // only the fields sent change (undefined = kept, null or '' = cleared)
+  const { cover, description, collection } = req.body ?? {};
+  if (cover != null && (typeof cover !== 'string' || !isImage(cover))) return res.status(400).json({ error: 'cover must be a photo' });
+  if (description != null && typeof description !== 'string') return res.status(400).json({ error: 'description must be a string' });
+  if (collection != null && typeof collection !== 'string') return res.status(400).json({ error: 'collection must be a string' });
+  const desc = description === undefined ? undefined : (description?.trim() || null);
   if (desc && desc.length > albumInfo.DESCRIPTION_MAX) return res.status(400).json({ error: 'description is too long' });
+  const coll = collection === undefined ? undefined : (collection?.trim().replace(/\s+/g, ' ') || null);
+  if (coll && coll.length > albumInfo.COLLECTION_MAX) return res.status(400).json({ error: 'collection is too long' });
   if (!database.dbReady) return res.status(503).json({ error: 'Service unavailable' });
   try {
     const albumPath = safeAlbumPath(album);
@@ -189,8 +195,9 @@ router.put('/:album/details', requireAdmin, express.json(), async (req, res) => 
       if (path.dirname(coverPath) !== albumPath) return res.status(400).json({ error: 'Invalid cover' });
       if (!await fs.promises.access(coverPath).then(() => true, () => false)) return res.status(404).json({ error: 'Photo not found' });
     }
-    await albumInfo.saveAlbumInfo(album, { cover, description: desc });
-    res.json({ ok: true, cover, description: desc });
+    await albumInfo.saveAlbumInfo(album, { cover, description: desc, collection: coll });
+    const info = (await albumInfo.loadAlbumInfo()).get(album) ?? {};
+    res.json({ ok: true, cover: info.cover ?? null, description: info.description ?? null, collection: info.collection ?? null });
   } catch (err) {
     sendError(res, err);
   }

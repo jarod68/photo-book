@@ -1,20 +1,23 @@
 // @ts-check
 'use strict';
-// Album cover, description and date range (F3).
+// Album cover, description, collection and date range (F3).
 //
-// The cover and description are chosen in the admin and stored in
-// album_settings; the date range is computed from the photos' capture dates.
+// The cover, description and collection (a name grouping albums on the home
+// page) are chosen in the admin and stored in album_settings; the date range
+// is computed from the photos' capture dates.
 const database = require('./database');
 
 const DESCRIPTION_MAX = 2000;
+const COLLECTION_MAX  = 100;
 
-// Map album → { cover, description } (empty without a database).
+// Map album → { cover, description, collection } (empty without a database).
 async function loadAlbumInfo() {
   const out = new Map();
   if (!database.dbReady) return out;
   const { rows } = await database.db.query(
-    'SELECT album, cover, description FROM album_settings WHERE cover IS NOT NULL OR description IS NOT NULL');
-  for (const r of rows) out.set(r.album, { cover: r.cover, description: r.description });
+    `SELECT album, cover, description, collection FROM album_settings
+     WHERE cover IS NOT NULL OR description IS NOT NULL OR collection IS NOT NULL`);
+  for (const r of rows) out.set(r.album, { cover: r.cover, description: r.description, collection: r.collection ?? null });
   return out;
 }
 
@@ -48,16 +51,20 @@ function summarize(photos, info = {}) {
     coverPreview: cover?.previewUrl ?? null,
     coverThumb:   cover?.thumbUrl ?? null,
     description:  info.description ?? null,
+    collection:   info.collection ?? null,
     ...dateRange(photos),
   };
 }
 
-async function saveAlbumInfo(album, { cover, description }) {
+/** Save the given fields (cover, description, collection); the others are kept. */
+async function saveAlbumInfo(album, fields) {
+  const cols = ['cover', 'description', 'collection'].filter((c) => fields[c] !== undefined);
+  if (!cols.length) return;
   await database.db.query(
-    `INSERT INTO album_settings (album, cover, description) VALUES ($1, $2, $3)
-     ON CONFLICT (album) DO UPDATE SET cover = $2, description = $3`,
-    [album, cover, description],
+    `INSERT INTO album_settings (album, ${cols.join(', ')}) VALUES ($1, ${cols.map((_, i) => `$${i + 2}`).join(', ')})
+     ON CONFLICT (album) DO UPDATE SET ${cols.map((c, i) => `${c} = $${i + 2}`).join(', ')}`,
+    [album, ...cols.map((c) => fields[c])],
   );
 }
 
-module.exports = { DESCRIPTION_MAX, loadAlbumInfo, pickCover, dateRange, summarize, saveAlbumInfo };
+module.exports = { COLLECTION_MAX, DESCRIPTION_MAX, loadAlbumInfo, pickCover, dateRange, summarize, saveAlbumInfo };

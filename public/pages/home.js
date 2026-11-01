@@ -15,6 +15,8 @@ const sumEl  = document.getElementById('summary');
 const authEl = document.getElementById('home-auth');
 const sortEl = document.getElementById('album-sort');
 const SORT_KEY = 'pb.albumSort';
+const GROUP_KEY = 'pb.albumGroup';
+const groupEl = document.getElementById('album-group');
 
 function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
@@ -45,14 +47,52 @@ async function init() {
 
   renderHero(albums);
 
-  // Album cards, re-sorted in place (F5).
+  // Album cards, re-sorted in place (F5), optionally grouped by year or by
+  // collection (chosen in the admin) under headings across the grid.
   const cards = new Map(albums.map(a => [a.name, createAlbumCard(a)]));
-  const place = (mode) => sortAlbums(albums, mode).forEach(a => grid.appendChild(cards.get(a.name)));
+  const hasCollections = albums.some(a => a.collection);
+  groupEl.querySelector('[value="collection"]').hidden = !hasCollections;
+  const place = () => {
+    const sorted = sortAlbums(albums, sortEl.value);
+    grid.replaceChildren();
+    for (const { title, items } of groupAlbums(sorted, groupEl.value)) {
+      if (title !== null) {
+        const h = document.createElement('h3');
+        h.className = 'album-group-title';
+        h.textContent = title;
+        grid.appendChild(h);
+      }
+      items.forEach(a => grid.appendChild(cards.get(a.name)));
+    }
+  };
   sortEl.value = loadOrder(SORT_KEY, 'name', ['name', 'recent', 'oldest']);
-  sortEl.hidden = albums.length < 2;
-  sortEl.addEventListener('change', () => { saveOrder(SORT_KEY, sortEl.value); place(sortEl.value); });
-  place(sortEl.value);
+  groupEl.value = loadOrder(GROUP_KEY, 'none', hasCollections ? ['none', 'year', 'collection'] : ['none', 'year']);
+  sortEl.hidden = groupEl.hidden = albums.length < 2;
+  sortEl.addEventListener('change', () => { saveOrder(SORT_KEY, sortEl.value); place(); });
+  groupEl.addEventListener('change', () => { saveOrder(GROUP_KEY, groupEl.value); place(); });
+  place();
   restoreScroll();   // back from an album: where the visitor was
+}
+
+// [{ title, items }] in display order: one untitled group (no grouping), the
+// years newest first (the year of an album's last photo; undated last), or
+// the collections A–Z (albums in none last). Albums keep the chosen sort.
+function groupAlbums(albums, mode) {
+  if (mode !== 'year' && mode !== 'collection') return [{ title: null, items: albums }];
+  const keyOf = mode === 'year'
+    ? (a) => (a.dateTo || a.dateFrom ? new Date(a.dateTo || a.dateFrom).getUTCFullYear() : null)
+    : (a) => a.collection || null;
+  const groups = new Map();
+  for (const a of albums) {
+    const k = keyOf(a);
+    if (!groups.has(k)) groups.set(k, []);
+    groups.get(k).push(a);
+  }
+  const keys = [...groups.keys()].filter(k => k !== null)
+    .sort((a, b) => (mode === 'year' ? b - a : String(a).localeCompare(String(b))));
+  if (groups.has(null)) keys.push(null);
+  const rest = mode === 'year' ? t('home.groupUndated') : t('home.groupOther');
+  return keys.map(k => ({ title: k === null ? rest : String(k), items: groups.get(k) }));
 }
 
 // The latest album (by its last photo's date) across the top: its cover, big

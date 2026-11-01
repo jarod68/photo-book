@@ -39,7 +39,7 @@ describe('album info (F3)', () => {
     const s = summarize([ph('a.jpg', { takenAt: '2024-03-10T08:00:00.000Z' }), ph('b.mp4', { type: 'video', thumbUrl: null })], { cover: 'a.jpg', description: 'Voyage' });
     expect(s).toEqual({
       count: 2, cover: '/photos/A/a.jpg', coverFile: 'a.jpg', coverPreview: '/previews/A/a.jpg.jpg', coverThumb: '/previews/A/a.jpg.thumb.jpg',
-      description: 'Voyage', dateFrom: '2024-03-10T08:00:00.000Z', dateTo: '2024-03-10T08:00:00.000Z',
+      description: 'Voyage', collection: null, dateFrom: '2024-03-10T08:00:00.000Z', dateTo: '2024-03-10T08:00:00.000Z',
     });
   });
 
@@ -47,6 +47,6 @@ describe('album info (F3)', () => {
     expect((await loadAlbumInfo()).size).toBe(0);
     const query = vi.fn().mockResolvedValue({ rows: [{ album: 'A', cover: 'a.jpg', description: null }] });
     database._setState({ query }, true);
-    expect((await loadAlbumInfo()).get('A')).toEqual({ cover: 'a.jpg', description: null });
+    expect((await loadAlbumInfo()).get('A')).toEqual({ cover: 'a.jpg', description: null, collection: null });
   });
 });

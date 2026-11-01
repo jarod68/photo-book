@@ -91,7 +91,9 @@ async function loadAlbums() {
 // The photo folder is read-only (QA mounts the production photos): say so and
 // disable what would write to it. Titles, cover, access and notifications
 // live in the database and stay editable.
+let libraryReadOnly = false;
 function showReadOnly(readOnly) {
+  libraryReadOnly = !!readOnly;
   document.getElementById('library-readonly').hidden = !readOnly;
   const btn = document.getElementById('new-album-btn');
   btn.disabled = !!readOnly;
@@ -224,6 +226,65 @@ async function loadTopPhotos() {
     body.innerHTML = `<tr><td colspan="4" class="admin-error">${t('admin.failedLoad')}</td></tr>`;
   }
 }
+
+// ── Duplicates ────────────────────────────────────────────────────────────────
+// Identical files (same bytes) and probable copies of the same shot (same
+// second, camera, proportions): each group side by side, each photo with a
+// link to the viewer and a delete button.
+
+const dupBtn = document.getElementById('dup-btn');
+const dupEl  = document.getElementById('dup-results');
+
+async function findDuplicates() {
+  dupBtn.disabled = true;
+  dupEl.innerHTML = `<p class="admin-loading">${t('admin.dup.searching')}</p>`;
+  try {
+    const res = await fetch('/api/admin/duplicates');
+    if (!res.ok) throw new Error();
+    const { identical, probable } = await res.json();
+    dupEl.innerHTML = !identical.length && !probable.length
+      ? `<p class="admin-empty">${t('admin.dup.none')}</p>`
+      : renderDupGroups('identical', identical) + renderDupGroups('probable', probable);
+    dupEl.querySelectorAll('.admin-thumb').forEach(img => { img.onerror = () => { img.style.visibility = 'hidden'; }; });
+    dupEl.querySelectorAll('[data-dup-delete]').forEach(btn => btn.addEventListener('click', () => deleteDuplicate(btn)));
+  } catch {
+    dupEl.innerHTML = `<p class="admin-error">${t('admin.failedLoad')}</p>`;
+  } finally {
+    dupBtn.disabled = false;
+  }
+}
+
+function renderDupGroups(kind, groups) {
+  if (!groups.length) return '';
+  const date = (iso) => (iso ? new Date(iso).toLocaleString(getLang(), { timeZone: 'UTC', dateStyle: 'medium', timeStyle: 'medium' }) : '');
+  const off = libraryReadOnly ? ` disabled title="${t('admin.readOnlyShort')}"` : '';
+  return `<h3 class="admin-dup-kind">${t(`admin.dup.${kind}`, { n: groups.length })}</h3>` + groups.map(g => `
+    <div class="admin-dup-group">
+      ${g.map(p => `
+        <div class="admin-dup-item">
+          <a href="viewer.html?album=${encodeURIComponent(p.album)}&photo=${encodeURIComponent(p.filename)}">
+            <img class="admin-thumb admin-dup-thumb" src="${esc(p.thumbUrl ?? '')}" alt="" loading="lazy">
+          </a>
+          <div class="admin-dup-meta">
+            <strong>${esc(p.album)}</strong> / ${esc(p.filename)}
+            <span class="admin-dim">${formatBytes(p.size)}${p.width ? ` · ${p.width} × ${p.height}` : ''}${p.takenAt ? ` · ${esc(date(p.takenAt))}` : ''}</span>
+          </div>
+          <button class="admin-icon-btn admin-icon-btn--danger" data-dup-delete data-album="${esc(p.album)}" data-file="${esc(p.filename)}"
+                  title="${t('admin.dup.delete')}"${off}>${iconTrash()}</button>
+        </div>`).join('')}
+    </div>`).join('');
+}
+
+async function deleteDuplicate(btn) {
+  const { album, file } = btn.dataset;
+  if (!confirm(t('admin.dup.confirm', { file: `${album} / ${file}` }))) return;
+  const res = await fetch(`/api/admin/albums/${encodeURIComponent(album)}/photos/${encodeURIComponent(file)}`, { method: 'DELETE' });
+  if (!res.ok) { alert(t('admin.failedLoad')); return; }
+  findDuplicates();
+  loadAlbums();
+}
+
+dupBtn.addEventListener('click', findDuplicates);
 
 // ── System info ───────────────────────────────────────────────────────────────
 
@@ -489,6 +550,11 @@ function renderAlbumInfo(info) {
       <label class="photo-edit-field"><span>${t('admin.albumDescription')}</span>
         <textarea class="admin-inline-input" id="album-desc-input" maxlength="2000" rows="2">${esc(info.description ?? '')}</textarea>
       </label>
+      <label class="photo-edit-field"><span>${t('admin.albumCollection')}</span>
+        <input class="admin-inline-input" id="album-coll-input" maxlength="100" list="album-coll-list"
+               placeholder="${esc(t('admin.albumCollectionHint'))}" value="${esc(info.collection ?? '')}">
+        <datalist id="album-coll-list">${(info.collections ?? []).map(c => `<option value="${esc(c)}">`).join('')}</datalist>
+      </label>
       <div class="photo-edit-actions">
         <span class="photo-edit-status admin-dim" id="album-desc-status"></span>
         <button class="admin-action-btn admin-action-btn--small" id="album-desc-save" disabled>${t('admin.save')}</button>
@@ -498,15 +564,19 @@ function renderAlbumInfo(info) {
 
 function bindAlbumInfo(album, info) {
   const input  = document.getElementById('album-desc-input');
+  const coll   = document.getElementById('album-coll-input');
   const btn    = document.getElementById('album-desc-save');
   const status = document.getElementById('album-desc-status');
-  let saved = input.value;
-  input.addEventListener('input', () => { btn.disabled = input.value === saved; status.textContent = ''; });
+  let saved = input.value, savedColl = coll.value;
+  const changed = () => { btn.disabled = input.value === saved && coll.value === savedColl; status.textContent = ''; };
+  input.addEventListener('input', changed);
+  coll.addEventListener('input', changed);
   btn.addEventListener('click', async () => {
     btn.disabled = true;
     try {
-      const data = await saveAlbumDetails(album, { cover: info.chosenCover, description: input.value });
+      const data = await saveAlbumDetails(album, { description: input.value, collection: coll.value });
       input.value = saved = data.description ?? '';
+      coll.value = savedColl = data.collection ?? '';
       status.textContent = t('admin.saved');
     } catch (err) {
       status.textContent = err.message || t('admin.saveFailed');
@@ -515,7 +585,7 @@ function bindAlbumInfo(album, info) {
   });
   photosEditor.querySelectorAll('[data-cover]').forEach(b => b.addEventListener('click', async () => {
     try {
-      const data = await saveAlbumDetails(album, { cover: b.dataset.cover, description: saved });
+      const data = await saveAlbumDetails(album, { cover: b.dataset.cover });
       info.chosenCover = data.cover;
       photosEditor.querySelectorAll('[data-cover]').forEach(o => {
         const on = o === b;

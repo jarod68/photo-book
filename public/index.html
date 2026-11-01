@@ -45,6 +45,11 @@
       <div class="home-section-head">
         <h2 class="home-section-title" data-i18n="home.albums">Albums</h2>
         <p id="summary" class="home-summary"></p>
+        <select id="album-group" class="home-sort" data-i18n-aria="home.group" hidden>
+          <option value="none" data-i18n="home.groupNone">No grouping</option>
+          <option value="year" data-i18n="home.groupYear">By year</option>
+          <option value="collection" data-i18n="home.groupCollection">By collection</option>
+        </select>
         <select id="album-sort" class="home-sort" data-i18n-aria="home.sort" hidden>
           <option value="name" data-i18n="home.sortName">A–Z</option>
           <option value="recent" data-i18n="home.sortRecent">Most recent</option>

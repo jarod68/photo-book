@@ -84,6 +84,7 @@ function withCookie(req) {
 
 const ADMIN_ROUTES = [
   ['GET',    '/api/admin/stats'],
+  ['GET',    '/api/admin/duplicates'],
   ['GET',    '/api/admin/system'],
   ['GET',    '/api/admin/top-photos'],   // requireAuth uniquement — pas requireAdmin
   ['POST',   '/api/admin/albums'],

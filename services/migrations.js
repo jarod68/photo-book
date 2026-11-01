@@ -191,6 +191,14 @@ const MIGRATIONS = [
       await q('ALTER TABLE place_cache ADD COLUMN terms TEXT');
     },
   },
+  {
+    version: 8,
+    name: 'album collections',
+    async up(q) {
+      // a free name grouping albums on the home page ("Voyages", "Famille"…)
+      await q('ALTER TABLE album_settings ADD COLUMN collection VARCHAR(100)');
+    },
+  },
 ];
 
 const LOCK_KEY = 726571;   // arbitrary, constant: pg_advisory_xact_lock key

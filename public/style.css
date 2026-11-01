@@ -3377,3 +3377,29 @@ a#zip-btn { text-decoration: none; }
 }
 .search-more:hover { border-color: var(--accent); color: var(--accent); }
 .search-more:disabled { opacity: 0.5; cursor: progress; }
+
+/* Admin: duplicates, each group side by side */
+.admin-dup-intro { font-size: 12.5px; margin: -6px 0 14px; max-width: 720px; }
+.admin-dup-kind { font-size: 13px; font-weight: 600; color: var(--text-dim); margin: 18px 0 8px; }
+.admin-dup-group {
+  display: flex; flex-wrap: wrap; gap: 10px;
+  padding: 10px; margin-bottom: 10px;
+  border: 1px solid var(--border); border-radius: 10px; background: var(--surface);
+}
+.admin-dup-item { display: flex; align-items: center; gap: 10px; min-width: 260px; flex: 1 1 260px; }
+.admin-dup-thumb { width: 72px; height: 54px; }
+.admin-dup-meta { display: flex; flex-direction: column; gap: 2px; font-size: 12.5px; min-width: 0; flex: 1; overflow-wrap: anywhere; }
+.admin-dup-meta .admin-dim { font-size: 11.5px; }
+
+/* Home: album groups (by year / by collection), a heading across the grid */
+.album-group-title {
+  grid-column: 1 / -1;
+  margin: 14px 0 -4px;
+  font-family: var(--font-display);
+  font-size: 19px; font-weight: 600; letter-spacing: -0.01em;
+  color: var(--text-dim);
+}
+.album-group-title:first-child { margin-top: 0; }
+.home-section-head .home-sort + .home-sort { margin-left: 8px; }
+.home-section-head #album-group { margin-left: auto; }
+.home-section-head #album-group[hidden] + .home-sort { margin-left: auto; }

@@ -160,6 +160,15 @@ Photo Book is an installable web app (`public/manifest.webmanifest`): *Add to Ho
 
 Visitors can subscribe to an album (bell button in the viewer). When photos are added — uploaded from the admin **or** copied into the album folder by any other means — the subscribers get **one** push notification per album, "Porto — 12 nouvelles photos", once no new photo has arrived for 10 minutes (`NOTIFY_QUIET_MS`), and at the latest one hour after the first one during a long import (`NOTIFY_MAX_WAIT_MS`). A photo deleted in the meantime is not counted, a newer notification replaces the album's previous one on the device, and tapping it opens the first new photo. The switch *Notify subscribers automatically* in the album's settings turns it off (`album_settings.notify_new`, migration 5); the manual *Send* button stays. Pending notifications are kept in memory: a restart during the quiet period drops them.
 
+### Duplicates
+
+**Admin → Duplicates → Find duplicates** lists, across the whole library (`services/duplicates.js`, `GET /api/admin/duplicates`):
+
+- **identical files** — the same bytes in two places (an album copied into another, a photo uploaded twice): files are grouped by size first (no read), and only those sharing a size are hashed (SHA-1, kept in memory per path, size and modification time, so looking again reads nothing new);
+- **probable copies** of the same shot — different files with the same capture time to the second, the same camera and the same proportions (a resized or re-exported copy, a HEIC and its JPEG). A burst can share a second: look before deleting.
+
+Each group shows its photos side by side — thumbnail, album and file, size, dimensions, date — with a link to the viewer and a delete button (not on a read-only library).
+
 ### Admin System tab
 
 **Admin → System** shows what is running and how it is doing, from `GET /api/admin/system` (admin only, never cached):
@@ -219,6 +228,8 @@ Tables keyed by album / photo are listed in one place, `services/cleanup.js`, wh
 
 ## Authentication & access control
 
+
+**Collections and grouping.** In the photo editor an album can be given a **collection** — a free name such as *Voyages* or *Famille* (the names already used are offered; `album_settings.collection`, migration 8). On the home page, next to the sort, **Group** shows the albums as they are, **by year** (of their last photo, newest first, undated last) or **by collection** (A–Z, albums in none last), under headings; the choice is remembered per browser. `PUT /api/admin/albums/:album/details` changes only the fields it is sent (cover, description, collection).
 ### How sessions work
 
 Authentication is cookie-based. On a successful `POST /api/auth/login`, the server generates a 64-character hex token (`crypto.randomBytes(32).toString('hex')`), stores it in the `user_sessions` table with a 30-day expiry, and sets an `HttpOnly`, `SameSite=Strict` cookie named `pb_session`.

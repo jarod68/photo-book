@@ -7,6 +7,7 @@ const database   = require('../../services/database');
 const library    = require('../../services/library');
 const system      = require('../../services/system');
 const maintenance = require('../../services/maintenance');
+const duplicates  = require('../../services/duplicates');
 
 const router = express.Router();
 
@@ -82,6 +83,17 @@ router.get('/top-photos', async (req, res) => {
       thumbUrl: `/previews/${encodeURIComponent(r.album)}/${encodeURIComponent(r.filename)}.thumb.jpg`,
     }));
     res.json({ photos });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// GET /api/admin/duplicates — identical files and probable copies of the
+// same shot across the library (the admin decides what to delete)
+router.get('/duplicates', requireAdmin, async (_req, res) => {
+  try {
+    res.json(await duplicates.findDuplicates());
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Internal server error' });

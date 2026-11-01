@@ -1317,14 +1317,27 @@ describe('PUT /api/admin/albums/:album/details (F3)', () => {
 
   it('enregistre la couverture et la description', async () => {
     vi.spyOn(fsMod.promises, 'access').mockResolvedValue(undefined);
-    mockQuery.mockResolvedValue({ rows: [] });
+    mockQuery.mockImplementation(async (sql) => (sql.includes('SELECT album, cover')
+      ? { rows: [{ album: 'Paris', cover: 'b.jpg', description: 'Été 2024', collection: 'Voyages' }] } : { rows: [] }));
     database._setState({ query: mockQuery }, true);
     const res = await request(app).put('/api/admin/albums/Paris/details').send({ cover: 'b.jpg', description: ' Été 2024 ' });
     expect(res.status).toBe(200);
-    expect(res.body).toMatchObject({ cover: 'b.jpg', description: 'Été 2024' });
+    expect(res.body).toMatchObject({ cover: 'b.jpg', description: 'Été 2024', collection: 'Voyages' });   // as stored now
     const [sql, params] = mockQuery.mock.calls[0];
-    expect(sql).toMatch(/INSERT INTO album_settings[\s\S]*ON CONFLICT \(album\) DO UPDATE SET cover/);
-    expect(params).toEqual(['Paris', 'b.jpg', 'Été 2024']);
+    expect(sql).toMatch(/INSERT INTO album_settings[\s\S]*ON CONFLICT \(album\) DO UPDATE SET cover = \$2, description = \$3$/);
+    expect(params).toEqual(['Paris', 'b.jpg', 'Été 2024']);   // the collection, not sent, is kept
+  });
+
+  it('ne modifie que les champs envoyés : la collection seule', async () => {
+    vi.spyOn(fsMod.promises, 'access').mockResolvedValue(undefined);
+    mockQuery.mockResolvedValue({ rows: [] });
+    database._setState({ query: mockQuery }, true);
+    const res = await request(app).put('/api/admin/albums/Paris/details').send({ collection: '  Voyages   en  famille ' });
+    expect(res.status).toBe(200);
+    const [sql, params] = mockQuery.mock.calls[0];
+    expect(sql).toMatch(/DO UPDATE SET collection = \$2$/);
+    expect(params).toEqual(['Paris', 'Voyages en famille']);
+    expect((await request(app).put('/api/admin/albums/Paris/details').send({ collection: 'x'.repeat(101) })).status).toBe(400);
   });
 
   it('refuse une couverture qui n\'est pas une photo de l\'album', async () => {
