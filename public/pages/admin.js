@@ -2,6 +2,7 @@ import { t, getLang, applyTranslations, initLangSwitcher } from '../utils/i18n.j
 import { requireLogin } from '../utils/auth-check.js';
 import { showBuildTag } from '../utils/build-tag.js';
 import { wireBack } from '../utils/back.js';
+import { formatDateRange } from '../utils/format.js';
 import { Uploader, formatBytes, dragHasFiles, preventFileDrops } from '../components/uploader.js';
 
 await requireLogin();
@@ -223,6 +224,12 @@ function showReadOnly(readOnly) {
   btn.title = readOnly ? t('admin.readOnlyShort') : '';
 }
 
+// collection and dates under the album's name
+function albumMeta(a) {
+  const parts = [a.collection, formatDateRange(a.dateFrom, a.dateTo)].filter(Boolean);
+  return parts.length ? `<div class="admin-album-meta">${parts.map(esc).join(' · ')}</div>` : '';
+}
+
 function renderAlbumRow(a, readOnly = false) {
   const off = readOnly ? ` disabled title="${t('admin.readOnlyShort')}"` : '';
   const vis = a.visibility ?? 'public';
@@ -231,6 +238,7 @@ function renderAlbumRow(a, readOnly = false) {
       <td>
         <a class="admin-link" href="/viewer.html?album=${encodeURIComponent(a.album)}">${esc(a.album)}</a>
         <span class="admin-visibility-badge admin-visibility-badge--${vis}">${vis}</span>
+        ${albumMeta(a)}
       </td>
       <td class="num" data-label="${esc(t('admin.col.photos'))}">${a.photos}</td>
       <td class="num" data-label="${esc(t('admin.col.views'))}">${a.views.toLocaleString()}</td>
