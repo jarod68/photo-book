@@ -24,9 +24,11 @@ describe('search (F6)', () => {
     expect(files(run({ q: 'ete evora' }))).toEqual(['IMG_1.jpg']);
     expect(files(run({ q: 'RIBEIRA' }))).toEqual(['DSC_11.jpg']);
     expect(files(run({ q: 'porto portugal' }))).toEqual(['DSC_10.jpg']);
-    // a word that matches nothing: the photos matching the others, flagged approximate
-    expect(run({ q: 'porto inexistant' }).approximate).toBe(true);
-    expect(files(run({ q: 'porto inexistant' }))).toEqual(['DSC_11.jpg', 'DSC_10.jpg']);
+    // two words, one matching nothing: nothing (one word alone is too loose)…
+    expect(files(run({ q: 'porto inexistant' }))).toEqual([]);
+    // …three or more: the photos matching most of them, flagged approximate
+    expect(run({ q: 'porto portugal inexistant' }).approximate).toBe(true);
+    expect(files(run({ q: 'porto portugal inexistant' }))).toEqual(['DSC_10.jpg']);
     expect(files(run({ q: 'xyzzy plugh' }))).toEqual([]);
   });
 
@@ -186,10 +188,21 @@ describe('search — fiabilité générale', () => {
     expect(names('summer 2025')).toEqual(['SYD.jpg']);            // …is summer in Sydney
   });
 
-  it('un mot sans correspondance n\'annule pas tout : résultats approchés', () => {
-    const r = find('plage zanzibar');
+  it('un mot sans correspondance n\'annule pas tout (3 mots et plus) : résultats approchés', () => {
+    const r = find('plage bretagne zanzibar');
     expect(r.approximate).toBe(true);
     expect(r.results.map((e) => e.filename)).toEqual(['P1.jpg']);
+    expect(find('plage zanzibar').results).toEqual([]);   // two words: both needed (a typo allowed)
+  });
+
+  it('par pages : offset et limit', () => {
+    const all = search(lib, parseQuery({}).filters);
+    const p1 = search(lib, parseQuery({ limit: '3' }).filters), p2 = search(lib, parseQuery({ limit: '3', offset: '3' }).filters);
+    expect(p1.total).toBe(all.total);
+    expect(p1.results.map((e) => e.filename)).toEqual(all.results.slice(0, 3).map((e) => e.filename));
+    expect(p2.results.map((e) => e.filename)).toEqual(all.results.slice(3, 6).map((e) => e.filename));
+    expect(p2.offset).toBe(3);
+    expect(parseQuery({ limit: '99999', offset: '-4' }).filters).toMatchObject({ limit: 500, offset: 0 });
   });
 });
 

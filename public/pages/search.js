@@ -1,6 +1,6 @@
 import { t, getLang, applyTranslations, initLangSwitcher } from '../utils/i18n.js';
 import { showBuildTag } from '../utils/build-tag.js';
-import { wireBack, saveState, rememberScroll, restoreScroll } from '../utils/back.js';
+import { wireBack, saveState, pageState, rememberScroll, restoreScroll } from '../utils/back.js';
 
 applyTranslations();
 initLangSwitcher('lang-switcher');
@@ -44,13 +44,23 @@ wireBack(document.querySelector('.map-page-back'));
 rememberScroll();
 let scrollRestored = false;
 
+// Results come by pages; "Show more" asks for the next one. Back from a
+// photo, as many as were shown are loaded again (then the scroll put back).
+const PAGE = 120;
+const moreBtn = document.getElementById('search-more');
+let shown = 0, lastQuery = '';
+
 async function run() {
   const query = new URLSearchParams();
   for (const [k, el] of fields) if (el.value.trim()) query.set(k, el.value.trim());
+  lastQuery = query.toString();
   saveState({}, query.size ? `?${query}` : location.pathname);
 
   const mine = ++seq;
-  const res = await fetch(`/api/search?${query}`).catch(() => null);
+  const want = scrollRestored ? PAGE : Math.max(PAGE, Math.min(500, pageState().shown ?? 0));
+  const page = new URLSearchParams(query);
+  page.set('limit', String(want));
+  const res = await fetch(`/api/search?${page}`).catch(() => null);
   if (mine !== seq) return;   // a newer search was started meanwhile
   if (!res?.ok) { countEl.textContent = t('search.failed'); return; }
   const { total, results, facets, approximate } = await res.json();
@@ -65,11 +75,11 @@ async function run() {
     facetsLoaded = true;
   }
 
-  countEl.textContent = total > results.length
-    ? t('search.countLimited', { n: results.length, total })
-    : t('search.count', { n: total, s: total !== 1 ? 's' : '' });
+  countEl.textContent = t('search.count', { n: total, s: total !== 1 ? 's' : '' });
   if (approximate) countEl.textContent += ` · ${t('search.approximate')}`;
   grid.replaceChildren(...results.map(renderResult));
+  shown = results.length;
+  showMore(total);
   if (!scrollRestored) { scrollRestored = true; restoreScroll(); }   // back from a photo: where it was
   if (!results.length) {
     const p = document.createElement('p');
@@ -78,6 +88,27 @@ async function run() {
     grid.appendChild(p);
   }
 }
+
+function showMore(total) {
+  saveState({ shown });
+  moreBtn.hidden = shown >= total;
+  if (!moreBtn.hidden) moreBtn.textContent = t('search.more', { n: Math.min(PAGE, total - shown), total: total - shown });
+}
+
+moreBtn.addEventListener('click', async () => {
+  const mine = seq;
+  moreBtn.disabled = true;
+  const page = new URLSearchParams(lastQuery);
+  page.set('offset', String(shown));
+  page.set('limit', String(PAGE));
+  const res = await fetch(`/api/search?${page}`).catch(() => null);
+  moreBtn.disabled = false;
+  if (mine !== seq || !res?.ok) return;   // the query changed meanwhile
+  const { total, results } = await res.json();
+  grid.append(...results.map(renderResult));
+  shown += results.length;
+  showMore(total);
+});
 
 function renderResult(r) {
   const a = document.createElement('a');

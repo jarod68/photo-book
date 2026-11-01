@@ -17,12 +17,16 @@
 // ranked by how well (the field's weight × whole word > start > inside),
 // then most recent first. When no photo matches every word, the search
 // falls back to approximate matching: a typo per word (two from 8 letters),
-// then the photos that match most of the words — flagged `approximate`.
-// Filters: capture date range, camera, album.
+// then — for queries of 3 words or more — the photos that match most of
+// them (with two words, one of them alone is too loose: "san francisco"
+// would bring every "San José"); flagged `approximate`.
+// Filters: capture date range, camera, album. Results come by pages
+// (offset / limit).
 
 const { countryOf, countryTerms } = require('./geo-names');
 
-const MAX_RESULTS = 200;
+const PAGE_SIZE = 120;      // results per page (the page asks for the next ones)
+const MAX_PAGE  = 500;
 const MONTH_LANGS = ['fr', 'en', 'es'];
 
 // Lower case, accents and ligatures removed, punctuation as spaces (but "_"
@@ -129,7 +133,11 @@ function parseQuery(query = {}) {
   if (Number.isNaN(fromMs) || Number.isNaN(toMs)) return { error: 'Invalid date' };
   const all = [...new Set(words(q))];
   const kept = all.filter((w) => !STOP.has(w));
-  return { filters: { terms: kept.length ? kept : all, fromMs, toMs, camera: one(query.camera) || null, album: one(query.album) || null } };
+  const int = (v, def, max) => Math.min(max, Math.max(0, Number.parseInt(one(v), 10) || def));
+  return { filters: {
+    terms: kept.length ? kept : all, fromMs, toMs, camera: one(query.camera) || null, album: one(query.album) || null,
+    offset: int(query.offset, 0, 1e6), limit: int(query.limit, PAGE_SIZE, MAX_PAGE) || PAGE_SIZE,
+  } };
 }
 
 function passesFilters(e, { fromMs, toMs, camera, album }) {
@@ -219,7 +227,8 @@ function search(entries, filters) {
       // approximate: a typo allowed; every word if possible, else as many as can be
       const ranked = rank(true).filter((h) => h.matched > 0);
       const best = Math.max(0, ...ranked.map((h) => h.matched));
-      hits = ranked.filter((h) => h.matched === best && (best === terms.length || best >= Math.ceil(terms.length / 2)));
+      const enough = best === terms.length || (terms.length >= 3 && best >= Math.ceil(terms.length / 2));
+      hits = enough ? ranked.filter((h) => h.matched === best) : [];
       approximate = hits.length > 0;
     }
   }
@@ -237,7 +246,8 @@ function search(entries, filters) {
   return {
     total: hits.length,
     approximate,
-    results: hits.slice(0, MAX_RESULTS).map((h) => strip(h.e)),
+    offset: filters.offset ?? 0,
+    results: hits.slice(filters.offset ?? 0, (filters.offset ?? 0) + (filters.limit ?? PAGE_SIZE)).map((h) => strip(h.e)),
     facets: {
       cameras: [...cameras].map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count || a.name.localeCompare(b.name)),
       albums:  [...new Set(entries.map((e) => e.album))].sort((a, b) => a.localeCompare(b)),
@@ -247,4 +257,4 @@ function search(entries, filters) {
   };
 }
 
-module.exports = { MAX_RESULTS, norm, cameraOf, toEntry, withAlbumCountries, parseQuery, search, editDistance };
+module.exports = { PAGE_SIZE, norm, cameraOf, toEntry, withAlbumCountries, parseQuery, search, editDistance };

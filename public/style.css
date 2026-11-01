@@ -3368,3 +3368,12 @@ a#zip-btn { text-decoration: none; }
   #users-table th:nth-child(3) { width: 20%; }
   #users-table th:nth-child(4) { width: 24%; }
 }
+
+/* Search: the next page of results */
+.search-more {
+  display: block; margin: 0 auto 48px; height: 38px; padding: 0 20px;
+  border: 1px solid var(--border); border-radius: 999px;
+  background: var(--surface); color: var(--text); font: inherit; font-size: 13px; cursor: pointer;
+}
+.search-more:hover { border-color: var(--accent); color: var(--accent); }
+.search-more:disabled { opacity: 0.5; cursor: progress; }

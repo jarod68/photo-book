@@ -20,7 +20,7 @@ export default {
   'search.anyAlbum': 'Todos los álbumes',
   'search.reset': 'Borrar',
   'search.count': '{n} foto{s}',
-  'search.countLimited': 'Primeras {n} de {total}',
+  'search.more': 'Ver más ({n} de {total} restantes)',
   'search.none': 'Ninguna foto coincide.',
   'search.failed': 'La búsqueda falló.',
   'home.sort': 'Ordenar álbumes',
