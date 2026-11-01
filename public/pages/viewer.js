@@ -377,7 +377,16 @@ async function init() {
 
   const params  = new URLSearchParams(location.search);
   const param   = params.get('album');
-  const initial = albums.find(a => a.name === param) ?? albums[0];
+  let initial   = albums.find(a => a.name === param);
+  // a share link opens a restricted album the visitor does not see in the
+  // list: its tab first, opened with the link's token (else the viewer fell
+  // back to another album)
+  if (!initial && param && shareToken) {
+    initial = { name: param, count: 0, visibility: 'restricted', cover: null, coverPreview: null, coverThumb: null };
+    state.albums = [initial, ...albums];
+    tabs.render(state.albums, null);
+  }
+  initial ??= albums[0];
   if (initial) await selectAlbum(initial.name, params.get('photo'));
 }
 
@@ -392,7 +401,12 @@ async function selectAlbum(name, targetFilename = null) {
     getAlbum(name, shareToken),
     getLiked(name, userToken),
   ]);
-  const isRestricted = state.albums.find(a => a.name === name)?.visibility === 'restricted';
+  const entry = state.albums.find(a => a.name === name);
+  const isRestricted = entry?.visibility === 'restricted';
+  if (entry && entry.count !== data.photos.length) {   // a shared album's tab learns its count here
+    entry.count = data.photos.length;
+    tabs.render(state.albums, name);
+  }
   state.photos = orderPhotos(data.photos.map(p => ({ ...p, isRestricted })));
   state.liked  = new Set(likedData.filenames);
   state.index  = -1;
