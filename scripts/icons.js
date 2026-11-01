@@ -1,3 +1,4 @@
+// @ts-check
 'use strict';
 /**
  * Builds the app icons (public/icons/) from public/icons/icon.svg: the
@@ -20,6 +21,7 @@ const maskable = svg
 const square = svg.replace(/<rect [^>]*\/>/, '<rect width="512" height="512" fill="url(#bg)"/>');
 
 async function main() {
+  /** @type {[string, string, number][]} */
   const out = [
     ['icon-192.png', svg, 192], ['icon-512.png', svg, 512],
     ['maskable-512.png', maskable, 512], ['apple-touch-icon.png', square, 180],

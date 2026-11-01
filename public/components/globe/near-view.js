@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Globe page — the "near" view (MapLibre GL, globe projection): from a few
  * hundred kilometres up down to the street, with free, keyless tiles:
@@ -79,11 +80,18 @@ const escapeHtml = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&a
 export class NearView {
   /**
    * @param {HTMLElement} container
-   * @param {{ photos: object[], lang: string, t: Function, onFar: Function }} opts
+   * @param {{ photos: object[], lang: string, t: Function, onFar: Function, onPoint?: Function }} opts
    *   onFar({ lat, lng, zoom }): the user zoomed out below FAR_ZOOM
    */
   constructor(container, { photos, lang, t, onFar, onPoint = () => {} }) {
-    Object.assign(this, { container, photos, lang, t, onFar, onPoint });
+    this.container = container;
+    this.photos = photos;
+    this.lang = lang;
+    this.t = t;
+    this.onFar = onFar;
+    this.onPoint = onPoint;
+    /** @type {Promise<any> | null} */
+    this.module = null;              // MapLibre, imported on first use
     this.mode = 'satellite';
     this.markers = new Map();        // "c<cluster id>" / "p<photo index>" → maplibregl.Marker
     this.ready = null;

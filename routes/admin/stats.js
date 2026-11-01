@@ -1,3 +1,4 @@
+// @ts-check
 'use strict';
 
 const express  = require('express');
@@ -15,9 +16,9 @@ const router = express.Router();
 router.get('/stats', requireAdmin, async (req, res) => {
   try {
     const names = await library.listAlbums();
-    const fsMap = new Map(await Promise.all(names.map(async name => [
+    const fsMap = new Map(await Promise.all(names.map(async name => /** @type {[string, number]} */ ([
       name, ((await library.listPhotos(name)) ?? []).length,
-    ])));
+    ]))));
 
     let viewMap = new Map();
     let likeMap = new Map();

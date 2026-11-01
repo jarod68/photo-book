@@ -1,3 +1,4 @@
+// @ts-check
 const path  = require('path');
 const fs    = require('fs');
 const exifr = require('./exif');   // photo metadata (ExifReader, exifr-compatible API)
@@ -94,6 +95,11 @@ async function srcMtime(filePath, _fsp) {
 const building = new Map();
 let tmpSeq = 0;
 
+/**
+ * @param {string} kind  @param {string} albumName  @param {string} filename  @param {string} filePath
+ * @param {{ is360?: boolean, mtimeMs?: number, source?: any }} [opts]
+ * @param {any} [_deps]
+ */
 async function ensureDerivative(kind, albumName, filename, filePath, { is360 = false, mtimeMs, source } = {}, _deps = {}) {
   const _fsp   = _deps.fsPromises ?? fs.promises;
   const _sharp = _deps.sharp ?? sharp;
@@ -410,7 +416,7 @@ async function pruneDerivatives(_deps = {}) {
  * @param {string} album
  * @param {string} filename
  * @param {{ dbReady: boolean, db: object }} database - the database service module
- * @param {{ fs?: object }} _deps - injectable dependencies for testing
+ * @param {{ fsPromises?: any }} _deps - injectable dependencies for testing
  */
 async function deletePhotoFiles(album, filename, database, _deps = {}) {
   const _fsPromises = _deps.fsPromises ?? fs.promises;

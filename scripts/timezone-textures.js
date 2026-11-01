@@ -1,3 +1,4 @@
+// @ts-check
 'use strict';
 /**
  * Builds the time-zone index of the 3D globe (public/textures/earth/), from

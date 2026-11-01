@@ -1,3 +1,4 @@
+// @ts-check
 import { t, applyTranslations, initLangSwitcher } from '../utils/i18n.js';
 import { showBuildTag } from '../utils/build-tag.js';
 import { wireBack, cameFromApp } from '../utils/back.js';
@@ -6,9 +7,9 @@ applyTranslations();
 initLangSwitcher('lang-switcher');
 wireBack(document.querySelector('.login-back'));
 
-const form    = document.getElementById('login-form');
+const form    = /** @type {HTMLFormElement} */ (document.getElementById('login-form'));
 const errorEl = document.getElementById('login-error');
-const btn     = form.querySelector('button[type="submit"]');
+const btn     = /** @type {HTMLButtonElement} */ (form.querySelector('button[type="submit"]'));
 
 // Signed in: back to the page the visitor came from (the admin sends here
 // when not signed in), else the home page.
@@ -42,8 +43,8 @@ form.addEventListener('submit', async e => {
   btn.disabled   = true;
   btn.querySelector('.login-btn-text').textContent = t('login.signingIn');
 
-  const username = document.getElementById('username').value.trim();
-  const password = document.getElementById('password').value;
+  const username = /** @type {HTMLInputElement} */ (document.getElementById('username')).value.trim();
+  const password = /** @type {HTMLInputElement} */ (document.getElementById('password')).value;
 
   try {
     const res  = await fetch('/api/auth/login', {

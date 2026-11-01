@@ -286,7 +286,8 @@ function markerCanvas(img, count) {
 export class SpaceView {
   /**
    * @param {HTMLElement} container
-   * @param {{ photos: object[], lang: string, onNear: Function, onPhoto: Function, onGroup: Function }} opts
+   * @param {{ photos: object[], lang: string, onNear: Function, onPhoto: Function, onGroup: Function,
+   *           onPoint?: Function, at?: Date | null, still?: boolean }} opts
    *   photos: /api/map entries ({ gps, album, filename, name, thumbUrl, … })
    *   onNear({ lat, lng, distance }): the camera came closer than NEAR_DISTANCE
    *   onPhoto(photo): a single photo was clicked
@@ -544,12 +545,13 @@ export class SpaceView {
   }
 
   buildLabels(lang) {
+    /** @type {{ of: (code: string) => string | undefined }} */
     let names;
     try { names = new Intl.DisplayNames([lang, 'en'], { type: 'region' }); } catch { names = { of: (c) => c }; }
     this.countryLabels = COUNTRIES.map(([code, lat, lng, maxDist]) => {
       const div = document.createElement('div');
       div.className = 'globe-label';
-      div.textContent = names.of(code);
+      div.textContent = names.of(String(code)) ?? String(code);
       const obj = new CSS2DObject(div);
       obj.position.copy(v3(lat, lng, 1.004));
       this.scene.add(obj);

@@ -6,7 +6,8 @@ applyTranslations();
 initLangSwitcher('lang-switcher');
 
 const form     = document.getElementById('search-form');
-const fields   = ['q', 'from', 'to', 'camera', 'album'].map(k => [k, document.getElementById(`search-${k}`)]);
+/** @type {[string, HTMLInputElement | HTMLSelectElement][]} */
+const fields   = ['q', 'from', 'to', 'camera', 'album'].map(k => [k, /** @type {any} */ (document.getElementById(`search-${k}`))]);
 const countEl  = document.getElementById('search-count');
 const grid     = document.getElementById('search-results');
 const cameraEl = document.getElementById('search-camera');
@@ -47,7 +48,7 @@ let scrollRestored = false;
 // Results come by pages; "Show more" asks for the next one. Back from a
 // photo, as many as were shown are loaded again (then the scroll put back).
 const PAGE = 120;
-const moreBtn = document.getElementById('search-more');
+const moreBtn = /** @type {HTMLButtonElement} */ (document.getElementById('search-more'));
 let shown = 0, lastQuery = '';
 
 async function run() {

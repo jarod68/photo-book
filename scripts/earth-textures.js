@@ -1,3 +1,4 @@
+// @ts-check
 'use strict';
 /**
  * Builds the Earth textures of the 3D globe (public/textures/earth/), from

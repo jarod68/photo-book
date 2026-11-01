@@ -1,3 +1,4 @@
+// @ts-check
 'use strict';
 // Admin System tab (F8): what is running and how it is doing — build,
 // process, disk, database, caches, maintenance and recent errors. Replaces
@@ -87,6 +88,7 @@ async function db() {
   };
 }
 
+/** @param {{ maintenance?: any }} [opts] */
 async function report({ maintenance } = {}) {
   const mem = process.memoryUsage();
   const [diskInfo, dbInfo] = await Promise.all([

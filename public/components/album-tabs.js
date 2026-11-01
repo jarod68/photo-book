@@ -1,3 +1,4 @@
+// @ts-check
 import { wireBack } from '../utils/back.js';
 
 const LOCK_SVG = `<svg class="album-tab-lock" viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-label="Restreint">
@@ -53,7 +54,7 @@ export class AlbumTabs {
 
       const countEl = document.createElement('span');
       countEl.className = 'count';
-      countEl.textContent = album.count;
+      countEl.textContent = String(album.count);
       btn.appendChild(countEl);
       btn.onclick = () => this._onSelect?.(album.name);
       this._el.appendChild(btn);

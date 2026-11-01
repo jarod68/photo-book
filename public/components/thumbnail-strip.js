@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Horizontal thumbnail strip — sliding-window virtual DOM.
  *
@@ -22,7 +23,7 @@ export class ThumbnailStrip {
   /**
    * @param {HTMLElement} el
    * @param {(i: number) => void} onSelect
-   * @param {{ prevBtn?: HTMLElement, nextBtn?: HTMLElement }} [arrows]
+   * @param {{ prevBtn?: HTMLButtonElement, nextBtn?: HTMLButtonElement }} [arrows]
    */
   constructor(el, onSelect, { prevBtn, nextBtn } = {}) {
     this._el       = el;
@@ -112,7 +113,7 @@ export class ThumbnailStrip {
       this._setWindow(start, end);
     }
 
-    this._el.querySelectorAll('.thumb').forEach(el =>
+    this._el.querySelectorAll('.thumb').forEach((/** @type {HTMLElement} */ el) =>
       el.classList.toggle('active', +el.dataset.i === index)
     );
 

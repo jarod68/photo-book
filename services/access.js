@@ -90,10 +90,10 @@ async function getAlbumAccess(album, user, shareToken = null) {
  * returning each with its visibility and canDelete flags.
  * Also returns the visibilityMap and authorizedSet for callers that need them.
  *
- * @param {import('fs').Dirent[]} albumDirs
+ * @param {{ name: string, isDirectory: () => boolean }[]} albumDirs  directory entries (or look-alikes)
  * @param {object|null} user
  * @returns {Promise<{
- *   filtered: import('fs').Dirent[],
+ *   filtered: { name: string, isDirectory: () => boolean }[],
  *   visibilityMap: Map<string, string>,
  *   authorizedSet: Set<string>
  * }>}

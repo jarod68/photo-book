@@ -43,7 +43,7 @@ function applyOverride(photo, ov, { withOriginal = false } = {}) {
 // Validate a PUT body: each field is a string (trimmed; "" clears the
 // override) or null. Returns { values } or { error }.
 function parseOverride(body) {
-  const values = {};
+  const values = /** @type {{ title: string | null, description: string | null, location: string | null }} */ ({});
   for (const [field, max] of Object.entries(FIELDS)) {
     const v = body?.[field];
     if (v === undefined || v === null) { values[field] = null; continue; }

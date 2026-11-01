@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Globe page: the Earth from space (Three.js, components/globe/space-view.js)
  * and, closer than ~1 400 km, the satellite / street map (MapLibre GL,
@@ -205,8 +206,8 @@ async function init() {
     setTimeout(() => near.preload().catch(() => {}), 2500);   // MapLibre in the background
   }, { once: true });
   // handles for the end-to-end tests (tests/visual_tests/globe.spec.js)
-  spaceEl.globeView = space;
-  nearEl.globeView = near;
+  /** @type {any} */ (spaceEl).globeView = space;
+  /** @type {any} */ (nearEl).globeView = near;
 
   // back up to space: zoom the map out, then switch
   document.getElementById('globe-up').addEventListener('click', async () => {
@@ -215,7 +216,7 @@ async function init() {
   });
 
   modesEl.addEventListener('click', (e) => {
-    const btn = e.target.closest('[data-mode]');
+    const btn = /** @type {HTMLElement | null} */ (/** @type {HTMLElement} */ (e.target).closest('[data-mode]'));
     if (!btn) return;
     modesEl.querySelectorAll('[data-mode]').forEach((b) => b.setAttribute('aria-pressed', String(b === btn)));
     near.setMode(btn.dataset.mode);

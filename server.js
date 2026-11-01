@@ -1,9 +1,10 @@
+// @ts-check
 const express      = require('express');
 const path         = require('path');
 const fs           = require('fs');
 const cookieParser = require('cookie-parser');
-const rateLimit    = require('express-rate-limit');
-const helmet       = require('helmet');
+const { rateLimit } = require('express-rate-limit');
+const helmet       = require('helmet').default;   // the function itself (also the module, in CommonJS)
 const compression  = require('compression');
 
 const { PHOTOS_DIR, PREVIEWS_DIR, MEDIUM_DIR, isImage, isMedia, isAlbumDir, preGenerateAll } = require('./services/image');

@@ -1,3 +1,4 @@
+// @ts-check
 import { t, getLang, applyTranslations, initLangSwitcher } from '../utils/i18n.js';
 import '../utils/admin-shortcut.js';
 import { markerElement, clusterElement } from '../components/map-marker.js';
@@ -147,7 +148,7 @@ async function init() {
     saveState({ view: { lat: +c.lat.toFixed(5), lng: +c.lng.toFixed(5), zoom: +map.getZoom().toFixed(2) } });
   });
   // handle for the end-to-end tests
-  document.getElementById('world-map').mapView = map;
+  /** @type {any} */ (document.getElementById('world-map')).mapView = map;
 
   if (photos.length === 0) return;
 

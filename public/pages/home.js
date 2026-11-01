@@ -1,3 +1,4 @@
+// @ts-check
 import { t, applyTranslations, initLangSwitcher } from '../utils/i18n.js';
 import { createAlbumCard } from '../components/album-card.js';
 import { showBuildTag } from '../utils/build-tag.js';
@@ -13,10 +14,10 @@ const explore = document.getElementById('explore-grid');
 const hero   = document.getElementById('home-hero');
 const sumEl  = document.getElementById('summary');
 const authEl = document.getElementById('home-auth');
-const sortEl = document.getElementById('album-sort');
+const sortEl = /** @type {HTMLSelectElement} */ (document.getElementById('album-sort'));
 const SORT_KEY = 'pb.albumSort';
 const GROUP_KEY = 'pb.albumGroup';
-const groupEl = document.getElementById('album-group');
+const groupEl = /** @type {HTMLSelectElement} */ (document.getElementById('album-group'));
 
 function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
@@ -51,9 +52,9 @@ async function init() {
   // collection (chosen in the admin) under headings across the grid.
   const cards = new Map(albums.map(a => [a.name, createAlbumCard(a)]));
   const hasCollections = albums.some(a => a.collection);
-  groupEl.querySelector('[value="collection"]').hidden = !hasCollections;
+  /** @type {HTMLOptionElement} */ (groupEl.querySelector('[value="collection"]')).hidden = !hasCollections;
   const place = () => {
-    const sorted = sortAlbums(albums, sortEl.value);
+    const sorted = sortAlbums(albums, /** @type {'name' | 'recent' | 'oldest'} */ (sortEl.value));
     grid.replaceChildren();
     for (const { title, items } of groupAlbums(sorted, groupEl.value)) {
       if (title !== null) {

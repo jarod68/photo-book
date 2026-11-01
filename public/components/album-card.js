@@ -1,3 +1,4 @@
+// @ts-check
 import { t } from '../utils/i18n.js';
 import { formatDateRange } from '../utils/format.js';
 
