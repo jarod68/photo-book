@@ -10,6 +10,7 @@ import { t, getLang, applyTranslations, initLangSwitcher } from '../utils/i18n.j
 import '../utils/admin-shortcut.js';
 import { getMapPhotos } from '../api/client.js';
 import { showBuildTag } from '../utils/build-tag.js';
+import { wireBack, pageState, saveState } from '../utils/back.js';
 import { distanceToZoom, zoomToDistance } from '../utils/globe-math.js';
 import { loadTimezones, loadBorders, zoneIndexAt, zoneLabel, offsetMinutes } from '../utils/timezones.js';
 import { SpaceView, FOV, NEAR_DISTANCE } from '../components/globe/space-view.js';
@@ -187,6 +188,18 @@ async function init() {
       if (await space.flyTo(lat, lng, NEAR_DISTANCE * 0.98, 1800)) goNear(space.view(), { group: photos });
     },
   });
+  // back from a photo: the globe where it was (seen from space; close up, just
+  // above the same spot)
+  const lastView = pageState().globe;
+  if (lastView) space.setView(lastView.lat, lastView.lng, Math.max(lastView.distance, NEAR_DISTANCE * 1.12));
+  addEventListener('pagehide', () => {
+    if (state === 'near' && near.map) {
+      const c = near.map.getCenter();
+      saveState({ globe: { lat: c.lat, lng: c.lng, distance: zoomToDistance(near.map.getZoom(), height(), FOV) } });
+    } else saveState({ globe: space.view() });
+  });
+  wireBack(document.querySelector('.globe-back'));
+
   spaceEl.addEventListener('globe-ready', () => {
     document.getElementById('globe-loading')?.remove();
     setTimeout(() => near.preload().catch(() => {}), 2500);   // MapLibre in the background

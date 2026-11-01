@@ -10,6 +10,7 @@ import { getAlbums, getAlbum, getLiked, toggleLike, recordView, geocode, createS
 import { formatViews, formatLikes } from '../utils/format.js';
 import { subscribeTo, unsubscribeFrom, getSubscription, getStoredAlbums } from '../utils/push.js';
 import { showBuildTag } from '../utils/build-tag.js';
+import { saveState } from '../utils/back.js';
 import { Slideshow }      from '../utils/slideshow.js';
 import { sortPhotos, dayLabels, loadOrder, saveOrder } from '../utils/order.js';
 
@@ -593,6 +594,15 @@ document.addEventListener('fullscreenchange', () => {
 });
 
 // ── Photo display ─────────────────────────────────────────────────────────────
+// The address follows the album and photo shown, without new history
+// entries: Back still leaves the viewer, and coming back (or reloading,
+// or copying the link) reopens the same photo.
+function syncUrl(photo) {
+  const q = new URLSearchParams({ album: state.current, photo: photo.filename });
+  if (shareToken) q.set('share', shareToken);
+  saveState({}, `${location.pathname}?${q}`);
+}
+
 function showPhoto(index, { auto = false } = {}) {
   const photo = state.photos[index];
   if (!photo) return;
@@ -607,6 +617,7 @@ function showPhoto(index, { auto = false } = {}) {
 
   state.index = index;
   thumbs.activate(index);
+  syncUrl(photo);
   downloadBtn.href     = photo.url;
   downloadBtn.download = photo.filename;
   photoMap.update(photo, index, state.photos);

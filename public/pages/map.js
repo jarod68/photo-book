@@ -8,6 +8,7 @@ import {
 } from '../utils/map-math.js';
 import { showBuildTag } from '../utils/build-tag.js';
 import { addBaseLayer } from '../utils/base-map.js';
+import { wireBack, pageState, saveState } from '../utils/back.js';
 
 applyTranslations();
 initLangSwitcher('lang-switcher');
@@ -94,9 +95,15 @@ async function init() {
     ? t('map.photos', { n: photos.length, s: photos.length > 1 ? 's' : '' })
     : t('map.noPhotos');
 
+  // back from a photo: the map where it was
+  const saved = pageState().view;
   const map = L.map('world-map', {
     minZoom: 2, maxZoom: 18, worldCopyJump: true,
-  }).setView([20, 10], 2);
+  }).setView(saved ? [saved.lat, saved.lng] : [20, 10], saved?.zoom ?? 2);
+  map.on('moveend', () => {
+    const c = map.getCenter();
+    saveState({ view: { lat: +c.lat.toFixed(5), lng: +c.lng.toFixed(5), zoom: map.getZoom() } });
+  });
 
   addBaseLayer(map);
 
@@ -201,6 +208,7 @@ function buildPopup(photo) {
   return wrap;
 }
 
+wireBack(document.querySelector('.map-page-back'));
 init();
 
 showBuildTag();

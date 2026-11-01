@@ -1,3 +1,5 @@
+import { wireBack } from '../utils/back.js';
+
 const LOCK_SVG = `<svg class="album-tab-lock" viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-label="Restreint">
   <path d="M8 1a2 2 0 0 1 2 2v4H6V3a2 2 0 0 1 2-2zm3 6V3a3 3 0 0 0-6 0v4a2 2 0 0 0-2 2v5a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z"/>
 </svg>`;
@@ -28,7 +30,8 @@ export class AlbumTabs {
 
     const back = document.createElement('a');
     back.className = 'album-tab album-tab-back';
-    back.href = 'index.html';
+    back.href = 'index.html';     // opened from outside: the albums; else back where the visitor was
+    wireBack(back);
     back.setAttribute('aria-label', 'Retour aux albums');
     back.textContent = '←';
     this._el.appendChild(back);

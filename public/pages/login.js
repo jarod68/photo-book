@@ -1,17 +1,23 @@
 import { t, applyTranslations, initLangSwitcher } from '../utils/i18n.js';
 import { showBuildTag } from '../utils/build-tag.js';
+import { wireBack, cameFromApp } from '../utils/back.js';
 
 applyTranslations();
 initLangSwitcher('lang-switcher');
+wireBack(document.querySelector('.login-back'));
 
 const form    = document.getElementById('login-form');
 const errorEl = document.getElementById('login-error');
 const btn     = form.querySelector('button[type="submit"]');
 
+// Signed in: back to the page the visitor came from (the admin sends here
+// when not signed in), else the home page.
+const afterLogin = () => (cameFromApp() ? document.referrer : '/');
+
 async function checkAlreadyLoggedIn() {
   try {
     const { user } = await fetch('/api/auth/me').then(r => r.json());
-    if (user) window.location.replace('/');
+    if (user) window.location.replace(afterLogin());
   } catch (_) {}
 }
 
@@ -55,7 +61,7 @@ form.addEventListener('submit', async e => {
       return;
     }
 
-    window.location.replace('/');
+    window.location.replace(afterLogin());
   } catch (_) {
     errorEl.textContent = t('login.errorNetwork');
     errorEl.hidden = false;

@@ -1,5 +1,6 @@
 import { t, getLang, applyTranslations, initLangSwitcher } from '../utils/i18n.js';
 import { showBuildTag } from '../utils/build-tag.js';
+import { wireBack, saveState, rememberScroll, restoreScroll } from '../utils/back.js';
 
 applyTranslations();
 initLangSwitcher('lang-switcher');
@@ -39,10 +40,14 @@ function fillSelect(select, values) {
   select.value = keep;
 }
 
+wireBack(document.querySelector('.map-page-back'));
+rememberScroll();
+let scrollRestored = false;
+
 async function run() {
   const query = new URLSearchParams();
   for (const [k, el] of fields) if (el.value.trim()) query.set(k, el.value.trim());
-  history.replaceState(null, '', query.size ? `?${query}` : location.pathname);
+  saveState({}, query.size ? `?${query}` : location.pathname);
 
   const mine = ++seq;
   const res = await fetch(`/api/search?${query}`).catch(() => null);
@@ -65,6 +70,7 @@ async function run() {
     : t('search.count', { n: total, s: total !== 1 ? 's' : '' });
   if (approximate) countEl.textContent += ` · ${t('search.approximate')}`;
   grid.replaceChildren(...results.map(renderResult));
+  if (!scrollRestored) { scrollRestored = true; restoreScroll(); }   // back from a photo: where it was
   if (!results.length) {
     const p = document.createElement('p');
     p.className = 'grid-empty';

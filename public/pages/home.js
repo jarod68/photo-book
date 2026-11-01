@@ -3,6 +3,7 @@ import { createAlbumCard } from '../components/album-card.js';
 import { showBuildTag } from '../utils/build-tag.js';
 import { sortAlbums, loadOrder, saveOrder } from '../utils/order.js';
 import { formatDateRange } from '../utils/format.js';
+import { rememberScroll, restoreScroll } from '../utils/back.js';
 
 applyTranslations();
 initLangSwitcher('lang-switcher');
@@ -51,6 +52,7 @@ async function init() {
   sortEl.hidden = albums.length < 2;
   sortEl.addEventListener('change', () => { saveOrder(SORT_KEY, sortEl.value); place(sortEl.value); });
   place(sortEl.value);
+  restoreScroll();   // back from an album: where the visitor was
 }
 
 // The latest album (by its last photo's date) across the top: its cover, big
@@ -225,6 +227,7 @@ function _line(x1, y1, x2, y2) {
                 stroke="rgba(255,255,255,0.12)" stroke-width="1" stroke-dasharray="3 3"/>`;
 }
 
+rememberScroll();
 init();
 
 showBuildTag({ footer: true });
