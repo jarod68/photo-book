@@ -38,12 +38,15 @@ async function main() {
       external: ['three', 'three/addons/*', 'maplibre-gl'],
     }),
 
-    // CSS: minify
+    // CSS: the area sheets (public/css/) bundled into one, minified; the
+    // fonts stay where /vendor/ serves them
     esbuild.build({
       ...shared,
       entryPoints: ['public/style.css'],
-      minify:  true,
-      outdir:  'dist/public',
+      bundle:   true,
+      minify:   true,
+      outdir:   'dist/public',
+      external: ['/vendor/*'],
     }),
 
     // Server + services: bundle into a single file, keep npm packages external

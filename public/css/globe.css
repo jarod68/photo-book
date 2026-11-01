@@ -1,0 +1,254 @@
+/* ═══════════════════════════════════════════════════════════════════════════════
+   GLOBE PAGE  (body.page-globe)
+═══════════════════════════════════════════════════════════════════════════════ */
+
+.page-globe {
+  height: 100vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  background: #050508;
+}
+
+.globe-header {
+  height: 48px;
+  border-bottom: 1px solid rgba(255,255,255,0.07);
+  padding: 0 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+  background: rgba(5,5,8,0.92);
+  backdrop-filter: blur(8px);
+}
+
+.globe-back {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(238,238,242,0.40);
+  text-decoration: none;
+  transition: color 0.15s;
+  flex-shrink: 0;
+}
+.globe-back:hover { color: #eeeef2; }
+
+.globe-title-wrap { display: flex; align-items: baseline; gap: 10px; flex: 1; }
+.globe-header .lang-switcher { margin-left: auto; }
+
+.globe-title {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: #eeeef2;
+}
+
+.globe-count {
+  font-size: 11px;
+  color: rgba(238,238,242,0.40);
+}
+
+#globe-container {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  overflow: hidden;
+}
+
+#globe-container canvas {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.globe-loading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.globe-loading-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: globe-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes globe-pulse {
+  0%, 100% { opacity: 0.2; transform: scale(0.8); }
+  50%       { opacity: 1;   transform: scale(1.3); }
+}
+
+/* Country names over the space view (CSS2DRenderer) */
+.globe-label {
+  color: rgba(255,255,255,0.82);
+  font: 500 10px/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  pointer-events: none;
+  user-select: none;
+  text-shadow: 0 0 4px rgba(0,0,0,0.9), 0 1px 2px rgba(0,0,0,0.9);
+  transition: opacity 0.4s;
+  will-change: transform, opacity;
+}
+/* the Sun, the Moon and the planets: quieter than the countries */
+.globe-sky-label {
+  color: rgba(255,236,214,0.62);
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  text-transform: none;
+  font-style: italic;
+}
+.globe-sky-label--moon { padding-top: 34px; }   /* below the disc (~45 px on screen) */
+.globe-sky-label--sun  { padding-top: 16px; }   /* below the glow's core */
+
+/* ── Two layers: space (Three.js) and near (MapLibre), cross-faded ──────── */
+.globe-layer { position: absolute; inset: 0; transition: opacity 0.45s ease; }
+#globe-near { opacity: 0; pointer-events: none; }
+.globe-is-near #globe-near { opacity: 1; pointer-events: auto; }
+.globe-is-near #globe-space { opacity: 0; pointer-events: none; }
+#globe-near .maplibregl-canvas { outline: none; }
+
+/* Satellite / map switch — only meaningful in the near view */
+.globe-modes {
+  display: flex;
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: var(--ctl-r);
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s;
+}
+.globe-is-near .globe-modes { opacity: 1; pointer-events: auto; }
+.globe-modes button {
+  background: transparent;
+  border: none;
+  color: rgba(238,238,242,0.55);
+  font: inherit;
+  font-size: 12px;
+  padding: 5px 12px;
+  cursor: pointer;
+}
+.globe-modes button[aria-pressed="true"] { background: rgba(255,138,91,0.25); color: #fff; }
+@media (max-width: 560px) {
+  .globe-count { display: none; }
+  .globe-modes button { padding: 5px 9px; }
+}
+#globe-up { display: flex; align-items: center; border-right: 1px solid rgba(255,255,255,0.12); }
+#globe-up:hover { color: #fff; }
+
+/* Time-zone switch and the local-time card */
+.globe-tz-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: transparent; border: 1px solid rgba(255,255,255,0.12); border-radius: var(--ctl-r);
+  color: rgba(238,238,242,0.6); font: inherit; font-size: 12px; padding: 5px 10px; cursor: pointer;
+}
+.globe-tz-btn:hover { color: #fff; }
+.globe-tz-btn[aria-pressed="true"] { background: rgba(250,204,21,0.16); border-color: rgba(250,204,21,0.45); color: #fde68a; }
+.globe-tz-tip {
+  position: absolute; left: 0; top: 0; z-index: 20; pointer-events: none;
+  display: flex; flex-direction: column; gap: 1px; min-width: 120px;
+  padding: 8px 12px; border-radius: 10px;
+  background: rgba(10,14,26,0.88); border: 1px solid rgba(250,204,21,0.35);
+  backdrop-filter: blur(8px); box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+  color: #eeeef2; font: 12px/1.35 -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+.globe-tz-tip strong { font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; color: #fde68a; }
+.globe-tz-tip small { color: rgba(238,238,242,0.55); }
+@media (max-width: 560px) {
+  .globe-tz-btn span { display: none; }
+  .globe-credit { font-size: 8.5px; bottom: 4px; }
+}
+
+/* While the near view gets ready */
+.globe-switch-spinner {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  padding: 14px; border-radius: 50%; background: rgba(0,0,0,0.45);
+  opacity: 0; pointer-events: none; transition: opacity 0.2s 0.3s;
+}
+.globe-switching .globe-switch-spinner { opacity: 1; }
+
+/* Image credits of the space view */
+.globe-credit {
+  position: absolute;
+  right: 10px;
+  bottom: 8px;
+  max-width: calc(100% - 110px);   /* clear of the build stamp, bottom left */
+  text-align: right;
+  margin: 0;
+  font-size: 10px;
+  color: rgba(238,238,242,0.38);
+  pointer-events: auto;
+  transition: opacity 0.3s;
+}
+.globe-credit a { color: inherit; }
+.globe-is-near .globe-credit { opacity: 0; pointer-events: none; }
+
+/* Photo markers of the near view: round thumbnails, with a count for groups */
+.near-marker {
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  border: 3px solid #fff;
+  background: var(--accent) center / cover no-repeat;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.55);
+  cursor: pointer;
+  padding: 0;
+  transition: transform 0.15s;
+}
+.near-marker:hover { transform: scale(1.12); }
+.near-marker-count {
+  position: absolute;
+  top: -9px;
+  right: -12px;
+  min-width: 22px;
+  padding: 2px 6px;
+  border-radius: 11px;
+  background: var(--accent);
+  border: 2px solid #fff;
+  color: var(--accent-ink);
+  font: 600 11px/14px -apple-system, 'Segoe UI', sans-serif;
+}
+
+/* Photo card */
+.near-popup .maplibregl-popup-content {
+  background: rgba(10,14,26,0.96);
+  color: #eeeef2;
+  border-radius: 12px;
+  padding: 0;
+  overflow: hidden;
+  box-shadow: 0 12px 36px rgba(0,0,0,0.6);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+.near-popup .maplibregl-popup-tip { border-top-color: rgba(10,14,26,0.96); border-bottom-color: rgba(10,14,26,0.96); }
+.near-popup .maplibregl-popup-close-button { color: #fff; font-size: 18px; right: 4px; top: 2px; text-shadow: 0 1px 3px #000; }
+.near-popup-img img { display: block; width: 100%; max-height: 190px; object-fit: cover; }
+.near-popup-text { display: flex; flex-direction: column; gap: 3px; padding: 10px 12px 12px; font-size: 12px; }
+.near-popup-text strong { font-size: 14px; font-weight: 600; }
+.near-popup-album { color: var(--accent-soft); font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; }
+.near-popup-date { color: rgba(238,238,242,0.55); }
+.near-popup-link { margin-top: 6px; color: var(--accent-soft); text-decoration: none; font-weight: 500; }
+.near-popup-link:hover { text-decoration: underline; }
+.near-popup-grid { display: grid; grid-template-columns: repeat(3, 80px); gap: 4px; padding: 8px; }
+.near-popup-thumb img { display: block; width: 80px; height: 80px; object-fit: cover; border-radius: 6px; }
+
+
+/* ── Globe album card visual (home page) ─────────────────────────────────── */
+.album-card-globe-visual {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(145deg, #030812 0%, #070e1e 50%, #030812 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.album-card-globe-svg {
+  width: 100%;
+  height: 100%;
+}

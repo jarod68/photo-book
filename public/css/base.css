@@ -1,0 +1,191 @@
+/* Shared by every page: reset, fonts, colour tokens, the language switcher,
+   the admin shortcut, the build stamp. */
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+/* `hidden` always wins over a component's display rule (the new-album form
+   has display:flex and was shown although hidden). */
+[hidden] { display: none !important; }
+
+/* ── Palette ─────────────────────────────────────────────────────────────────
+   Neutral dark theme, one warm coral accent, shared by pins and routes.
+   ─────────────────────────────────────────────────────────────────────────── */
+/* Titles: Fraunces (variable weight), served from /vendor/fonts (services/vendor.js) */
+@font-face {
+  font-family: 'Fraunces Variable';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url(/vendor/fonts/fraunces-latin.woff2) format('woff2-variations');
+  unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
+}
+@font-face {
+  font-family: 'Fraunces Variable';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url(/vendor/fonts/fraunces-latin-ext.woff2) format('woff2-variations');
+  unicode-range: U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF;
+}
+
+:root {
+  --bg:         #0d0d0e;
+  --bg-strip:   rgba(13,13,14,0.96);
+  --surface:    rgba(255,255,255,0.04);
+  --surface-h:  rgba(255,255,255,0.08);
+  --border:     rgba(255,255,255,0.09);
+  --border-h:   rgba(255,255,255,0.18);
+  --text:       #eeeef2;
+  --text-dim:   rgba(238,238,242,0.62);   /* ≥ 4.5:1 on --bg (WCAG AA) */
+  --text-faint: rgba(238,238,242,0.36);
+  /* coral: warm like a print, unlike the stock blue of every app */
+  --accent:     #ff8a5b;
+  --accent-dim: rgba(255,138,91,0.14);
+  --accent-h:   #ff7440;
+  --accent-ink: #1d0e07;   /* text on an accent fill */
+  --accent-soft:#ffb594;   /* accent text on dark (links, places) */
+  --font-display: 'Fraunces Variable', Georgia, 'Times New Roman', serif;
+
+  /* Shared nav control token — all top-right buttons/selects use this */
+  --ctl-h:  28px;
+  --ctl-fs: 12.5px;
+  --ctl-r:  6px;
+}
+
+html { height: 100%; background: var(--bg); color: var(--text); }
+/* The hidden attribute always hides, whatever display a class sets (the new
+   album form was always shown: .admin-new-album-form is display:flex). */
+[hidden] { display: none !important; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', sans-serif;
+  min-height: 100%;
+}
+
+
+/* ── Admin shortcut button (fixed, all pages) ────────────────────────────── */
+.admin-shortcut-btn {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.10);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(238,238,242,0.25);
+  text-decoration: none;
+  transition: background 0.2s, color 0.2s, border-color 0.2s;
+  z-index: 9000;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+.admin-shortcut-btn:hover {
+  background: rgba(255,255,255,0.11);
+  border-color: rgba(255,255,255,0.20);
+  color: rgba(238,238,242,0.65);
+}
+.admin-shortcut-btn svg { width: 15px; height: 15px; }
+
+/* ── Language switcher ────────────────────────────────────────────────────────── */
+.lang-switcher {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.lang-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: var(--ctl-h);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--ctl-r);
+  color: var(--text-dim);
+  font-size: var(--ctl-fs);
+  font-family: inherit;
+  font-weight: 500;
+  padding: 0 9px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: border-color 0.15s, color 0.15s;
+}
+.lang-btn:hover { border-color: var(--border-h); color: var(--text); }
+
+.lang-menu {
+  position: absolute;
+  top: calc(100% + 5px);
+  right: 0;
+  z-index: 200;
+  background: #1a1a1e;
+  border: 1px solid var(--border-h);
+  border-radius: 8px;
+  padding: 4px;
+  list-style: none;
+  min-width: 120px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.55);
+}
+
+.lang-option {
+  padding: 7px 12px;
+  border-radius: 5px;
+  font-size: 13px;
+  cursor: pointer;
+  color: var(--text-dim);
+  transition: background 0.12s, color 0.12s;
+  white-space: nowrap;
+}
+.lang-option:hover        { background: var(--surface-h); color: var(--text); }
+.lang-option--active      { color: var(--text); font-weight: 500; }
+
+.page-login .lang-switcher { position: absolute; top: 16px; right: 16px; }
+.page-login               { position: relative; }
+
+
+/* Build stamp (utils/build-tag.js): which commit this page is served from.
+   Above every layer (the viewer goes up to 9100), never catches clicks. */
+.build-tag {
+  position: fixed; left: 8px; bottom: 8px; z-index: 10000; pointer-events: none;
+  padding: 2px 7px; border-radius: 4px;
+  font: 11px ui-monospace, monospace; color: #fff;
+  background: rgba(0, 0, 0, 0.55);
+}
+/* Non-production (APP_ENV, e.g. QA): hi-vis strip along the top of the screen. */
+.env-strip {
+  position: fixed; top: 0; left: 0; right: 0; height: 6px; z-index: 10001;
+  pointer-events: none; background: #ff6a00;
+  box-shadow: 0 1px 6px rgba(255, 106, 0, 0.6);
+}
+.env-strip-label {
+  position: absolute; top: 0; right: 16px; padding: 1px 10px 3px;
+  border-radius: 0 0 6px 6px; background: #ff6a00; color: #fff;
+  font: 700 11px/1.3 system-ui, sans-serif; letter-spacing: 0.08em;
+}
+.env-nonprod .build-tag { background: #ff6a00; }
+/* scrolling pages: a quiet line at the end of the page, covering nothing */
+.build-tag--footer {
+  position: static; display: block; width: fit-content;
+  margin: 8px auto calc(16px + env(safe-area-inset-bottom, 0px));
+  background: none; color: var(--text-faint);
+}
+.env-nonprod .build-tag--footer { background: #ff6a00; color: #fff; }
+/* in a page's own slot (the viewer's top bar) */
+.build-tag--inline { position: static; background: none; color: var(--text-faint); padding: 0 4px; }
+.env-nonprod .build-tag--inline { background: #ff6a00; color: #fff; }
+@media (max-width: 760px) { .album-nav-build { display: none; } }
+
+
+/* Admin shortcut in the viewer's top bar */
+.admin-shortcut-btn--inline {
+  position: static;
+  width: var(--ctl-h); height: var(--ctl-h);
+  border-radius: var(--ctl-r);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  backdrop-filter: none; -webkit-backdrop-filter: none;
+}
+.admin-shortcut-btn--inline svg { width: 13px; height: 13px; }

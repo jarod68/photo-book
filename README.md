@@ -386,6 +386,8 @@ Requests never touch the disk synchronously: albums and photos are read through 
 
 The frontend is vanilla JavaScript with ES modules — no bundler, no framework.
 
+**Styles.** One sheet per area in `public/css/` — `base` (reset, tokens, fonts, language switcher, build stamp), `home`, `maps` (map page and the viewer's maps), `globe`, `viewer`, `login`, `admin`, `search`, and `type` (the titles' typeface, last) — imported in that order by `public/style.css`; `npm run build` bundles them back into one minified sheet (esbuild). In each, the base rules come first and the screen-size / touch-screen adjustments last, so they really override. The split was checked by comparing the computed style of every element of every page, desktop and phone, before and after.
+
 **Look.** Dark throughout, with one warm accent — coral `#ff8a5b` (`--accent` in `style.css`; `--accent-ink` for text on it, `--accent-soft` for accent text on dark) — and Fraunces for titles over the system sans-serif. Secondary text is 62 % white, enough contrast for WCAG AA. The home page opens on the latest album (its cover full width, title, "open" button), then **Explore** (map, globe) and the **Albums** grid; the login page sits on a blurred album cover. **Maps.** Every map — the map page, the viewer's mini-map and album maps, the globe's close-up view — is MapLibre GL with OpenFreeMap's keyless vector tiles (OpenStreetMap data): the 2D maps in its *dark* style with place names in the page's language (`utils/base-map.js`; MapLibre is loaded only when a map is first shown), numbered coral pins (white for the current photo), clusters with a count, the route of the map page as dashed lines with arrows. On phones the admin tables become cards.
 
 ```

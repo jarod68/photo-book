@@ -1,0 +1,11 @@
+/* The display type of titles, over every area's own sizes: imported last. */
+
+.home-logo, .login-logo, .map-page-title, .admin-title, .home-section-title,
+.album-card-name, .home-hero-title {
+  font-family: var(--font-display);
+  font-optical-sizing: auto;
+}
+.home-logo { font-size: 26px; font-weight: 600; letter-spacing: -0.01em; }
+.map-page-title, .admin-title { font-size: 18px; font-weight: 600; letter-spacing: 0; }
+.admin-section-title { letter-spacing: 0.1em; }
+@media (max-width: 600px) { .home-logo { font-size: 22px; white-space: nowrap; } }
