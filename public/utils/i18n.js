@@ -80,20 +80,39 @@ export function initLangSwitcher(containerId) {
     menu.appendChild(li);
   });
 
+  // The open menu hangs from <body>, fixed under its button: the bars it
+  // opens from may scroll sideways (the viewer's album tabs: overflow clips
+  // it) or blur what is behind them (a stacking context of their own, under
+  // the globe that follows) — from the body, nothing covers or cuts it.
   function close() {
     menu.hidden = true;
     btn.setAttribute('aria-expanded', 'false');
   }
 
+  function place() {
+    const r = btn.getBoundingClientRect();
+    menu.style.top   = `${Math.round(r.bottom + 5)}px`;
+    menu.style.right = `${Math.round(document.documentElement.clientWidth - r.right)}px`;
+  }
+
+  function open() {
+    document.body.appendChild(menu);
+    place();
+    menu.hidden = false;
+    btn.setAttribute('aria-expanded', 'true');
+  }
+
   btn.addEventListener('click', e => {
     e.stopPropagation();
-    const opening = menu.hidden;
-    menu.hidden = !opening;
-    btn.setAttribute('aria-expanded', String(opening));
+    if (menu.hidden) open(); else close();
   });
 
   document.addEventListener('click', close);
   document.addEventListener('keydown', e => { if (e.key === 'Escape') close(); });
+  // the bar scrolled or the window changed: follow the button
+  const follow = () => { if (!menu.hidden) place(); };
+  addEventListener('resize', follow);
+  addEventListener('scroll', follow, true);
 
   el.appendChild(btn);
   el.appendChild(menu);

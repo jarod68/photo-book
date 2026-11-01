@@ -52,7 +52,14 @@ test('lang switcher opens custom dropdown below button', async ({ page }) => {
   const menuBox = await page.locator('.lang-menu').boundingBox();
   expect(menuBox.y).toBeGreaterThanOrEqual(btnBox.y + btnBox.height - 2);
 
-  await expect(page.locator('.lang-switcher')).toHaveScreenshot('viewer-lang-menu-open.png');
+  // …and on top: the album bar scrolls sideways, which used to clip it (the photo showed through)
+  const onTop = await page.evaluate(() => [...document.querySelectorAll('.lang-option')].every((o) => {
+    const r = o.getBoundingClientRect();
+    return o.contains(document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2));
+  }));
+  expect(onTop).toBe(true);
+
+  await expect(page.locator('.lang-menu')).toHaveScreenshot('viewer-lang-menu-open.png');
 });
 
 test('album-map-btn is styled as a box control (not an underline tab)', async ({ page }) => {

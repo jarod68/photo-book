@@ -20,6 +20,11 @@
   flex-shrink: 0;
   background: rgba(5,5,8,0.92);
   backdrop-filter: blur(8px);
+  /* the blur makes the header its own stacking context: without a level of
+     its own, the globe below (positioned, later in the page) covered the
+     language menu that opens from it */
+  position: relative;
+  z-index: 30;
 }
 
 .globe-back {

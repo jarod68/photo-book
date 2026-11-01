@@ -116,10 +116,8 @@ body {
 .lang-btn:hover { border-color: var(--border-h); color: var(--text); }
 
 .lang-menu {
-  position: absolute;
-  top: calc(100% + 5px);
-  right: 0;
-  z-index: 200;
+  position: fixed;            /* placed under its button by utils/i18n.js */
+  z-index: 9600;              /* over every layer but the build stamp */
   background: #1a1a1e;
   border: 1px solid var(--border-h);
   border-radius: 8px;

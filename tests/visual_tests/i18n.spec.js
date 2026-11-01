@@ -42,7 +42,7 @@ test('lang menu opens below the button on click', async ({ page }) => {
   const menuBox = await page.locator('.lang-menu').boundingBox();
   expect(menuBox.y).toBeGreaterThanOrEqual(btnBox.y + btnBox.height - 2);
 
-  await expect(page.locator('.lang-switcher')).toHaveScreenshot('lang-menu-open.png');
+  await expect(page.locator('.lang-menu')).toHaveScreenshot('lang-menu-open.png');
 });
 
 test('lang menu contains all supported languages', async ({ page }) => {
