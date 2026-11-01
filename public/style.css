@@ -3358,3 +3358,13 @@ a#zip-btn { text-decoration: none; }
   .admin-header-left a, .admin-header-left { white-space: nowrap; }
 }
 @media (max-width: 600px) { .home-logo { font-size: 22px; white-space: nowrap; } }
+
+/* Users table: fixed columns — their width no longer follows the dates
+   shown (which also made the visual test depend on the day it ran) */
+@media (min-width: 601px) {
+  #users-table { table-layout: fixed; }
+  #users-table th:nth-child(1) { width: 22%; }
+  #users-table th:nth-child(2) { width: 18%; }
+  #users-table th:nth-child(3) { width: 20%; }
+  #users-table th:nth-child(4) { width: 24%; }
+}
