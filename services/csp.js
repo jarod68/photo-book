@@ -2,7 +2,7 @@
 'use strict';
 // Content-Security-Policy (T6). Every script, style, font and data file is
 // served by the app itself (libraries under /vendor/, see services/vendor.js);
-// the only third-party resources are OpenStreetMap tiles (images). The one
+// the only third-party resources are the map tiles (OpenFreeMap, EOX). The one
 // inline script — the globe's import map — is allowed by its hash, computed
 // from the HTML actually served. Inline styles stay allowed (style
 // attributes in the markup; Leaflet and Pannellum set them too).
@@ -11,9 +11,9 @@ const crypto = require('crypto');
 const fs     = require('fs');
 const path   = require('path');
 
-const TILE_ORIGIN = 'https://tile.openstreetmap.org';
-// Globe near view (components/globe/near-view.js): satellite imagery and the
-// OpenFreeMap style, vector tiles, fonts and sprites — fetched by MapLibre's worker.
+// MapLibre maps (the map page, the viewer's maps, the globe's close-up view):
+// satellite imagery and the OpenFreeMap styles, vector tiles, fonts and
+// sprites — fetched by MapLibre's worker.
 const GLOBE_ORIGINS = ['https://tiles.maps.eox.at', 'https://tiles.openfreemap.org'];
 
 /** 'sha256-…' sources for the inline <script> blocks of the given HTML files. */
@@ -33,7 +33,7 @@ function directives(publicDir) {
     defaultSrc:     ["'self'"],
     scriptSrc:      ["'self'", ...inlineScriptHashes(publicDir)],
     styleSrc:       ["'self'", "'unsafe-inline'"],
-    imgSrc:         ["'self'", 'data:', 'blob:', TILE_ORIGIN, ...GLOBE_ORIGINS],
+    imgSrc:         ["'self'", 'data:', 'blob:', ...GLOBE_ORIGINS],
     mediaSrc:       ["'self'", 'blob:'],
     connectSrc:     ["'self'", ...GLOBE_ORIGINS],
     fontSrc:        ["'self'", 'data:'],
@@ -63,4 +63,4 @@ function logViolation(body) {
 
 function _reset() { seen.clear(); }
 
-module.exports = { TILE_ORIGIN, GLOBE_ORIGINS, inlineScriptHashes, directives, logViolation, _reset };
+module.exports = { GLOBE_ORIGINS, inlineScriptHashes, directives, logViolation, _reset };

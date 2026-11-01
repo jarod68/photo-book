@@ -754,9 +754,9 @@ describe('CSP (T6)', () => {
   });
 
   it('sert les bibliothèques sous /vendor/ depuis node_modules sans build', async () => {
-    const res = await request(app).get('/vendor/leaflet/leaflet.js');
+    const res = await request(app).get('/vendor/pannellum/pannellum.js');
     expect(res.status).toBe(200);
-    expect(res.text).toMatch(/Leaflet/);
+    expect(res.text).toMatch(/pannellum/i);
     expect((await request(app).get('/vendor/three/addons/controls/OrbitControls.js')).status).toBe(200);
     const worker = await request(app).get('/vendor/maplibre-gl/maplibre-gl-worker.mjs');
     expect(worker.status).toBe(200);

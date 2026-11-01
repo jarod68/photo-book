@@ -18,10 +18,10 @@ export default [
     files: ['server.js', 'routes/**/*.js', 'services/**/*.js', 'scripts/**/*.js'],
     languageOptions: { sourceType: 'commonjs', globals: { ...globals.node } },
   },
-  // browser: ES modules (Leaflet and Pannellum are globals)
+  // browser: ES modules (Pannellum is a global)
   {
     files: ['public/**/*.js', 'public/**/*.mjs'],
-    languageOptions: { sourceType: 'module', globals: { ...globals.browser, L: 'readonly', pannellum: 'readonly' } },
+    languageOptions: { sourceType: 'module', globals: { ...globals.browser, pannellum: 'readonly' } },
   },
   {
     files: ['public/sw.js'],

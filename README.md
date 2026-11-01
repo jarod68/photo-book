@@ -357,11 +357,11 @@ All `/api/admin/*` routes first pass through `requireAuth` (→ `401` if no sess
 
 ### Content-Security-Policy and self-hosted libraries
 
-The browser libraries — Leaflet 1.9.4, Leaflet.markercluster 1.5.3, Pannellum 2.5.7, Three.js 0.168.0 and MapLibre GL 6.14.0, and the Fraunces typeface of the titles (@fontsource-variable/fraunces 5.3.0, SIL Open Font License) — are `devDependencies` with exact versions, copied by `npm run build` to `dist/public/vendor/` and served by the app under `/vendor/` (the list is in `services/vendor.js`; running from the repository, the server maps the same paths to `node_modules`). Nothing is loaded from a CDN at run time, so a compromised CDN cannot inject code, and `npm audit` covers these libraries too.
+The browser libraries — Pannellum 2.5.7, Three.js 0.168.0 and MapLibre GL 6.14.0, and the Fraunces typeface of the titles (@fontsource-variable/fraunces 5.3.0, SIL Open Font License) — are `devDependencies` with exact versions, copied by `npm run build` to `dist/public/vendor/` and served by the app under `/vendor/` (the list is in `services/vendor.js`; running from the repository, the server maps the same paths to `node_modules`). Nothing is loaded from a CDN at run time, so a compromised CDN cannot inject code, and `npm audit` covers these libraries too.
 
 Responses are **compressed** (gzip or brotli, the `compression` middleware): HTML, CSS, JavaScript, JSON, SVG and the globe's binary time-zone borders — `/api/map`, `style.css` and the scripts shrink four to six times; images, videos and zips go as they are. The album **ZIP export** streams the files stored, not deflated (they are compressed already), with `yazl` (one small dependency; `archiver` pulled a vulnerable `minimatch` through a folder-walking module it does not need here).
 
-Every response carries a strict `Content-Security-Policy` (`services/csp.js`): scripts, styles, fonts, data and workers from the site only; images also from `data:`, `blob:` and the OpenStreetMap tile server; images and requests from the globe's two tile hosts (EOX, OpenFreeMap); no plugins, no framing (`frame-ancestors 'none'`). The only inline script, the globe's import map, is allowed by its SHA-256 hash, computed at startup from the served HTML. Inline styles stay allowed (style attributes, and Leaflet / Pannellum set styles too). Browsers report violations to `POST /api/csp-report`; each distinct one is logged once and appears in **Admin → System → Recent errors**.
+Every response carries a strict `Content-Security-Policy` (`services/csp.js`): scripts, styles, fonts, data and workers from the site only; images also from `data:` and `blob:`; images and requests from the two map tile hosts (OpenFreeMap for every map, EOX for the globe's satellite imagery); no plugins, no framing (`frame-ancestors 'none'`). The only inline script, the globe's import map, is allowed by its SHA-256 hash, computed at startup from the served HTML. Inline styles stay allowed (style attributes, and MapLibre / Pannellum set styles too). Browsers report violations to `POST /api/csp-report`; each distinct one is logged once and appears in **Admin → System → Recent errors**.
 
 ### Backend
 
@@ -386,13 +386,13 @@ Requests never touch the disk synchronously: albums and photos are read through 
 
 The frontend is vanilla JavaScript with ES modules — no bundler, no framework.
 
-**Look.** Dark throughout, with one warm accent — coral `#ff8a5b` (`--accent` in `style.css`; `--accent-ink` for text on it, `--accent-soft` for accent text on dark) — and Fraunces for titles over the system sans-serif. Secondary text is 62 % white, enough contrast for WCAG AA. The home page opens on the latest album (its cover full width, title, "open" button), then **Explore** (map, globe) and the **Albums** grid; the login page sits on a blurred album cover. The Leaflet maps are dark too: OpenStreetMap tiles inverted by a CSS filter (`utils/base-map.js`; the free dark tile services all want an API key now). On phones the admin tables become cards.
+**Look.** Dark throughout, with one warm accent — coral `#ff8a5b` (`--accent` in `style.css`; `--accent-ink` for text on it, `--accent-soft` for accent text on dark) — and Fraunces for titles over the system sans-serif. Secondary text is 62 % white, enough contrast for WCAG AA. The home page opens on the latest album (its cover full width, title, "open" button), then **Explore** (map, globe) and the **Albums** grid; the login page sits on a blurred album cover. **Maps.** Every map — the map page, the viewer's mini-map and album maps, the globe's close-up view — is MapLibre GL with OpenFreeMap's keyless vector tiles (OpenStreetMap data): the 2D maps in its *dark* style with place names in the page's language (`utils/base-map.js`; MapLibre is loaded only when a map is first shown), numbered coral pins (white for the current photo), clusters with a count, the route of the map page as dashed lines with arrows. On phones the admin tables become cards.
 
 ```
 public/
 ├── index.html          home page (album grid)
 ├── viewer.html         photo viewer + 360° (Pannellum)
-├── map.html            global GPS map (Leaflet)
+├── map.html            global GPS map (MapLibre)
 ├── login.html          login form
 ├── admin.html          admin panel (albums, users, system, top photos)
 ├── api/
@@ -415,15 +415,16 @@ public/
 │   └── admin.js        admin panel: albums, users, system stats, upload
 └── components/
     ├── album-card.js   album grid card
-    ├── album-map.js    per-album mini map
+    ├── album-map.js    album map overlay
     ├── album-tabs.js   tab navigation
-    ├── map-marker.js   Leaflet custom marker
-    ├── photo-map.js    full-screen map component
+    ├── map-marker.js   map pins and cluster badges (HTML elements for MapLibre)
+    ├── pins-map.js     an album's photos as pins (viewer maps)
+    ├── photo-map.js    viewer mini-map + expanded map
     ├── photo-viewer.js photo display + controls
     └── thumbnail-strip.js  horizontal thumbnail strip
 ```
 
-External libraries loaded from CDN: **Pannellum** (360° viewer), **Leaflet** (maps).
+External libraries (self-hosted under `/vendor/`): **Pannellum** (360° viewer), **MapLibre GL** (maps), **Three.js** (globe).
 
 ### Internationalisation (i18n)
 

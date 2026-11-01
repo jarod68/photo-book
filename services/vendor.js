@@ -8,12 +8,6 @@
 //
 // published path under /vendor/  →  path under node_modules/ (a trailing "/" copies a folder)
 const VENDOR_FILES = {
-  'leaflet/leaflet.js':                         'leaflet/dist/leaflet.js',
-  'leaflet/leaflet.css':                        'leaflet/dist/leaflet.css',
-  'leaflet/images/':                            'leaflet/dist/images/',
-  'leaflet.markercluster/leaflet.markercluster.js':    'leaflet.markercluster/dist/leaflet.markercluster.js',
-  'leaflet.markercluster/MarkerCluster.css':           'leaflet.markercluster/dist/MarkerCluster.css',
-  'leaflet.markercluster/MarkerCluster.Default.css':   'leaflet.markercluster/dist/MarkerCluster.Default.css',
   'pannellum/pannellum.js':                     'pannellum/build/pannellum.js',
   'pannellum/pannellum.css':                    'pannellum/build/pannellum.css',
   'three/three.module.js':                      'three/build/three.module.js',

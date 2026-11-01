@@ -1,13 +1,13 @@
 import { t, getLang, applyTranslations, initLangSwitcher } from '../utils/i18n.js';
 import '../utils/admin-shortcut.js';
-import { buildMarkerIcon, buildClusterIcon } from '../components/map-marker.js';
+import { markerElement, clusterElement } from '../components/map-marker.js';
 import { getMapPhotos }   from '../api/client.js';
 import {
   catmullRom, cubicSample,
   centroid, buildSegments, clusterSegment,
 } from '../utils/map-math.js';
 import { showBuildTag } from '../utils/build-tag.js';
-import { addBaseLayer } from '../utils/base-map.js';
+import { createMap } from '../utils/base-map.js';
 import { wireBack, pageState, saveState } from '../utils/back.js';
 
 applyTranslations();
@@ -15,75 +15,117 @@ initLangSwitcher('lang-switcher');
 
 const ROUTE_COLOR = '#ff8a5b';   // the app's accent (--accent)
 const ARROW_TS    = [0.2, 0.5, 0.8];
+const ROUTE_LAYERS = ['route-halo', 'route-line', 'route-arrows', 'route-nodes'];
 
-// ── Directional arrow icon (follows the curve tangent) ───────────────────────
-function arrowIcon(deg) {
-  return L.divIcon({
-    html: `<div style="transform:rotate(${deg.toFixed(1)}deg);transform-origin:center;line-height:0">
-             <svg viewBox="0 0 16 22" width="16" height="22" xmlns="http://www.w3.org/2000/svg">
-               <polygon points="8,0 15.5,19 8,13.5 0.5,19"
-                 fill="${ROUTE_COLOR}"
-                 stroke="rgba(255,255,255,0.95)" stroke-width="2" stroke-linejoin="round"/>
-             </svg>
-           </div>`,
-    className:  '',
-    iconSize:   [16, 22],
-    iconAnchor: [8, 11],
-  });
-}
-
-// ── Route drawing ─────────────────────────────────────────────────────────────
-function drawRoute(layer, photos) {
+// ── Route (GeoJSON, drawn by MapLibre layers) ─────────────────────────────────
+// Per segment: Catmull-Rom curves between the centroids of nearby photos, a
+// white halo under a dashed coral line, arrows along it (rotated with the
+// curve), a grey dot where several photos share a spot.
+function routeData(photos) {
+  const lines = [], arrows = [], nodes = [];
   buildSegments(photos).forEach(segment => {
-    const nodes     = clusterSegment(segment);
-    const centroids = nodes.map(centroid);
-
-    // Subtle pin for multi-photo nodes (same geographic area)
-    nodes.forEach((group, gi) => {
-      if (group.length < 2) return;
-      const c = centroids[gi];
-      L.circleMarker([c.lat, c.lng], {
-        radius:      6,
-        fillColor:   '#94a3b8',
-        color:       '#ffffff',
-        weight:      2,
-        opacity:     0.9,
-        fillOpacity: 0.75,
-        interactive: false,
-      }).addTo(layer);
+    const groups    = clusterSegment(segment);
+    const centroids = groups.map(centroid);
+    groups.forEach((g, gi) => {
+      if (g.length > 1) nodes.push({ type: 'Feature', properties: {}, geometry: { type: 'Point', coordinates: [centroids[gi].lng, centroids[gi].lat] } });
     });
-
-    // Catmull-Rom curve between consecutive centroids
     for (let i = 0; i < centroids.length - 1; i++) {
-      const a = centroids[i];
-      const b = centroids[i + 1];
-
+      const a = centroids[i], b = centroids[i + 1];
       if (a.lat === b.lat && a.lng === b.lng) continue;
-
       const { pts, cp1, cp2, P0, P1 } = catmullRom(centroids, i);
-
-      // White halo for readability
-      L.polyline(pts, {
-        color: '#ffffff', weight: 7, opacity: 0.28, lineCap: 'round',
-      }).addTo(layer);
-
-      // Dashed line
-      L.polyline(pts, {
-        color: ROUTE_COLOR, weight: 3, opacity: 0.9,
-        dashArray: '12 8', lineCap: 'round', lineJoin: 'round',
-      }).addTo(layer);
-
-      // Directional arrows along the curve
-      ARROW_TS.forEach(t => {
-        const { lat, lng, deg } = cubicSample(t, P0, cp1, cp2, P1);
-        L.marker([lat, lng], {
-          icon:         arrowIcon(deg),
-          interactive:  false,
-          zIndexOffset: -500,
-        }).addTo(layer);
-      });
+      lines.push({ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: pts.map(([lat, lng]) => [lng, lat]) } });
+      for (const tt of ARROW_TS) {
+        const { lat, lng, deg } = cubicSample(tt, P0, cp1, cp2, P1);
+        arrows.push({ type: 'Feature', properties: { deg }, geometry: { type: 'Point', coordinates: [lng, lat] } });
+      }
     }
   });
+  const fc = (features) => ({ type: 'FeatureCollection', features });
+  return { lines: fc(lines), arrows: fc(arrows), nodes: fc(nodes) };
+}
+
+// the arrow head, drawn once (2× for sharp screens)
+function arrowImage() {
+  const c = document.createElement('canvas');
+  c.width = 32; c.height = 44;
+  const g = c.getContext('2d');
+  g.scale(2, 2);
+  g.beginPath();
+  g.moveTo(8, 0); g.lineTo(15.5, 19); g.lineTo(8, 13.5); g.lineTo(0.5, 19); g.closePath();
+  g.fillStyle = ROUTE_COLOR; g.fill();
+  g.lineWidth = 2; g.lineJoin = 'round'; g.strokeStyle = 'rgba(255,255,255,0.95)'; g.stroke();
+  return g.getImageData(0, 0, 32, 44);
+}
+
+function addRoute(map, photos) {
+  const { lines, arrows, nodes } = routeData(photos);
+  map.addImage('route-arrow', arrowImage(), { pixelRatio: 2 });
+  map.addSource('route-lines', { type: 'geojson', data: lines });
+  map.addSource('route-arrows', { type: 'geojson', data: arrows });
+  map.addSource('route-nodes', { type: 'geojson', data: nodes });
+  map.addLayer({ id: 'route-halo', type: 'line', source: 'route-lines', layout: { 'line-cap': 'round', 'line-join': 'round' },
+    paint: { 'line-color': '#ffffff', 'line-width': 7, 'line-opacity': 0.18 } });
+  map.addLayer({ id: 'route-line', type: 'line', source: 'route-lines', layout: { 'line-cap': 'round', 'line-join': 'round' },
+    paint: { 'line-color': ROUTE_COLOR, 'line-width': 3, 'line-opacity': 0.9, 'line-dasharray': [4, 2.7] } });
+  map.addLayer({ id: 'route-nodes', type: 'circle', source: 'route-nodes',
+    paint: { 'circle-radius': 6, 'circle-color': '#94a3b8', 'circle-opacity': 0.75, 'circle-stroke-color': '#fff', 'circle-stroke-width': 2 } });
+  map.addLayer({ id: 'route-arrows', type: 'symbol', source: 'route-arrows',
+    layout: { 'icon-image': 'route-arrow', 'icon-rotate': ['get', 'deg'], 'icon-rotation-alignment': 'map',
+      'icon-allow-overlap': true, 'icon-ignore-placement': true } });
+}
+
+// ── Photos: clustered GeoJSON source, drawn as HTML pins / badges ─────────────
+function addPhotos(ml, map, photos, labels) {
+  map.addSource('photos', {
+    type: 'geojson', cluster: true, clusterRadius: 50, clusterMaxZoom: 15,
+    data: { type: 'FeatureCollection', features: photos.map((p, i) => ({
+      type: 'Feature', properties: { i }, geometry: { type: 'Point', coordinates: [p.gps.lng, p.gps.lat] },
+    })) },
+  });
+  // an invisible layer, so the source's features (and clusters) are computed
+  map.addLayer({ id: 'photos-hit', type: 'circle', source: 'photos', paint: { 'circle-radius': 0, 'circle-opacity': 0 } });
+
+  const markers = new Map();   // "c<cluster id>" / "p<index>" → Marker
+  let popup = null;
+  const openPopup = (coords, content) => {
+    popup?.remove();
+    popup = new ml.Popup({ className: 'pb-popup', offset: [0, -40], maxWidth: '240px' })
+      .setLngLat(coords).setDOMContent(content).addTo(map);
+  };
+
+  const sync = () => {
+    if (!map.isSourceLoaded('photos')) return;
+    const seen = new Set();
+    for (const f of map.querySourceFeatures('photos')) {
+      const { cluster, cluster_id: cid, point_count: count, i } = f.properties;
+      const key = cluster ? `c${cid}` : `p${i}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      if (markers.has(key)) continue;
+      let el, anchor;
+      if (cluster) {
+        el = clusterElement(count);
+        anchor = 'center';
+        el.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          const src = map.getSource('photos');
+          const zoom = await src.getClusterExpansionZoom(cid);
+          if (zoom <= 15 && map.getZoom() < 16) { map.easeTo({ center: f.geometry.coordinates, zoom: zoom + 0.2 }); return; }
+          // photos at the very same spot: list them
+          const leaves = await src.getClusterLeaves(cid, 20, 0);
+          openPopup(f.geometry.coordinates, buildList(leaves.map((l) => photos[l.properties.i])));
+        });
+      } else {
+        const p = photos[i];
+        el = markerElement(labels.get(p).n, false, labels.get(p).label);
+        anchor = 'bottom';
+        el.addEventListener('click', (e) => { e.stopPropagation(); openPopup([p.gps.lng, p.gps.lat], buildPopup(p)); });
+      }
+      markers.set(key, new ml.Marker({ element: el, anchor }).setLngLat(f.geometry.coordinates).addTo(map));
+    }
+    for (const [key, m] of markers) if (!seen.has(key)) { m.remove(); markers.delete(key); }
+  };
+  map.on('render', sync);
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────────
@@ -97,43 +139,22 @@ async function init() {
 
   // back from a photo: the map where it was
   const saved = pageState().view;
-  const map = L.map('world-map', {
-    minZoom: 2, maxZoom: 18, worldCopyJump: true,
-  }).setView(saved ? [saved.lat, saved.lng] : [20, 10], saved?.zoom ?? 2);
+  const { ml, map } = await createMap(document.getElementById('world-map'), {
+    center: saved ? [saved.lng, saved.lat] : [10, 20], zoom: saved?.zoom ?? 1, minZoom: 0.5, maxZoom: 18,
+  });
   map.on('moveend', () => {
     const c = map.getCenter();
-    saveState({ view: { lat: +c.lat.toFixed(5), lng: +c.lng.toFixed(5), zoom: map.getZoom() } });
+    saveState({ view: { lat: +c.lat.toFixed(5), lng: +c.lng.toFixed(5), zoom: +map.getZoom().toFixed(2) } });
   });
-
-  addBaseLayer(map);
+  // handle for the end-to-end tests
+  document.getElementById('world-map').mapView = map;
 
   if (photos.length === 0) return;
 
-  // Route layer (toggleable)
-  const routeLayer = L.layerGroup().addTo(map);
-  drawRoute(routeLayer, photos);
-
-  // Toggle button
-  const toggleBtn = document.getElementById('route-toggle');
-  toggleBtn.addEventListener('click', () => {
-    const visible = map.hasLayer(routeLayer);
-    if (visible) {
-      map.removeLayer(routeLayer);
-      toggleBtn.classList.remove('active');
-      toggleBtn.title = t('map.showRoute');
-    } else {
-      map.addLayer(routeLayer);
-      toggleBtn.classList.add('active');
-      toggleBtn.title = t('map.hideRoute');
-    }
-  });
-
-  // Per-album numbering, sorted by capture date
-  // Label: "AlbumName-N"  e.g. "Costa Rica-1"
+  // Per-album numbering, sorted by capture date — label "AlbumName-N" (e.g. "Costa Rica-1")
   const albumGroups = {};
   photos.forEach(p => { (albumGroups[p.album] ??= []).push(p); });
-
-  const seqNum = new Map();
+  const labels = new Map();
   Object.values(albumGroups).forEach(group => {
     group
       .slice()
@@ -141,34 +162,24 @@ async function init() {
         if (!a.date && !b.date) return 0;
         if (!a.date) return 1;
         if (!b.date) return -1;
-        return new Date(a.date) - new Date(b.date);
+        return Date.parse(a.date) - Date.parse(b.date);
       })
-      .forEach((p, i) => seqNum.set(`${p.album}/${p.filename}`, i + 1));
+      .forEach((p, i) => labels.set(p, { n: i + 1, label: `${p.album}-${i + 1}` }));
   });
 
-  // Photo markers grouped into clusters based on zoom level
-  const clusterGroup = L.markerClusterGroup({
-    iconCreateFunction:  buildClusterIcon,
-    maxClusterRadius:    60,
-    spiderfyOnMaxZoom:   true,
-    showCoverageOnHover: false,
-    zoomToBoundsOnClick: true,
-    animate:             true,
-  });
+  const ready = () => { addRoute(map, photos); addPhotos(ml, map, photos, labels); };
+  if (map.isStyleLoaded()) ready(); else map.once('load', ready);
 
-  photos.forEach(photo => {
-    const n     = seqNum.get(`${photo.album}/${photo.filename}`) ?? (photo.albumIndex + 1);
-    const label = photo.album + '-' + n;
-    const icon  = buildMarkerIcon(n, false, label);
-    const marker = L.marker([photo.gps.lat, photo.gps.lng], { icon })
-      .bindPopup(() => buildPopup(photo), { maxWidth: 200, minWidth: 160 });
-    clusterGroup.addLayer(marker);
+  // Route toggle
+  const toggleBtn = document.getElementById('route-toggle');
+  toggleBtn.addEventListener('click', () => {
+    const visible = toggleBtn.classList.toggle('active');
+    for (const id of ROUTE_LAYERS) if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', visible ? 'visible' : 'none');
+    toggleBtn.title = t(visible ? 'map.hideRoute' : 'map.showRoute');
   });
-
-  map.addLayer(clusterGroup);
 }
 
-// ── Popup ─────────────────────────────────────────────────────────────────────
+// ── Popups ────────────────────────────────────────────────────────────────────
 function buildPopup(photo) {
   const locale = { fr: 'fr-FR', en: 'en-US', es: 'es-ES' }[getLang()] ?? 'en-US';
   const wrap = document.createElement('div');
@@ -199,13 +210,33 @@ function buildPopup(photo) {
     wrap.appendChild(img);
   }
 
+  wrap.appendChild(viewLink(photo));
+  return wrap;
+}
+
+// several photos at the very same spot
+function buildList(list) {
+  const wrap = document.createElement('div');
+  wrap.className = 'map-popup-inner map-popup-list';
+  for (const p of list) {
+    const a = document.createElement('a');
+    a.href = `viewer.html?album=${encodeURIComponent(p.album)}&photo=${encodeURIComponent(p.filename)}`;
+    a.title = p.name;
+    const img = document.createElement('img');
+    img.src = p.thumbUrl || p.previewUrl;
+    img.alt = p.name;
+    a.appendChild(img);
+    wrap.appendChild(a);
+  }
+  return wrap;
+}
+
+function viewLink(photo) {
   const link = document.createElement('a');
   link.className = 'map-popup-view';
   link.textContent = t('map.viewInAlbum');
   link.href = `viewer.html?album=${encodeURIComponent(photo.album)}&photo=${encodeURIComponent(photo.filename)}`;
-  wrap.appendChild(link);
-
-  return wrap;
+  return link;
 }
 
 wireBack(document.querySelector('.map-page-back'));

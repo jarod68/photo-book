@@ -46,10 +46,11 @@ const PORT = process.env.PORT || 3000;
 // Trust Traefik's X-Forwarded-For so req.ip reflects the real client IP.
 app.set('trust proxy', 1);
 
-// Referrer-Policy: helmet's default (no-referrer) strips the Referer from the
-// OpenStreetMap tile requests, and OSM's tile usage policy blocks those
-// ("Access blocked"). strict-origin-when-cross-origin sends only the origin
-// (https://book.holtz.fr) cross-site — never a page path, album name or share link.
+// Referrer-Policy: strict-origin-when-cross-origin sends only the origin
+// (https://book.holtz.fr) cross-site — never a page path, album name or share
+// link — and the full address within the site, which the ← buttons rely on
+// (public/utils/back.js). helmet's default, no-referrer, would break both
+// those and the tile servers that ask for an origin.
 app.use(helmet({
   contentSecurityPolicy: { useDefaults: false, directives: csp.directives(path.join(__dirname, 'public')) },
   referrerPolicy: { policy: 'strict-origin-when-cross-origin' },

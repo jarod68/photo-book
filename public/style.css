@@ -3121,32 +3121,34 @@ a#zip-btn { text-decoration: none; }
   color: var(--text);
 }
 
-/* Leaflet, dark (tiles: utils/base-map.js) */
-.leaflet-container { background: #0e0f12; font-family: inherit; }
-.leaflet-bar { border: 1px solid var(--border) !important; box-shadow: 0 4px 16px rgba(0,0,0,0.45) !important; }
-.leaflet-bar a, .leaflet-bar a.leaflet-disabled {
-  background: rgba(20,21,25,0.92); color: var(--text);
-  border-bottom-color: var(--border);
-}
-.leaflet-bar a:hover { background: #26272d; color: #fff; }
-.leaflet-bar a.leaflet-disabled { color: var(--text-faint); }
-.leaflet-container .leaflet-control-attribution {
-  background: rgba(13,13,14,0.72); color: var(--text-dim);
-}
-.leaflet-container .leaflet-control-attribution a { color: var(--accent-soft); }
-.leaflet-popup-content-wrapper, .leaflet-popup-tip {
+/* MapLibre maps (map page, viewer): dark controls, attribution and cards */
+.pb-popup .maplibregl-popup-content {
   background: #17181c; color: var(--text);
-  box-shadow: 0 8px 30px rgba(0,0,0,0.55);
+  border: 1px solid var(--border); border-radius: 10px;
+  padding: 12px; box-shadow: 0 8px 30px rgba(0,0,0,0.55);
 }
-.leaflet-popup-content-wrapper { border: 1px solid var(--border); }
-.leaflet-container a.leaflet-popup-close-button { color: var(--text-dim); }
-.leaflet-container a.leaflet-popup-close-button:hover { color: #fff; }
+.pb-popup.maplibregl-popup-anchor-bottom .maplibregl-popup-tip { border-top-color: #17181c; }
+.pb-popup.maplibregl-popup-anchor-top .maplibregl-popup-tip { border-bottom-color: #17181c; }
+.pb-popup .maplibregl-popup-close-button { color: var(--text-dim); font-size: 18px; right: 4px; top: 2px; }
+.pb-popup .maplibregl-popup-close-button:hover { color: #fff; background: none; }
+#world-map .maplibregl-ctrl-group, .photo-map-modal .maplibregl-ctrl-group, .album-map-overlay .maplibregl-ctrl-group,
+#map-modal-canvas .maplibregl-ctrl-group, #album-map-canvas .maplibregl-ctrl-group {
+  background: rgba(20,21,25,0.92); border: 1px solid var(--border); box-shadow: 0 4px 16px rgba(0,0,0,0.45);
+}
+.maplibregl-ctrl-group button + button { border-top-color: var(--border); }
+#world-map .maplibregl-ctrl-icon, #map-modal-canvas .maplibregl-ctrl-icon, #album-map-canvas .maplibregl-ctrl-icon { filter: invert(1); }
+.maplibregl-ctrl-attrib.maplibregl-compact { background: rgba(13,13,14,0.72); color: var(--text-dim); }
+.maplibregl-ctrl-attrib a { color: var(--accent-soft); }
 .map-popup-inner strong { color: var(--text); }
 .map-popup-date { color: var(--text-dim); }
 .map-popup-view { background: var(--accent); color: var(--accent-ink) !important; }
 .map-popup-view:hover { background: var(--accent-h); }
-/* OSM tiles in dark mode: inverted, hues turned back (water stays blue) */
-.pb-dark-tiles { filter: invert(1) hue-rotate(180deg) brightness(0.92) contrast(0.88) saturate(0.6); }
+/* several photos at the same spot */
+.map-popup-list { display: grid; grid-template-columns: repeat(3, 64px); gap: 6px; }
+.map-popup-list img { width: 64px; height: 48px; object-fit: cover; border-radius: 5px; margin: 0; display: block; }
+/* pins and cluster badges are buttons / divs on the map */
+.map-marker-wrap { cursor: pointer; }
+button.map-cluster { padding: 0; font: inherit; }
 
 /* ═══════════════════════════════════════════════════════════════════════════════
    IDENTITY — display type, home hero and sections, login backdrop

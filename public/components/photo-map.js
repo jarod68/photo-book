@@ -1,14 +1,17 @@
-import { buildMarkerIcon, shortLocation } from './map-marker.js';
-import { addBaseLayer } from '../utils/base-map.js';
+// @ts-check
+import { markerElement } from './map-marker.js';
+import { createMap } from '../utils/base-map.js';
+import { PinsMap } from './pins-map.js';
+import { t } from '../utils/i18n.js';
 
 /**
  * PhotoMap — mini-map in the viewer corner + expandable modal.
  *
- * Mini-map: shows only the current photo's GPS pin.
+ * Mini-map: shows only the current photo's GPS pin (a static preview).
  * Modal (expanded): shows ALL photos with GPS in the album.
- *   - Current photo → red pin
- *   - Other photos  → blue pins; clicking opens a popup with a "Voir" button
- *     that closes the modal and navigates to that photo.
+ *   - Current photo → white pin
+ *   - Other photos  → coral pins; clicking opens a card with a "Voir" button
+ *     that closes the modal and goes to that photo.
  */
 export class PhotoMap {
   /**
@@ -26,13 +29,11 @@ export class PhotoMap {
     this._mini        = miniEl;
     this._miniCanvas  = miniCanvas;
     this._modalEl     = modalEl;
-    this._modalCanvas = modalCanvas;
     this._onSelect    = onSelect || null;
 
-    this._miniMap      = null;
-    this._miniMarker   = null;
-    this._modalMap     = null;
-    this._modalMarkers = [];
+    this._miniReady  = null;   // Promise<{ ml, map }>
+    this._miniMarker = null;
+    this._modal      = new PinsMap(modalCanvas);
 
     // Context set by update()
     this._photos  = [];
@@ -49,17 +50,11 @@ export class PhotoMap {
   // ── Public API ──────────────────────────────────────────────────────────────
 
   /**
-   * Call every time the displayed photo changes.
-   * @param {Object}  photo  - current photo object (may have .gps)
-   * @param {number}  index  - index in the photos array
-   * @param {Array}   photos - full album photo list
-   */
-  /**
    * Refresh the map for the newly displayed photo.
    * Shows the mini-map if the photo has GPS; hides it otherwise.
-   * @param {import('../api/client.js').Photo} photo
+   * @param {any} photo - the current photo
    * @param {number} index - position of photo in the album
-   * @param {import('../api/client.js').Photo[]} photos - full album photo list
+   * @param {any[]} photos - full album photo list
    */
   update(photo, index, photos) {
     this._index   = index;
@@ -67,7 +62,7 @@ export class PhotoMap {
     this._current = photo?.gps ? { ...photo.gps, name: photo.name } : null;
 
     if (this._current) {
-      this._showMini(photo.gps, photo.name);
+      this._showMini(this._current);
     } else {
       this._mini.classList.add('hidden');
     }
@@ -75,91 +70,37 @@ export class PhotoMap {
 
   /** The mini-map was just shown (its size changed): redraw it. */
   refresh() {
-    if (this._miniMap && this._current) this._showMini(this._current, this._current.name);
+    if (this._current) this._showMini(this._current);
   }
 
   // ── Mini-map (current photo only) ───────────────────────────────────────────
 
-  _showMini(gps, name) {
+  async _showMini(gps) {
     this._mini.classList.remove('hidden');
-
-    if (!this._miniMap) {
-      this._miniMap = L.map(this._miniCanvas, {
-        zoomControl: false,
-        dragging: false, scrollWheelZoom: false,
-        doubleClickZoom: false, boxZoom: false,
-        keyboard: false, touchZoom: false,
-      });
-      // OSM's tile usage policy requires the attribution on every map.
-      this._miniMap.attributionControl.setPrefix(false);
-      addBaseLayer(this._miniMap);
-      this._miniMarker = L.marker([gps.lat, gps.lng]).addTo(this._miniMap);
-      this._miniMap.setView([gps.lat, gps.lng], 13);
-      requestAnimationFrame(() => this._miniMap.invalidateSize());
-      return;
+    const first = !this._miniReady;
+    this._miniReady ??= createMap(this._miniCanvas, { center: [gps.lng, gps.lat], zoom: 12, interactive: false });
+    const { ml, map } = await this._miniReady;
+    if (first) {
+      this._miniMarker = new ml.Marker({ element: markerElement('', false, null), anchor: 'bottom' }).setLngLat([gps.lng, gps.lat]).addTo(map);
     }
-
-    this._miniMarker.setLatLng([gps.lat, gps.lng]);
-    // Container may have been display:none (previous photo had no GPS):
-    // invalidateSize() recalibrates the size before setView.
+    if (this._current !== gps) return;   // another photo meanwhile
+    // the container may have been display:none (previous photo without GPS)
     requestAnimationFrame(() => {
-      this._miniMap.invalidateSize();
-      this._miniMap.setView([gps.lat, gps.lng], 13);
+      map.resize();
+      map.jumpTo({ center: [gps.lng, gps.lat], zoom: 12 });
+      this._miniMarker.setLngLat([gps.lng, gps.lat]);
     });
   }
 
   // ── Modal map (all GPS photos of the album) ─────────────────────────────────
 
   _openModal() {
-    const geoPhotos = this._photos.filter(p => p.gps);
-    if (geoPhotos.length === 0 && !this._current) return;
-
+    if (!this._photos.some(p => p.gps) && !this._current) return;
     this._modalEl.classList.remove('hidden');
-
-    if (!this._modalMap) {
-      this._modalMap = L.map(this._modalCanvas);
-      addBaseLayer(this._modalMap);
-    }
-
-    // Clear previous markers
-    this._modalMarkers.forEach(m => m.remove());
-    this._modalMarkers = [];
-
-    const bounds = [];
-
-    this._photos.forEach((photo, i) => {
-      if (!photo.gps) return;
-
-      const isCurrent = i === this._index;
-      const icon = buildMarkerIcon(i + 1, isCurrent, shortLocation(photo.location));
-
-      const marker = L.marker([photo.gps.lat, photo.gps.lng], {
-        icon,
-        zIndexOffset: isCurrent ? 1000 : 0,
-      })
-        .addTo(this._modalMap)
-        .bindPopup(() => this._buildPopup(photo, i, isCurrent), { maxWidth: 180, minWidth: 160 });
-
-      this._modalMarkers.push(marker);
-      bounds.push([photo.gps.lat, photo.gps.lng]);
-    });
-
-    // setView AFTER invalidateSize: the container was just shown (display:none → flex).
-    // Leaflet cached a zero size; wait two frames for the browser to finish
-    // layout, then recalibrate before positioning the view.
-    const current = this._current;
-    const fitBounds = bounds.length > 0 ? bounds : null;
-    requestAnimationFrame(() => requestAnimationFrame(() => {
-      this._modalMap.invalidateSize();
-      if (current) {
-        this._modalMap.setView([current.lat, current.lng], 14);
-      } else if (fitBounds) {
-        this._modalMap.fitBounds(fitBounds, { padding: [50, 50] });
-      }
-    }));
+    this._modal.show(this._photos, this._index, (p, i) => this._buildCard(p, i, i === this._index), { focusCurrent: true });
   }
 
-  _buildPopup(photo, index, isCurrent) {
+  _buildCard(photo, index, isCurrent) {
     const wrap = document.createElement('div');
     wrap.className = 'map-popup-inner';
 
@@ -176,13 +117,13 @@ export class PhotoMap {
 
     if (isCurrent) {
       const label = document.createElement('p');
-      label.style.cssText = 'font-size:11px;color:#888;margin:4px 0 0;text-align:center;';
-      label.textContent = 'Photo en cours';
+      label.className = 'map-popup-date';
+      label.textContent = t('viewer.currentPhoto');
       wrap.appendChild(label);
     } else {
       const btn = document.createElement('button');
       btn.className   = 'map-popup-view';
-      btn.textContent = 'Voir la photo';
+      btn.textContent = t('viewer.seePhoto');
       btn.addEventListener('click', () => {
         this._closeModal();
         this._onSelect?.(index);

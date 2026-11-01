@@ -47,6 +47,8 @@ export default {
 
   // Viewer
   'viewer.map':          'Map',
+  'viewer.currentPhoto': 'Current photo',
+  'viewer.seePhoto': 'See the photo',
   'viewer.albumMap':     'Album map',
   'viewer.orderDate': 'Chronological order',
   'viewer.orderName': 'Order by name',
