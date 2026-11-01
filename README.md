@@ -152,6 +152,10 @@ Everything is free and keyless: the NASA imagery is public domain and served by 
 
 Both choices are remembered in the browser (`localStorage`). Capture dates are the camera's local time, so days are counted as the camera saw them.
 
+### Install as an app
+
+Photo Book is an installable web app (`public/manifest.webmanifest`): *Add to Home Screen* on iPhone / iPad, *Install* in Chrome, Edge or Android open it full screen, with its own icon (`public/icons/`, built from `icon.svg` by `scripts/icons.js`: favicon, 192 / 512 px, a maskable one for Android's shapes, the iOS touch icon) and shortcuts to the search, the globe and the map. On iOS, **web push notifications only work for an installed app** — install it first, then subscribe from an album. In the app there is no browser bar: the ← buttons at the top go back (see *Back button*).
+
 ### New-photo notifications
 
 Visitors can subscribe to an album (bell button in the viewer). When photos are added — uploaded from the admin **or** copied into the album folder by any other means — the subscribers get **one** push notification per album, "Porto — 12 nouvelles photos", once no new photo has arrived for 10 minutes (`NOTIFY_QUIET_MS`), and at the latest one hour after the first one during a long import (`NOTIFY_MAX_WAIT_MS`). A photo deleted in the meantime is not counted, a newer notification replaces the album's previous one on the device, and tapping it opens the first new photo. The switch *Notify subscribers automatically* in the album's settings turns it off (`album_settings.notify_new`, migration 5); the manual *Send* button stays. Pending notifications are kept in memory: a restart during the quiet period drops them.

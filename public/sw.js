@@ -3,7 +3,8 @@ self.addEventListener('push', event => {
   event.waitUntil(
     self.registration.showNotification(data.title ?? 'Photo Book', {
       body: data.body ?? '',
-      icon: '/favicon.ico',
+      icon: '/icons/icon-192.png',
+      badge: '/icons/favicon-32.png',
       // one notification per album: a new digest replaces the previous one
       tag:      data.tag || undefined,
       renotify: !!data.tag,

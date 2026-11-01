@@ -927,3 +927,17 @@ describe('bibliothèque en lecture seule (QA) — visionneuse', () => {
     expect(res.body.canDelete).toBe(false);
   });
 });
+
+// ── Web app manifest (installable app) ────────────────────────────────────────
+
+describe('application installable (manifest)', () => {
+  it('sert le manifeste sans connexion, avec des icônes qui existent', async () => {
+    const res = await request(app).get('/manifest.webmanifest');
+    expect(res.status).toBe(200);
+    expect(res.headers['content-type']).toMatch(/manifest\+json/);
+    const m = JSON.parse(res.text);
+    expect(m).toMatchObject({ start_url: '/', display: 'standalone' });
+    expect(m.icons.some((i) => i.purpose === 'maskable')).toBe(true);
+    for (const icon of m.icons) expect((await request(app).get(icon.src)).status, icon.src).toBe(200);
+  });
+});
