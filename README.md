@@ -344,6 +344,8 @@ All `/api/admin/*` routes first pass through `requireAuth` (→ `401` if no sess
 
 The browser libraries — Leaflet 1.9.4, Leaflet.markercluster 1.5.3, Pannellum 2.5.7, Three.js 0.168.0 and MapLibre GL 6.14.0, and the Fraunces typeface of the titles (@fontsource-variable/fraunces 5.3.0, SIL Open Font License) — are `devDependencies` with exact versions, copied by `npm run build` to `dist/public/vendor/` and served by the app under `/vendor/` (the list is in `services/vendor.js`; running from the repository, the server maps the same paths to `node_modules`). Nothing is loaded from a CDN at run time, so a compromised CDN cannot inject code, and `npm audit` covers these libraries too.
 
+Responses are **compressed** (gzip or brotli, the `compression` middleware): HTML, CSS, JavaScript, JSON, SVG and the globe's binary time-zone borders — `/api/map`, `style.css` and the scripts shrink four to six times; images, videos and zips go as they are. The album **ZIP export** streams the files stored, not deflated (they are compressed already), with `yazl` (one small dependency; `archiver` pulled a vulnerable `minimatch` through a folder-walking module it does not need here).
+
 Every response carries a strict `Content-Security-Policy` (`services/csp.js`): scripts, styles, fonts, data and workers from the site only; images also from `data:`, `blob:` and the OpenStreetMap tile server; images and requests from the globe's two tile hosts (EOX, OpenFreeMap); no plugins, no framing (`frame-ancestors 'none'`). The only inline script, the globe's import map, is allowed by its SHA-256 hash, computed at startup from the served HTML. Inline styles stay allowed (style attributes, and Leaflet / Pannellum set styles too). Browsers report violations to `POST /api/csp-report`; each distinct one is logged once and appears in **Admin → System → Recent errors**.
 
 ### Backend
@@ -587,7 +589,7 @@ Every push, on any branch, runs the three test layers in GitHub Actions (`.githu
 
 | Job | What | Against |
 |---|---|---|
-| `test` | Vitest unit + route tests, with **coverage thresholds** (statements 89 %, branches 82 %, functions 84 %, lines 91 % over `server.js`, `routes/`, `services/`, `public/api/`, `public/utils/`) | mocks |
+| `test` | **ESLint** (`npm run lint`, `eslint.config.mjs`: the recommended rules — a name declared twice, an undefined or unused variable…), **type checks** (`npm run typecheck`, TypeScript on the JavaScript: every file starting with `// @ts-check` is checked against its JSDoc and inferred types — about forty modules so far, add the line to a file when it passes), then Vitest unit + route tests, with **coverage thresholds** (statements 89 %, branches 82 %, functions 84 %, lines 91 % over `server.js`, `routes/`, `services/`, `public/api/`, `public/utils/`) | mocks |
 | `robot` | Robot Framework suites (`tests/integration_tests`), report kept as an artifact | the built app + PostgreSQL 17 |
 | `visual` | Playwright screenshots compared with the **Linux** baselines in `tests/visual_tests/snapshots`, in Playwright's image `mcr.microsoft.com/playwright:v1.64.1-noble`; diffs kept as an artifact on failure | the built app + PostgreSQL 17 |
 

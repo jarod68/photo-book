@@ -1,3 +1,4 @@
+// @ts-check
 'use strict';
 // Countries and continents for search (F6): "usa", "United States",
 // "Estados Unidos", "amérique du nord" all find a photo placed in

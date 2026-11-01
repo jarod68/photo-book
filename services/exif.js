@@ -1,3 +1,4 @@
+// @ts-check
 'use strict';
 // Photo metadata (EXIF, GPS, IPTC, XMP) via ExifReader — maintained, no
 // dependencies. Replaces exifr (abandoned in 2022, unsafe on Node 26).
@@ -98,7 +99,7 @@ const bool = (t) => (t == null ? undefined : t.value === true || /^true$/i.test(
 // "YYYY:MM:DD HH:MM:SS" → Date in the local time zone (as exifr did).
 const date = (t) => {
   const m = /^(\d{4}):(\d{2}):(\d{2})[ T](\d{2}):(\d{2}):(\d{2})/.exec(text(t) ?? '');
-  return m ? new Date(+m[1], m[2] - 1, +m[3], +m[4], +m[5], +m[6]) : undefined;
+  return m ? new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]) : undefined;
 };
 
 // exifr key → value, from ExifReader's expanded tags.

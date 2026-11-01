@@ -1,3 +1,4 @@
+// @ts-check
 'use strict';
 
 const webpush = require('web-push');

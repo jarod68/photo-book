@@ -1,3 +1,4 @@
+// @ts-check
 // Build + environment stamp (GET /version.json → { sha, env }):
 // - the commit this image was built from, so a tester knows which build to
 //   promote to prod ("dev" when running from source) — where it covers

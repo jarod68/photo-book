@@ -39,7 +39,6 @@ const { app } = await import('../../../server.js');
 const _require  = createRequire(import.meta.url);
 const database  = _require('../../../services/database.js');
 const authMod   = _require('../../../services/auth.js');
-const fsMod     = _require('fs');    // vi.fn() instances from vi.mock('fs', …)
 const libraryMod = _require('../../../services/library.js'); // photo index used by the album and map routes — vi.spyOn
 
 // Bypass auth for all route tests (vi.mock cannot intercept CJS require)

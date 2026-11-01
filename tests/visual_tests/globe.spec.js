@@ -11,7 +11,6 @@ test.setTimeout(90_000);
 
 // fixed sun (June solstice, noon UTC) and no rotation: a reproducible picture
 const URL = '/globe.html?still&at=2026-06-21T12:00:00Z';
-const view = (page) => page.evaluate(() => document.getElementById('globe-space').globeView);
 
 async function openGlobe(page) {
   await page.goto(URL);

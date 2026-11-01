@@ -3,7 +3,6 @@
 // Screens added in the 2026-10 audit (F2–F8). The album "visual-features" is
 // prepared by global.setup.js: three dated GPS photos and one without date, an
 // edited title / caption / place, a chosen cover and an album description.
-const fs   = require('fs');
 const path = require('path');
 const { test, expect } = require('@playwright/test');
 

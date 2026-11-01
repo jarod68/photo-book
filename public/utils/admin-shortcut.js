@@ -1,3 +1,4 @@
+// @ts-check
 const a = document.createElement('a');
 a.href      = '/admin.html';
 a.title     = 'Admin';

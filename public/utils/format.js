@@ -1,3 +1,4 @@
+// @ts-check
 import { t, getLang } from './i18n.js';
 
 export function formatViews(n) {

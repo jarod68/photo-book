@@ -10,6 +10,8 @@
     "start": "node server.js",
     "dev": "nodemon server.js",
     "build": "node scripts/build.js",
+    "lint": "eslint .",
+    "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
@@ -17,8 +19,8 @@
     "test:visual": "bash scripts/test-visual.sh"
   },
   "dependencies": {
-    "archiver": "^8.0.0",
     "bcryptjs": "^3.0.3",
+    "compression": "^1.8.2",
     "cookie-parser": "^1.4.7",
     "exifreader": "^4.52.0",
     "express": "^5.3.0",
@@ -28,17 +30,21 @@
     "multer": "^2.5.0",
     "pg": "^8.13.3",
     "sharp": "^0.35.5",
-    "web-push": "^3.6.7"
+    "web-push": "^3.6.7",
+    "yazl": "^3.3.1"
   },
   "overrides": {
     "chokidar": "^4.0.3"
   },
   "devDependencies": {
+    "@eslint/js": "10.0.1",
     "@fontsource-variable/fraunces": "5.3.0",
     "@playwright/test": "^1.64.1",
     "@vitest/coverage-v8": "^5.0.5",
     "d3-geo": "3.1.1",
     "esbuild": "^0.28.0",
+    "eslint": "10.14.0",
+    "globals": "17.14.0",
     "happy-dom": "^21.0.4",
     "leaflet": "1.9.4",
     "leaflet.markercluster": "1.5.3",
@@ -49,6 +55,7 @@
     "three": "0.168.0",
     "topojson-client": "3.1.0",
     "topojson-server": "3.0.1",
+    "typescript": "6.0.3",
     "vitest": "^5.0.5",
     "world-atlas": "2.0.2"
   },

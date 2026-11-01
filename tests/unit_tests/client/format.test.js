@@ -1,4 +1,4 @@
-import { vi, describe, it, expect, beforeAll } from 'vitest';
+import { vi, describe, it, expect } from 'vitest';
 
 vi.mock('../../../public/utils/i18n.js', () => {
   const fr = {

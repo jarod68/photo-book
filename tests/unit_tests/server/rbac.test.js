@@ -40,7 +40,6 @@ const { app } = await import('../../../server.js');
 
 const _require = createRequire(import.meta.url);
 const database = _require('../../../services/database.js');
-const fsMod    = _require('fs');
 const libraryMod = _require('../../../services/library.js');
 
 // What the photo library holds in a test: album name → file names. The routes

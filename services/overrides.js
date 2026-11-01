@@ -1,3 +1,4 @@
+// @ts-check
 'use strict';
 // Photo title / description / location edited in the admin (F2).
 //

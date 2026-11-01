@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Math shared by the two views of the globe page: the Three.js "space" view
  * (unit sphere, camera at distance d from the centre) and the MapLibre "near"

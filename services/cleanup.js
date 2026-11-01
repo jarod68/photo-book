@@ -1,3 +1,4 @@
+// @ts-check
 'use strict';
 // Rows keyed by album / photo, kept in step with the photo folders: removed
 // when a photo or album disappears, moved when an album is renamed. Every

@@ -17,8 +17,8 @@ concurrency:
 # a reviewed commit rather than a silent switch. Actions: their current major
 # versions (Node 24 runtime); .github/dependabot.yml proposes the next ones.
 jobs:
-  # Blocking gate: unit + integration tests (Vitest) with coverage thresholds
-  # (vitest.config.mjs — the run fails below them).
+  # Blocking gate: lint and type checks, then unit + integration tests (Vitest)
+  # with coverage thresholds (vitest.config.mjs — the run fails below them).
   test:
     runs-on: ubuntu-26.04
     steps:
@@ -28,6 +28,8 @@ jobs:
           node-version: 26
           cache: npm
       - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
       - run: npm run test:coverage
 
   # End-to-end: the built app against a real PostgreSQL, driven by the Robot

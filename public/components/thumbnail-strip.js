@@ -171,10 +171,8 @@ export class ThumbnailStrip {
     if (!n || !this._left) return;
 
     const scrollLeft = this._el.scrollLeft;
-    const visible    = this._el.clientWidth;
 
-    const firstVis = Math.max(0,     Math.floor((scrollLeft - PAD) / STRIDE));
-    const lastVis  = Math.min(n - 1, Math.ceil((scrollLeft + visible - PAD) / STRIDE));
+    const firstVis = Math.max(0, Math.floor((scrollLeft - PAD) / STRIDE));
 
     const newStart = Math.max(0,     firstVis - BUFFER);
     const newEnd   = Math.min(n - 1, newStart + WINDOW - 1);

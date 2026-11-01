@@ -3,7 +3,7 @@
 const express   = require('express');
 const path      = require('path');
 const fs        = require('fs');
-const { ZipArchive } = require('archiver');
+const yazl      = require('yazl');
 
 const { PHOTOS_DIR, isImage, isMedia, deletePhotoFiles } = require('../services/image');
 const library  = require('../services/library');
@@ -92,12 +92,17 @@ router.get('/:album/download/zip', async (req, res) => {
       `attachment; filename="${asciiName}.zip"; filename*=UTF-8''${encodedName}.zip`,
     );
 
-    const archive = new ZipArchive({ zlib: { level: 0 } });
-    archive.on('warning', err => { if (err.code !== 'ENOENT') console.warn('Archive warning:', err); });
-    archive.on('error',   err => { console.error('Archive error:', err); res.destroy(err); });
-    archive.pipe(res);
-    for (const { from, name } of entries) archive.file(from, { name });
-    archive.finalize(); // event-driven — do not await
+    // Stored, not deflated: photos and videos are compressed already. A file
+    // deleted meanwhile is left out (the archive is streamed, it can't fail
+    // half-way with a status any more).
+    const zip = new yazl.ZipFile();
+    zip.outputStream.on('error', (err) => { console.error('Archive error:', err); res.destroy(err); });
+    zip.outputStream.pipe(res);
+    for (const { from, name } of entries) {
+      const stat = await fs.promises.stat(from).catch(() => null);
+      if (stat?.isFile()) zip.addFile(from, name, { compress: false, mtime: stat.mtime });
+    }
+    zip.end();
   } catch (err) {
     if (!res.headersSent) sendError(res, err);
     else console.error(err);

@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Time zones of the globe (overlay and local time on hover).
  *

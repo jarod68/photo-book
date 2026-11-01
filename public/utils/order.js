@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Chronological ordering (F5): photos by capture date, albums by date range.
  * Items without a date always come last, by name. The chosen orders are

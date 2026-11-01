@@ -1,3 +1,4 @@
+// @ts-check
 import fr from '../locales/fr.js';
 import en from '../locales/en.js';
 import es from '../locales/es.js';
@@ -32,19 +33,19 @@ export function setLang(newLang) {
 }
 
 export function applyTranslations(root = document) {
-  root.querySelectorAll('[data-i18n]').forEach(el => {
+  /** @type {NodeListOf<HTMLInputElement>} */ (root.querySelectorAll('[data-i18n]')).forEach(el => {
     el.textContent = t(el.dataset.i18n);
   });
-  root.querySelectorAll('[data-i18n-html]').forEach(el => {
+  /** @type {NodeListOf<HTMLInputElement>} */ (root.querySelectorAll('[data-i18n-html]')).forEach(el => {
     el.innerHTML = t(el.dataset.i18nHtml);
   });
-  root.querySelectorAll('[data-i18n-title]').forEach(el => {
+  /** @type {NodeListOf<HTMLInputElement>} */ (root.querySelectorAll('[data-i18n-title]')).forEach(el => {
     el.title = t(el.dataset.i18nTitle);
   });
-  root.querySelectorAll('[data-i18n-aria]').forEach(el => {
+  /** @type {NodeListOf<HTMLInputElement>} */ (root.querySelectorAll('[data-i18n-aria]')).forEach(el => {
     el.setAttribute('aria-label', t(el.dataset.i18nAria));
   });
-  root.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+  /** @type {NodeListOf<HTMLInputElement>} */ (root.querySelectorAll('[data-i18n-placeholder]')).forEach(el => {
     el.placeholder = t(el.dataset.i18nPlaceholder);
   });
 }

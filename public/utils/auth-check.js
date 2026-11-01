@@ -1,3 +1,4 @@
+// @ts-check
 export async function requireLogin() {
   try {
     const { user } = await fetch('/api/auth/me').then(r => r.json());

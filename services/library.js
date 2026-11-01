@@ -1,3 +1,4 @@
+// @ts-check
 'use strict';
 // Photo library index (T2): album listings and per-photo metadata, cached.
 //

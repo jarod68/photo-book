@@ -99,7 +99,6 @@ test('switching to English updates page text', async ({ page }) => {
 
   // At least one translatable element should be in English
   // The summary section has an i18n key — check it changed from French
-  const bodyText = await page.locator('body').textContent();
   // In English the nav/summary uses English words; just verify lang attr changed
   const htmlLang = await page.locator('html').getAttribute('lang');
   expect(htmlLang).toBe('en');

@@ -1,3 +1,4 @@
+// @ts-check
 const SW_PATH      = '/sw.js';
 const STORAGE_KEY  = 'pb_push_albums';
 

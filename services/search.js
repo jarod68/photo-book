@@ -1,3 +1,4 @@
+// @ts-check
 'use strict';
 // Photo search (F6). Works on the cached photo index, so a search reads no file.
 //

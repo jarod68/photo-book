@@ -4,11 +4,11 @@ const fs           = require('fs');
 const cookieParser = require('cookie-parser');
 const rateLimit    = require('express-rate-limit');
 const helmet       = require('helmet');
+const compression  = require('compression');
 
 const { PHOTOS_DIR, PREVIEWS_DIR, MEDIUM_DIR, isImage, isMedia, isAlbumDir, preGenerateAll } = require('./services/image');
 const database = require('./services/database'); // database.db, database.dbReady (getters)
 const auth     = require('./services/auth');
-const activity = require('./services/activity');
 const push     = require('./services/push');
 const maintenance = require('./services/maintenance');
 const cleanup     = require('./services/cleanup');
@@ -55,6 +55,14 @@ app.use(helmet({
   referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
 }));
 app.use(cookieParser());
+
+// gzip / brotli for text (HTML, CSS, JS, JSON, SVG) and the globe's binary
+// time-zone borders; images, videos and zips are compressed already and go as
+// they are (the default filter only takes compressible types).
+app.use(compression({
+  threshold: 1024,
+  filter: (req, res) => /\.bin$/.test(req.path) || compression.filter(req, res),
+}));
 
 const IS_TEST = process.env.NODE_ENV === 'test';
 

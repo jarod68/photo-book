@@ -1,3 +1,4 @@
+// @ts-check
 const KEY = 'pb_user_token';
 
 export function getUserToken() {

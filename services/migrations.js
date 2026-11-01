@@ -1,3 +1,4 @@
+// @ts-check
 'use strict';
 // Versioned database migrations (T5).
 //
@@ -217,7 +218,7 @@ async function runMigrations(db, migrations = MIGRATIONS) {
         await q('COMMIT');
       } catch (err) {
         await q('ROLLBACK').catch(() => {});
-        throw new Error(`Migration ${m.version} (${m.name}) failed: ${err.message}`);
+        throw new Error(`Migration ${m.version} (${m.name}) failed: ${err.message}`, { cause: err });
       }
     }
   } finally {

@@ -1,3 +1,4 @@
+// @ts-check
 'use strict';
 // The last server errors, for the admin System tab (F8). console.error is
 // wrapped once at startup: every call still prints, and is also kept in a

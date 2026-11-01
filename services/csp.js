@@ -1,3 +1,4 @@
+// @ts-check
 'use strict';
 // Content-Security-Policy (T6). Every script, style, font and data file is
 // served by the app itself (libraries under /vendor/, see services/vendor.js);

@@ -1,6 +1,5 @@
 import { vi, describe, it, expect, afterEach } from 'vitest';
 import { photoMeta } from '../../../services/image.js';
-import path from 'path';
 
 afterEach(() => vi.restoreAllMocks());
 

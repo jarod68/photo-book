@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Slideshow timer (F4): calls `next()` every `interval` ms while playing.
  * `next()` returns false at the end of the album, which stops the show.
@@ -6,6 +7,10 @@
  * again or after a manual move (`restart()`).
  */
 export class Slideshow {
+  /**
+   * @param {{ next: () => boolean, isBusy?: () => boolean, onChange?: (playing: boolean) => void,
+   *           interval?: number, doc?: Document }} opts
+   */
   constructor({ next, isBusy = () => false, onChange = () => {}, interval = 5000, doc = document }) {
     this._next     = next;
     this._isBusy   = isBusy;

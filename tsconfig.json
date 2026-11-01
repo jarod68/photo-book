@@ -1,0 +1,18 @@
+{
+  // Type checking of the JavaScript (no build: `npm run typecheck`, in CI).
+  // Opt-in per file: a file starting with `// @ts-check` is checked against
+  // its JSDoc types and what TypeScript infers; the others are not (yet) —
+  // add the line when a file is touched and passes.
+  "compilerOptions": {
+    "allowJs": true,
+    "checkJs": false,
+    "noEmit": true,
+    "target": "es2024",
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "lib": ["es2024", "dom", "dom.iterable"],
+    "skipLibCheck": true,
+    "strict": false
+  },
+  "include": ["server.js", "routes/**/*.js", "services/**/*.js", "scripts/**/*.js", "public/utils/**/*.js", "public/components/**/*.js", "public/pages/**/*.js"]
+}

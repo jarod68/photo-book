@@ -3,7 +3,7 @@ import '../utils/admin-shortcut.js';
 import { buildMarkerIcon, buildClusterIcon } from '../components/map-marker.js';
 import { getMapPhotos }   from '../api/client.js';
 import {
-  haversineKm, catmullRom, cubicSample,
+  catmullRom, cubicSample,
   centroid, buildSegments, clusterSegment,
 } from '../utils/map-math.js';
 import { showBuildTag } from '../utils/build-tag.js';

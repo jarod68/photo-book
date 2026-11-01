@@ -39,8 +39,6 @@ vi.mock('fs', async () => {
 const {
   app,
   watchPhotosDir,
-  deletePhotoFromDb,
-  deleteAlbumFromDb,
 } = await import('../../../server.js');
 
 const _require      = createRequire(import.meta.url);
@@ -318,7 +316,7 @@ describe('GET /api/admin/top-photos', () => {
       .mockResolvedValueOnce({ rows: [] });
     database._setState({ query: mockQuery }, true);
     await request(app).get('/api/admin/top-photos?limit=999');
-    const [[sql, [limit]]] = mockQuery.mock.calls;
+    const [[, [limit]]] = mockQuery.mock.calls;
     expect(limit).toBe(50);
   });
 
@@ -328,7 +326,7 @@ describe('GET /api/admin/top-photos', () => {
       .mockResolvedValueOnce({ rows: [] });
     database._setState({ query: mockQuery }, true);
     await request(app).get('/api/admin/top-photos');
-    const [[sql, [limit]]] = mockQuery.mock.calls;
+    const [[, [limit]]] = mockQuery.mock.calls;
     expect(limit).toBe(10);
   });
 

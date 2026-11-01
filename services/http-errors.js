@@ -1,3 +1,4 @@
+// @ts-check
 'use strict';
 // A bad request (e.g. an album path that leaves the photo folder) is the
 // client's error: answered 400 and not logged. Anything else is a server

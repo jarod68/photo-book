@@ -1,3 +1,4 @@
+// @ts-check
 'use strict';
 // Periodic database housekeeping (T4): run once at startup, then every few
 // hours, so tables that only grow are trimmed without a restart.

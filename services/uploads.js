@@ -1,3 +1,4 @@
+// @ts-check
 'use strict';
 // Upload naming (F7): an upload never replaces a file. A name already taken
 // — on disk or earlier in the same batch — gets a " (2)", " (3)"… suffix;

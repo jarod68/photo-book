@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * A real "back": the ← buttons at the top of the pages return to the page
  * the visitor came from — the search results, the map where it was, the

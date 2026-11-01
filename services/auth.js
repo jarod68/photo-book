@@ -1,8 +1,8 @@
+// @ts-check
 const bcrypt   = require('bcryptjs');
 const crypto   = require('crypto');
 const database = require('./database');
 const { generatePassword } = require('./password');
-const IS_PROD  = process.env.NODE_ENV === 'production';
 
 async function ensureAdmin() {
   const { rows } = await database.db.query(

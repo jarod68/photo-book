@@ -1,3 +1,4 @@
+// @ts-check
 'use strict';
 // Third-party browser libraries, served by the app itself under /vendor/
 // (T6): no CDN at run time, so the Content-Security-Policy can stay 'self'.

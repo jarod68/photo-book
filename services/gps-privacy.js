@@ -1,3 +1,4 @@
+// @ts-check
 'use strict';
 // GPS position privacy per album (F10): 'exact' (default), 'approx' (rounded
 // to ~1 km) or 'hidden'. Applies to everyone but admins:

@@ -1,3 +1,4 @@
+// @ts-check
 'use strict';
 // Album cover, description and date range (F3).
 //

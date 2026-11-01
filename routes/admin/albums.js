@@ -10,7 +10,6 @@ const { requireAdmin } = require('../../services/auth');
 const { PHOTOS_DIR, PREVIEWS_DIR, MEDIUM_DIR, isImage, isMedia, preGenerateAll, deletePhotoFiles } = require('../../services/image');
 const database = require('../../services/database');
 const activity = require('../../services/activity');
-const { getAlbumAccess } = require('../../services/access');
 const library   = require('../../services/library');
 const overrides = require('../../services/overrides');
 const cleanup   = require('../../services/cleanup');

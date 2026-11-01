@@ -1,3 +1,4 @@
+// @ts-check
 'use strict';
 // Reverse geocoding (GPS → "Place, Country") with a persistent cache (F6).
 // Besides that short name (shown), each lookup keeps for search the place's

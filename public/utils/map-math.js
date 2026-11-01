@@ -1,3 +1,4 @@
+// @ts-check
 export const MAX_DAYS   = 21;   // max consecutive window: 3 weeks
 export const MAX_KM     = 400;  // max radius between two consecutive points
 export const CLUSTER_KM = 5;    // clustering radius for nearby photos
@@ -29,7 +30,7 @@ export function centroid(photos) {
 export function buildSegments(photos) {
   const dated = photos
     .filter(p => p.date && p.gps)
-    .sort((a, b) => new Date(a.date) - new Date(b.date));
+    .sort((a, b) => Date.parse(a.date) - Date.parse(b.date));
 
   if (dated.length < 2) return [];
 
@@ -39,7 +40,7 @@ export function buildSegments(photos) {
   for (let i = 1; i < dated.length; i++) {
     const prev = current[current.length - 1];
     const curr = dated[i];
-    const days = (new Date(curr.date) - new Date(prev.date)) / 86_400_000;
+    const days = (Date.parse(curr.date) - Date.parse(prev.date)) / 86_400_000;
     const km   = haversineKm(prev.gps.lat, prev.gps.lng, curr.gps.lat, curr.gps.lng);
 
     if (days <= MAX_DAYS && km <= MAX_KM) {
