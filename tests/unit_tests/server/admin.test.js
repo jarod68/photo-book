@@ -1558,3 +1558,40 @@ describe('bibliothèque en lecture seule (QA)', () => {
     expect((await request(app).get('/api/admin/stats')).body.readOnly).toBe(true);
   });
 });
+
+// ── POST /api/albums/:album/photos (upload from the viewer) ──────────────────
+
+describe('POST /api/albums/:album/photos (téléversement depuis un album ouvert)', () => {
+  const lib = _require('../../../services/library.js');
+  beforeEach(() => {
+    vi.spyOn(lib, 'albumExists').mockImplementation(async (a) => a === 'Paris');
+    vi.spyOn(lib, 'isWritable').mockResolvedValue(true);
+  });
+  afterEach(() => { vi.restoreAllMocks(); authMod._setTestUser(null); });
+  const send = (album = 'Paris') => request(app).post(`/api/albums/${album}/photos`).attach('photos', Buffer.from('fake jpeg'), 'test.jpg');
+
+  it('403 sans droit d\'écriture (visiteur, album public)', async () => {
+    expect((await send()).status).toBe(403);
+  });
+
+  it('403 pour un membre non autorisé sur un album restreint', async () => {
+    authMod._setTestUser({ id: 5, role: 'basic' });
+    mockQuery.mockResolvedValueOnce({ rows: [{ visibility: 'restricted' }] }).mockResolvedValueOnce({ rows: [] });
+    database._setState({ query: mockQuery }, true);
+    expect((await send()).status).toBe(403);
+  });
+
+  it('404 si l\'album n\'existe pas', async () => {
+    authMod._setTestUser({ id: 1, role: 'admin' });
+    expect((await send('Ghost')).status).toBe(404);
+  });
+
+  it('un membre autorisé passe au traitement des fichiers (comme l\'admin)', async () => {
+    authMod._setTestUser({ id: 5, role: 'basic' });
+    mockQuery.mockResolvedValueOnce({ rows: [{ visibility: 'restricted' }] }).mockResolvedValueOnce({ rows: [{ 1: 1 }] });
+    database._setState({ query: mockQuery }, true);
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    // /test/photos/Paris does not exist on disk: multer fails writing → 400, past the rights check
+    expect((await send()).status).toBe(400);
+  });
+});

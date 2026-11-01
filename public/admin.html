@@ -47,6 +47,34 @@
         <h2 class="admin-section-title" data-i18n="admin.albums">Albums</h2>
         <button id="new-album-btn" class="admin-action-btn" data-i18n="admin.newAlbum">+ New album</button>
       </div>
+      <div class="admin-album-toolbar" id="album-toolbar">
+        <input id="album-filter-q" class="admin-inline-input admin-album-search" type="search" autocomplete="off"
+               data-i18n-placeholder="admin.f.search" placeholder="Filter albums…">
+        <select id="album-filter-vis" class="admin-select" data-i18n-aria="admin.f.allVis">
+          <option value="" data-i18n="admin.f.allVis">Any visibility</option>
+          <option value="public" data-i18n="admin.f.public">Public</option>
+          <option value="restricted" data-i18n="admin.f.restricted">Restricted</option>
+        </select>
+        <select id="album-filter-coll" class="admin-select" data-i18n-aria="admin.f.allColl">
+          <option value="" data-i18n="admin.f.allColl">Any collection</option>
+          <option value="-" data-i18n="admin.f.noColl">No collection</option>
+        </select>
+        <select id="album-sort-by" class="admin-select" data-i18n-aria="home.sort">
+          <option value="views" data-i18n="admin.f.sortViews">Most viewed</option>
+          <option value="name" data-i18n="admin.f.sortName">A–Z</option>
+          <option value="photos" data-i18n="admin.f.sortPhotos">Most photos</option>
+          <option value="likes" data-i18n="admin.f.sortLikes">Most liked</option>
+          <option value="recent" data-i18n="admin.f.sortRecent">Most recent</option>
+        </select>
+        <select id="album-group-by" class="admin-select" data-i18n-aria="home.group">
+          <option value="" data-i18n="admin.f.groupNone">No grouping</option>
+          <option value="collection" data-i18n="admin.f.groupCollection">By collection</option>
+          <option value="visibility" data-i18n="admin.f.groupVisibility">By visibility</option>
+          <option value="year" data-i18n="admin.f.groupYear">By year</option>
+        </select>
+        <span id="album-filter-count" class="admin-dim admin-album-count"></span>
+      </div>
+      <p class="admin-dim admin-drop-hint" data-i18n="admin.dropOnAlbum">Drop photos on an album to add them to it</p>
       <p id="library-readonly" class="admin-readonly-note" data-i18n="admin.readOnly" hidden>The photo library is read-only here (QA uses the production photos): creating, renaming or deleting albums and uploading photos are disabled. Titles, cover, description and access settings can still be changed.</p>
       <form id="new-album-form" class="admin-new-album-form" hidden>
         <input id="new-album-input" class="admin-inline-input" type="text"
@@ -281,42 +309,7 @@
     </div>
   </div>
 
-  <!-- Upload modal -->
-  <div id="upload-overlay" class="upload-overlay" hidden>
-    <div class="upload-modal">
-      <div class="upload-modal-header">
-        <h3 class="upload-modal-title"><span data-i18n="admin.uploadTo">Upload to</span> <strong id="upload-album-name"></strong></h3>
-        <button id="upload-close-btn" class="upload-close-btn" data-i18n-aria="viewer.close">✕</button>
-      </div>
-
-      <div id="drop-zone" class="drop-zone">
-        <svg class="drop-zone-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-          <path stroke-linecap="round" stroke-linejoin="round"
-            d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021
-               18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/>
-        </svg>
-        <p class="drop-zone-text" data-i18n="admin.dropHere">Drop photos here</p>
-        <label class="admin-action-btn drop-zone-btn" for="upload-file-input" data-i18n="admin.addFiles">Add files</label>
-        <input id="upload-file-input" type="file" multiple
-               accept=".jpg,.jpeg,.png,.webp,.tiff,.tif,.heic,.heif,.avif,.mp4,.m4v,.mov,.webm" hidden>
-      </div>
-
-      <ul id="upload-file-list" class="upload-file-list"></ul>
-      <div id="upload-report" class="upload-report" hidden></div>
-
-      <div id="upload-progress-wrap" class="upload-progress-wrap" hidden>
-        <div class="upload-progress-bar">
-          <div id="upload-progress-fill" class="upload-progress-fill"></div>
-        </div>
-        <span id="upload-progress-text" class="upload-progress-text">0%</span>
-      </div>
-
-      <div class="upload-modal-footer">
-        <span id="upload-file-count" class="upload-file-count"></span>
-        <button id="upload-start-btn" class="admin-action-btn" data-i18n="admin.upload" disabled>Upload</button>
-      </div>
-    </div>
-  </div>
+  <!-- upload window: built by components/uploader.js -->
 
   <!-- Password change modal -->
   <div id="pwd-overlay" class="upload-overlay" hidden>

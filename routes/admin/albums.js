@@ -5,10 +5,9 @@ const crypto   = require('crypto');
 const express  = require('express');
 const path     = require('path');
 const fs       = require('fs');
-const multer   = require('multer');
 
 const { requireAdmin } = require('../../services/auth');
-const { PHOTOS_DIR, PREVIEWS_DIR, MEDIUM_DIR, isImage, isMedia, preGenerateAll, deletePhotoFiles } = require('../../services/image');
+const { PHOTOS_DIR, PREVIEWS_DIR, MEDIUM_DIR, isImage, isMedia, deletePhotoFiles } = require('../../services/image');
 const database = require('../../services/database');
 const activity = require('../../services/activity');
 const library   = require('../../services/library');
@@ -16,7 +15,6 @@ const overrides = require('../../services/overrides');
 const cleanup   = require('../../services/cleanup');
 const albumInfo = require('../../services/album-info');
 const uploads   = require('../../services/uploads');
-const notify    = require('../../services/notify');
 const gpsPrivacy = require('../../services/gps-privacy');
 
 const { BadRequest, sendError, requireWritableLibrary } = require('../../services/http-errors');
@@ -215,47 +213,7 @@ router.post('/:album/photos', requireAdmin, requireWritableLibrary, async (req, 
     return res.status(400).json({ error: 'Invalid album' });
   }
 
-  // Never overwrite (F7): a taken name gets a " (2)" suffix, see services/uploads.js.
-  const reserved = new Set();
-  const skipped  = [];
-  multer({
-    storage: multer.diskStorage({
-      destination: (_req, _file, cb) => cb(null, albumPath),
-      filename: (_req, file, cb) => {
-        // basename strips any client-supplied path components (e.g. "../../x.jpg")
-        file.wanted = path.basename(file.originalname);
-        try {
-          const name = uploads.uniqueName(albumPath, file.wanted, reserved);
-          reserved.add(name.toLowerCase());
-          cb(null, name);
-        } catch (e) { cb(e); }
-      },
-    }),
-    fileFilter: (_req, file, cb) => {
-      const ok = isMedia(file.originalname);
-      if (!ok) skipped.push(path.basename(file.originalname));
-      cb(null, ok);
-    },
-    limits: { fileSize: 200 * 1024 * 1024 },
-    defParamCharset: 'utf8',   // browsers send UTF-8 file names ("défilé.jpg")
-  }).array('photos', 500)(req, res, async err => {
-    if (err) return res.status(400).json({ error: err.message });   // multer removes the batch's files
-    const renamed = [], duplicates = [], uploadedFiles = [];
-    for (const f of req.files ?? []) {
-      if (f.filename !== f.wanted && await uploads.sameContent(f.path, path.join(albumPath, f.wanted))) {
-        await fs.promises.unlink(f.path).catch(() => {});
-        duplicates.push(f.wanted);
-        continue;
-      }
-      if (f.filename !== f.wanted) renamed.push({ from: f.wanted, to: f.filename });
-      uploadedFiles.push(f.filename);
-    }
-    preGenerateAll().catch(console.error);
-    res.json({ ok: true, count: uploadedFiles.length, files: uploadedFiles, renamed, duplicates, skipped });
-    activity.log('photo_upload', { username: req.user?.username ?? null, ip: req.ip, details: { album: req.params.album, count: uploadedFiles.length, filenames: uploadedFiles } });
-    // one digest per album once the uploads stop (services/notify.js)
-    notify.photosAdded(req.params.album, uploadedFiles);
-  });
+  uploads.receive(req, res, albumPath);
 });
 
 // GET /api/admin/albums/:album/settings

@@ -2,6 +2,7 @@ import { t, getLang, applyTranslations, initLangSwitcher } from '../utils/i18n.j
 import { requireLogin } from '../utils/auth-check.js';
 import { showBuildTag } from '../utils/build-tag.js';
 import { wireBack } from '../utils/back.js';
+import { Uploader, formatBytes, dragHasFiles, preventFileDrops } from '../components/uploader.js';
 
 await requireLogin();
 
@@ -64,30 +65,151 @@ document.getElementById('logout-btn').addEventListener('click', async () => {
 
 // ── Albums management ─────────────────────────────────────────────────────────
 
+// Loaded once per change (stats API), then filtered, sorted and grouped here
+// by the toolbar (its choices remembered per browser). Row buttons and
+// dropped photos are handled on the table, so they survive each redraw.
+let allAlbums = [];
+let albumsReadOnly = false;
+const albumsBody = document.getElementById('albums-body');
+const ALBUM_VIEW_KEY = 'pb.adminAlbums';
+const tb = {
+  q:     /** @type {HTMLInputElement} */ (document.getElementById('album-filter-q')),
+  vis:   /** @type {HTMLSelectElement} */ (document.getElementById('album-filter-vis')),
+  coll:  /** @type {HTMLSelectElement} */ (document.getElementById('album-filter-coll')),
+  sort:  /** @type {HTMLSelectElement} */ (document.getElementById('album-sort-by')),
+  group: /** @type {HTMLSelectElement} */ (document.getElementById('album-group-by')),
+  count: document.getElementById('album-filter-count'),
+};
+
 async function loadAlbums() {
-  const body = document.getElementById('albums-body');
   try {
     const { albums, readOnly } = await fetch('/api/admin/stats').then(r => r.json());
+    allAlbums = albums;
+    albumsReadOnly = !!readOnly;
     showReadOnly(readOnly);
-    if (!albums.length) {
-      body.innerHTML = `<tr><td colspan="5" class="admin-empty">${t('admin.noAlbums')}</td></tr>`;
-      return;
-    }
-    body.innerHTML = albums.map(a => renderAlbumRow(a, readOnly)).join('');
-    body.querySelectorAll('[data-settings]').forEach(btn =>
-      btn.addEventListener('click', () => openAlbumSettings(btn.dataset.settings)));
-    body.querySelectorAll('[data-rename]').forEach(btn =>
-      btn.addEventListener('click', () => startRename(btn.dataset.rename)));
-    body.querySelectorAll('[data-delete]').forEach(btn =>
-      btn.addEventListener('click', () => deleteAlbum(btn.dataset.delete)));
-    body.querySelectorAll('[data-upload]').forEach(btn =>
-      btn.addEventListener('click', () => openUploadModal(btn.dataset.upload)));
-    body.querySelectorAll('[data-photos]').forEach(btn =>
-      btn.addEventListener('click', () => openPhotosEditor(btn.dataset.photos)));
+    fillCollectionFilter();
+    renderAlbums();
   } catch (_) {
-    body.innerHTML = `<tr><td colspan="5" class="admin-error">${t('admin.failedLoad')}</td></tr>`;
+    albumsBody.innerHTML = `<tr><td colspan="5" class="admin-error">${t('admin.failedLoad')}</td></tr>`;
   }
 }
+
+const collOption = (name) => {
+  const o = document.createElement('option');
+  o.value = o.textContent = name;
+  o.dataset.coll = '1';
+  return o;
+};
+function fillCollectionFilter() {
+  const keep = tb.coll.value;
+  const names = [...new Set(allAlbums.map(a => a.collection).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+  tb.coll.querySelectorAll('option[data-coll]').forEach(o => o.remove());
+  for (const n of names) tb.coll.append(collOption(n));
+  tb.coll.value = [...tb.coll.options].some(o => o.value === keep) ? keep : '';
+}
+
+const fold = (s) => String(s ?? '').normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
+const yearOf = (a) => (a.dateTo || a.dateFrom ? new Date(a.dateTo || a.dateFrom).getUTCFullYear() : null);
+
+function renderAlbums() {
+  saveAlbumView();
+  if (!allAlbums.length) {
+    albumsBody.innerHTML = `<tr><td colspan="5" class="admin-empty">${t('admin.noAlbums')}</td></tr>`;
+    tb.count.textContent = '';
+    return;
+  }
+  const q = fold(tb.q.value.trim());
+  const list = allAlbums.filter(a =>
+    (!q || fold(`${a.album} ${a.collection ?? ''}`).includes(q))
+    && (!tb.vis.value || a.visibility === tb.vis.value)
+    && (!tb.coll.value || (tb.coll.value === '-' ? !a.collection : a.collection === tb.coll.value)));
+  const by = {
+    views:  (a, b) => b.views - a.views,
+    name:   () => 0,
+    photos: (a, b) => b.photos - a.photos,
+    likes:  (a, b) => b.likes - a.likes,
+    recent: (a, b) => (Date.parse(b.dateTo ?? '') || 0) - (Date.parse(a.dateTo ?? '') || 0),
+  }[tb.sort.value] ?? (() => 0);
+  list.sort((a, b) => by(a, b) || a.album.localeCompare(b.album));
+  tb.count.textContent = t('admin.f.count', { n: list.length, total: allAlbums.length });
+  if (!list.length) {
+    albumsBody.innerHTML = `<tr><td colspan="5" class="admin-empty">${t('admin.f.none')}</td></tr>`;
+    return;
+  }
+
+  // groups: [title, albums] in display order (no grouping: one, untitled)
+  let groups = [[null, list]];
+  if (tb.group.value) {
+    const keyOf = {
+      collection: (a) => a.collection || null,
+      visibility: (a) => a.visibility,
+      year:       (a) => yearOf(a),
+    }[tb.group.value];
+    const m = new Map();
+    for (const a of list) { const k = keyOf(a); if (!m.has(k)) m.set(k, []); m.get(k).push(a); }
+    const keys = [...m.keys()].filter(k => k !== null)
+      .sort((a, b) => (tb.group.value === 'year' ? b - a : String(a).localeCompare(String(b))));
+    if (m.has(null)) keys.push(null);
+    const title = (k) => (k === null ? t(tb.group.value === 'year' ? 'admin.f.undated' : 'admin.f.other')
+      : tb.group.value === 'visibility' ? t(k === 'restricted' ? 'admin.f.restricted' : 'admin.f.public') : String(k));
+    groups = keys.map(k => [title(k), m.get(k)]);
+  }
+  albumsBody.innerHTML = groups.map(([title, items]) =>
+    (title === null ? '' : `<tr class="admin-group-row"><td colspan="5">${esc(title)} <span class="admin-dim">${items.length}</span></td></tr>`)
+    + items.map(a => renderAlbumRow(a, albumsReadOnly)).join('')).join('');
+}
+
+function saveAlbumView() {
+  try {
+    localStorage.setItem(ALBUM_VIEW_KEY, JSON.stringify({ q: tb.q.value, vis: tb.vis.value, coll: tb.coll.value, sort: tb.sort.value, group: tb.group.value }));
+  } catch { /* private mode */ }
+}
+function restoreAlbumView() {
+  let v = {};
+  try { v = JSON.parse(localStorage.getItem(ALBUM_VIEW_KEY) ?? '{}') ?? {}; } catch { /* none */ }
+  for (const k of ['q', 'vis', 'sort', 'group']) if (typeof v[k] === 'string') tb[k].value = v[k];
+  if (v.coll === '-') tb.coll.value = '-';
+  else if (typeof v.coll === 'string' && v.coll) {   // the collections are not loaded yet: keep the wish
+    tb.coll.append(collOption(v.coll));
+    tb.coll.value = v.coll;
+  }
+}
+restoreAlbumView();
+for (const el of [tb.vis, tb.coll, tb.sort, tb.group]) el.addEventListener('change', renderAlbums);
+tb.q.addEventListener('input', renderAlbums);
+
+// row buttons
+albumsBody.addEventListener('click', (e) => {
+  const b = /** @type {HTMLElement} */ (e.target).closest('button');
+  if (!b || b.disabled) return;
+  const d = b.dataset;
+  if (d.settings) openAlbumSettings(d.settings);
+  else if (d.rename) startRename(d.rename);
+  else if (d.delete) deleteAlbum(d.delete);
+  else if (d.upload) openUploadModal(d.upload);
+  else if (d.photos) openPhotosEditor(d.photos);
+});
+
+// photos dropped on an album's row: straight into that album
+albumsBody.addEventListener('dragover', (e) => {
+  const row = /** @type {HTMLElement} */ (e.target).closest('tr[data-album]');
+  if (!row || !dragHasFiles(e) || albumsReadOnly) return;
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'copy';
+  albumsBody.querySelectorAll('.admin-drop-target').forEach(r => r !== row && r.classList.remove('admin-drop-target'));
+  row.classList.add('admin-drop-target');
+});
+albumsBody.addEventListener('dragleave', (e) => {
+  const row = /** @type {HTMLElement} */ (e.target).closest('tr[data-album]');
+  if (row && !row.contains(/** @type {Node} */ (e.relatedTarget))) row.classList.remove('admin-drop-target');
+});
+albumsBody.addEventListener('drop', (e) => {
+  const row = /** @type {HTMLElement} */ (e.target).closest('tr[data-album]');
+  if (!row || !dragHasFiles(e) || albumsReadOnly) return;
+  e.preventDefault();
+  row.classList.remove('admin-drop-target');
+  openUploadModal(row.dataset.album, [...e.dataTransfer.files]);
+});
 
 // The photo folder is read-only (QA mounts the production photos): say so and
 // disable what would write to it. Titles, cover, access and notifications
@@ -371,151 +493,15 @@ function formatUptime(seconds) {
   return `${m}m`;
 }
 
-// ── Upload modal ──────────────────────────────────────────────────────────────
-
-const overlay      = document.getElementById('upload-overlay');
-const dropZone     = document.getElementById('drop-zone');
-const fileInput    = document.getElementById('upload-file-input');
-const fileListEl   = document.getElementById('upload-file-list');
-const progressWrap = document.getElementById('upload-progress-wrap');
-const progressFill = document.getElementById('upload-progress-fill');
-const progressText = document.getElementById('upload-progress-text');
-const fileCountEl  = document.getElementById('upload-file-count');
-const startBtn     = document.getElementById('upload-start-btn');
-
-let uploadAlbum = '';
-let pendingFiles = [];
-
-function openUploadModal(album) {
-  uploadAlbum = album;
-  pendingFiles = [];
-  document.getElementById('upload-album-name').textContent = album;
-  fileListEl.innerHTML = '';
-  fileCountEl.textContent = '';
-  document.getElementById('upload-report').hidden = true;
-  progressWrap.hidden = true;
-  progressFill.style.width = '0%';
-  startBtn.disabled = true;
-  startBtn.textContent = t('admin.upload');
-  dropZone.classList.remove('drop-zone--active');
-  overlay.hidden = false;
-}
-
-function closeUploadModal() {
-  overlay.hidden = true;
-}
-
-function addFiles(newFiles) {
-  const existing = new Set(pendingFiles.map(f => f.name));
-  for (const f of newFiles) {
-    if (!existing.has(f.name)) { pendingFiles.push(f); existing.add(f.name); }
-  }
-  renderFileList();
-}
-
-function renderFileList() {
-  fileListEl.innerHTML = pendingFiles.map((f, i) => `
-    <li class="upload-file-item">
-      <span class="upload-file-name">${esc(f.name)}</span>
-      <span class="upload-file-size">${formatBytes(f.size)}</span>
-      <button class="upload-file-remove" data-idx="${i}" aria-label="Remove">✕</button>
-    </li>`).join('');
-  fileListEl.querySelectorAll('.upload-file-remove').forEach(btn =>
-    btn.addEventListener('click', () => {
-      pendingFiles.splice(Number(btn.dataset.idx), 1);
-      renderFileList();
-    }));
-  const n = pendingFiles.length;
-  fileCountEl.textContent = n ? t('admin.filesSelected', { n, s: n > 1 ? 's' : '' }) : '';
-  startBtn.disabled = n === 0;
-}
-
-function formatBytes(b) {
-  if (b < 1024)       return `${b} B`;
-  if (b < 1048576)    return `${(b/1024).toFixed(1)} KB`;
-  if (b < 1073741824) return `${(b/1048576).toFixed(1)} MB`;
-  if (b < 1099511627776) return `${(b/1073741824).toFixed(1)} GB`;
-  return `${(b/1099511627776).toFixed(1)} TB`;
-}
-
-startBtn.addEventListener('click', async () => {
-  if (!pendingFiles.length) return;
-  startBtn.disabled = true;
-  progressWrap.hidden = false;
-  progressFill.style.width = '0%';
-  progressText.textContent = '0%';
-
-  const formData = new FormData();
-  for (const f of pendingFiles) formData.append('photos', f);
-
-  try {
-    const result = await new Promise((resolve, reject) => {
-      const xhr = new XMLHttpRequest();
-      xhr.upload.onprogress = e => {
-        if (!e.lengthComputable) return;
-        const pct = Math.round(e.loaded / e.total * 100);
-        progressFill.style.width = `${pct}%`;
-        progressText.textContent = `${pct}%`;
-      };
-      xhr.onload = () => {
-        if (xhr.status >= 200 && xhr.status < 300) resolve(JSON.parse(xhr.responseText));
-        else reject(new Error(JSON.parse(xhr.responseText)?.error ?? 'Upload failed'));
-      };
-      xhr.onerror = () => reject(new Error(t('admin.networkError')));
-      xhr.open('POST', `/api/admin/albums/${encodeURIComponent(uploadAlbum)}/photos`);
-      xhr.send(formData);
-    });
-
-    progressFill.style.width = '100%';
-    progressText.textContent = '100%';
-    pendingFiles = [];
-    await loadAlbums();
-    // Nothing overwritten (F7): say what was renamed, dropped or refused.
-    if (!showUploadReport(result)) closeUploadModal();
-  } catch (err) {
-    progressText.textContent = `Error: ${err.message}`;
-    startBtn.disabled = false;
-  }
+// ── Upload ────────────────────────────────────────────────────────────────────
+// The upload window (components/uploader.js): an album's ⇪ button, or photos
+// dropped on its row; the table refreshes afterwards.
+const uploader = new Uploader({
+  endpoint: (album) => `/api/admin/albums/${encodeURIComponent(album)}/photos`,
+  onDone: () => loadAlbums(),
 });
-
-// Returns true when there is something to report (the modal then stays open).
-function showUploadReport({ count = 0, renamed = [], duplicates = [], skipped = [] }) {
-  const reportEl = document.getElementById('upload-report');
-  if (!renamed.length && !duplicates.length && !skipped.length) { reportEl.hidden = true; return false; }
-  const list = (items) => `<ul>${items.map(i => `<li>${i}</li>`).join('')}</ul>`;
-  reportEl.innerHTML = `<p>${t('admin.uploadDone', { n: count })}</p>`
-    + (renamed.length    ? `<p>${t('admin.uploadRenamed')}</p>${list(renamed.map(r => `${esc(r.from)} → <strong>${esc(r.to)}</strong>`))}` : '')
-    + (duplicates.length ? `<p>${t('admin.uploadDuplicates')}</p>${list(duplicates.map(esc))}` : '')
-    + (skipped.length    ? `<p>${t('admin.uploadSkipped')}</p>${list(skipped.map(esc))}` : '');
-  reportEl.hidden = false;
-  renderFileList();
-  return true;
-}
-
-// Close
-document.getElementById('upload-close-btn').addEventListener('click', closeUploadModal);
-overlay.addEventListener('click', e => { if (e.target === overlay) closeUploadModal(); });
-document.addEventListener('keydown', e => { if (e.key === 'Escape' && !overlay.hidden) closeUploadModal(); });
-
-// File input
-fileInput.addEventListener('change', () => {
-  addFiles([...fileInput.files]);
-  fileInput.value = '';
-});
-
-// Drag & drop
-dropZone.addEventListener('dragover', e => {
-  e.preventDefault();
-  dropZone.classList.add('drop-zone--active');
-});
-dropZone.addEventListener('dragleave', e => {
-  if (!dropZone.contains(e.relatedTarget)) dropZone.classList.remove('drop-zone--active');
-});
-dropZone.addEventListener('drop', e => {
-  e.preventDefault();
-  dropZone.classList.remove('drop-zone--active');
-  addFiles([...e.dataTransfer.files]);
-});
+const openUploadModal = (album, files) => uploader.open(album, files);
+preventFileDrops();
 
 // ── Photo editor (title / description / location) ────────────────────────────
 const photosOverlay = document.getElementById('photos-overlay');

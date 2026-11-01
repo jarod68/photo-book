@@ -11,6 +11,7 @@ import { formatViews, formatLikes } from '../utils/format.js';
 import { subscribeTo, unsubscribeFrom, getSubscription, getStoredAlbums } from '../utils/push.js';
 import { showBuildTag } from '../utils/build-tag.js';
 import { saveState } from '../utils/back.js';
+import { Uploader, dragHasFiles, preventFileDrops } from '../components/uploader.js';
 import { Slideshow }      from '../utils/slideshow.js';
 import { sortPhotos, dayLabels, loadOrder, saveOrder } from '../utils/order.js';
 
@@ -28,6 +29,7 @@ const state = {
   photos:  [],
   index:   -1,
   liked:   new Set(), // filenames liked by this user in the current album
+  canUpload: false,   // the visitor may add photos to it (admin, or an authorized member)
 };
 
 // Map<album, endpoint> — seeded from localStorage on load, endpoint filled lazily
@@ -48,6 +50,7 @@ const downloadBtn   = document.getElementById('download-btn');
 const zipBtn        = document.getElementById('zip-btn');
 const shareBtn      = document.getElementById('share-btn');
 const deleteBtn     = document.getElementById('delete-btn');
+const uploadBtn     = document.getElementById('upload-btn');
 const photoInfoEl   = document.getElementById('photo-info');
 const emptyEl       = document.getElementById('empty-state');
 const exifToggle    = document.getElementById('exif-toggle');
@@ -400,7 +403,9 @@ async function selectAlbum(name, targetFilename = null) {
   albumMapBtn.disabled = !state.photos.some(p => p.gps);
   slideshowBtn.disabled = state.photos.length < 2;
 
-  const hasActions = data.canDownload || data.canDelete;
+  state.canUpload = !!data.canUpload;
+  uploadBtn.hidden = !state.canUpload;
+  const hasActions = data.canDownload || data.canDelete || data.canUpload;
   if (hasActions) {
     actionsEl.removeAttribute('hidden');
   } else {
@@ -438,8 +443,8 @@ async function selectAlbum(name, targetFilename = null) {
 
   if (state.photos.length === 0) {
     emptyEl.removeAttribute('hidden');
-    if (data.canDelete) {
-      // Show photo-info in minimal mode so the share button is accessible
+    if (data.canDelete || data.canUpload) {
+      // Show photo-info in minimal mode so the share and add buttons are accessible
       photoInfoEl.removeAttribute('hidden');
       photoInfoEl.classList.add('photo-info--empty');
     } else {
@@ -487,6 +492,51 @@ likeBtn.addEventListener('click', e => {
       updateLikeBtn(photo);
     })
     .catch(() => {});
+});
+
+// ── Adding photos: the ⋯ menu, or files dropped on the photo ─────────────────
+// For the admin and the members who may change this album (canUpload); after
+// the upload the album is reloaded and shows the first new photo.
+const uploader = new Uploader({
+  endpoint: (album) => `/api/albums/${encodeURIComponent(album)}/photos`,
+  onDone: async (album, result) => {
+    if (album !== state.current) return;
+    const keep = result.files?.[0] ?? state.photos[state.index]?.filename ?? null;
+    state.current = null;           // selectAlbum skips the album already shown
+    await selectAlbum(album, keep);
+  },
+});
+preventFileDrops();
+
+uploadBtn.addEventListener('click', e => {
+  e.stopPropagation();
+  closeActionsMenu();
+  uploader.open(state.current);
+});
+
+const dropEl = document.getElementById('viewer-drop');
+let dragDepth = 0;
+viewerEl.addEventListener('dragenter', (e) => {
+  if (!state.canUpload || !dragHasFiles(e)) return;
+  dragDepth++;
+  document.getElementById('viewer-drop-text').textContent = t('viewer.dropToAdd', { album: state.current });
+  dropEl.hidden = false;
+});
+viewerEl.addEventListener('dragover', (e) => {
+  if (!state.canUpload || !dragHasFiles(e)) return;
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'copy';
+});
+viewerEl.addEventListener('dragleave', (e) => {
+  if (!state.canUpload || !dragHasFiles(e)) return;
+  if (--dragDepth <= 0) { dragDepth = 0; dropEl.hidden = true; }
+});
+viewerEl.addEventListener('drop', (e) => {
+  dragDepth = 0;
+  dropEl.hidden = true;
+  if (!state.canUpload || !dragHasFiles(e)) return;
+  e.preventDefault();
+  uploader.open(state.current, [...e.dataTransfer.files]);
 });
 
 shareBtn.addEventListener('click', e => {

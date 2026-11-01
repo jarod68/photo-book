@@ -5,6 +5,7 @@ import { showBuildTag } from '../utils/build-tag.js';
 import { sortAlbums, loadOrder, saveOrder } from '../utils/order.js';
 import { formatDateRange } from '../utils/format.js';
 import { rememberScroll, restoreScroll } from '../utils/back.js';
+import { Uploader, dragHasFiles, preventFileDrops } from '../components/uploader.js';
 
 applyTranslations();
 initLangSwitcher('lang-switcher');
@@ -51,6 +52,7 @@ async function init() {
   // Album cards, re-sorted in place (F5), optionally grouped by year or by
   // collection (chosen in the admin) under headings across the grid.
   const cards = new Map(albums.map(a => [a.name, createAlbumCard(a)]));
+  enableDrops(albums, cards);
   const hasCollections = albums.some(a => a.collection);
   /** @type {HTMLOptionElement} */ (groupEl.querySelector('[value="collection"]')).hidden = !hasCollections;
   const place = () => {
@@ -73,6 +75,43 @@ async function init() {
   groupEl.addEventListener('change', () => { saveOrder(GROUP_KEY, groupEl.value); place(); });
   place();
   restoreScroll();   // back from an album: where the visitor was
+}
+
+// Photos dropped on an album card go into that album — for the admin and the
+// members who may change it (canDelete: the same right). Once uploaded, the
+// card is redrawn with its new count and dates.
+function enableDrops(albums, cards) {
+  const allowed = new Set(albums.filter(a => a.canDelete).map(a => a.name));
+  if (!allowed.size) return;
+  preventFileDrops();
+  const uploader = new Uploader({
+    endpoint: (album) => `/api/albums/${encodeURIComponent(album)}/photos`,
+    onDone: async (album) => {
+      const fresh = (await fetch('/api/albums').then(r => r.json()).catch(() => [])).find(a => a.name === album);
+      const old = cards.get(album);
+      if (!fresh || !old) return;
+      const card = createAlbumCard(fresh);
+      old.replaceWith(card);
+      cards.set(album, card);
+      wire(album, card);
+    },
+  });
+  const wire = (name, card) => {
+    card.addEventListener('dragover', (e) => {
+      if (!dragHasFiles(e)) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'copy';
+      card.classList.add('album-card--drop');
+    });
+    card.addEventListener('dragleave', (e) => { if (!card.contains(e.relatedTarget)) card.classList.remove('album-card--drop'); });
+    card.addEventListener('drop', (e) => {
+      if (!dragHasFiles(e)) return;
+      e.preventDefault();
+      card.classList.remove('album-card--drop');
+      uploader.open(name, [...e.dataTransfer.files]);
+    });
+  };
+  for (const name of allowed) wire(name, cards.get(name));
 }
 
 // [{ title, items }] in display order: one untitled group (no grouping), the

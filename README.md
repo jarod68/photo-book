@@ -125,9 +125,23 @@ A photo is shown as a 360° panorama when its XMP says so (`ProjectionType: equi
 
 When the photo folder cannot be written to (a read-only mount), the app says so instead of failing: Admin → Albums shows a notice and disables creating, renaming and deleting albums and uploading photos; those routes answer `409 { code: "read_only" }`, and the viewer offers no delete. Titles, cover, description and album settings live in the database and stay editable. Checked at most once a minute.
 
+### Adding photos
+
+Photos can be added in three places, by **drag and drop** or by picking files:
+
+- **on the home page**: drop photos on an album's card;
+- **in an open album** (the viewer): drop them on the photo, or **⋯ → Add photos**;
+- **in the admin**: drop them on an album's row, or its ⇪ button.
+
+Who may: the admin, and a member authorized on a restricted album (the same right as deleting its photos) — the album API says so with `canUpload`; others see none of it. Dropped files upload at once in the upload window (progress, then a report of what was renamed, left out or refused); picked ones wait for **Upload**. The window is one component for all three (`public/components/uploader.js`); the admin and members' routes (`POST /api/admin/albums/:album/photos`, `POST /api/albums/:album/photos`) share the server side (`services/uploads.js`, `receive`). Files dropped anywhere else on those pages are ignored rather than opened by the browser.
+
+### Admin: finding albums
+
+Above the albums table, a toolbar **filters** (name or collection as you type, visibility, collection), **sorts** (most viewed, A–Z, most photos, most liked, most recent) and **groups** (by collection, visibility or year, under headings with a count) — all in the page, the choices remembered per browser; the count of albums shown is on the right.
+
 ### Uploads never overwrite
 
-An uploaded file never replaces one already in the album. A name already taken — on disk, or earlier in the same batch — gets a suffix (`IMG_1.jpg` → `IMG_1 (2).jpg`); a file byte-for-byte identical to the one already there is dropped as a duplicate, so sending the same batch twice adds nothing. Files of unsupported types are refused. The upload answers `{ count, files, renamed, duplicates, skipped }` and the admin dialog lists anything renamed, dropped or refused. File names are read as UTF-8 (`défilé.jpg` keeps its accents).
+An uploaded file never replaces one already in the album. A name already taken — on disk, or earlier in the same batch — gets a suffix (`IMG_1.jpg` → `IMG_1 (2).jpg`); a file byte-for-byte identical to the one already there is dropped as a duplicate, so sending the same batch twice adds nothing. Files of unsupported types are refused. The upload answers `{ count, files, renamed, duplicates, skipped }` and the upload window lists anything renamed, dropped or refused. File names are read as UTF-8 (`défilé.jpg` keeps its accents).
 
 ### Titles, captions and places
 

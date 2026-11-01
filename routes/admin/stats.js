@@ -9,6 +9,7 @@ const library    = require('../../services/library');
 const system      = require('../../services/system');
 const maintenance = require('../../services/maintenance');
 const duplicates  = require('../../services/duplicates');
+const albumInfo   = require('../../services/album-info');
 
 const router = express.Router();
 
@@ -34,12 +35,20 @@ router.get('/stats', requireAdmin, async (req, res) => {
       visibilityMap = new Map(settingsRows.map(r => [r.album, r.visibility]));
     }
 
+    // collection and capture dates, for the admin's filters, sort and groups
+    const infos = await albumInfo.loadAlbumInfo().catch(() => new Map());
+    const dates = new Map(await Promise.all(names.map(async (name) => /** @type {[string, { dateFrom: string | null, dateTo: string | null }]} */ ([
+      name, albumInfo.dateRange((await library.getAlbumPhotos(name)) ?? []),
+    ]))));
+
     const albums = [...fsMap.entries()].map(([album, photos]) => ({
       album,
       photos,
       views:      viewMap.get(album) ?? 0,
       likes:      likeMap.get(album) ?? 0,
       visibility: visibilityMap.get(album) ?? 'public',
+      collection: infos.get(album)?.collection ?? null,
+      ...dates.get(album),
     })).sort((a, b) => b.views - a.views || a.album.localeCompare(b.album));
 
     res.json({ albums, readOnly: !await library.isWritable() });

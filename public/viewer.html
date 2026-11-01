@@ -79,6 +79,10 @@
                 <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-3-3v6M3 7l2-2h14l2 2v12a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"/></svg>
                 <span data-i18n="viewer.downloadZip">Download album (ZIP)</span>
               </a>
+              <button id="upload-btn" class="photo-action-item" hidden>
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V4m0 0l-4 4m4-4l4 4M4 20h16"/></svg>
+                <span data-i18n="viewer.addPhotos">Add photos</span>
+              </button>
               <button id="share-btn" class="photo-action-item" hidden>
                 <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path stroke-linecap="round" d="M8.59 13.51l6.83 3.98M15.41 6.51L8.59 10.49"/></svg>
                 <span data-i18n="viewer.share">Share</span>
@@ -106,6 +110,8 @@
         </button>
       </div>
 
+      <!-- photos dragged over an album the visitor may add to -->
+      <div id="viewer-drop" class="viewer-drop" hidden><p id="viewer-drop-text"></p></div>
       <div id="empty-state" class="empty-state" hidden>
         <p class="empty-state-emoji">📷</p>
         <p class="empty-state-title" data-i18n="viewer.emptyTitle">Oops, nothing here!</p>

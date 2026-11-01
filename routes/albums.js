@@ -14,6 +14,7 @@ const gpsPrivacy = require('../services/gps-privacy');
 const database = require('../services/database');
 const auth     = require('../services/auth');
 const activity = require('../services/activity');
+const uploads  = require('../services/uploads');
 const { resolveUser, getAlbumAccess, filterVisibleAlbums } = require('../services/access');
 
 const { BadRequest, sendError, requireWritableLibrary } = require('../services/http-errors');
@@ -153,7 +154,8 @@ router.get('/:album', async (req, res) => {
     }
 
     const writable = await library.isWritable();
-    res.json({ name: req.params.album, photos, canDelete: canDelete && writable, canDownload: !!user });
+    // the same rights add photos from the viewer (POST …/photos below)
+    res.json({ name: req.params.album, photos, canDelete: canDelete && writable, canUpload: canDelete && writable, canDownload: !!user });
   } catch (err) {
     sendError(res, err);
   }
@@ -169,6 +171,22 @@ router.get('/:album/cover', async (req, res) => {
     const { cover, coverPreview, coverThumb } = albumInfo.summarize(photos, info.get(req.params.album));
     if (!cover) return res.status(404).json({ error: 'No photos' });
     res.json({ cover, coverPreview, coverThumb });
+  } catch (err) {
+    sendError(res, err);
+  }
+});
+
+// POST /api/albums/:album/photos  (user-facing upload, requires auth) — the
+// admin, or a member of a restricted album they may change (the same right as
+// deleting its photos); the files are handled like the admin's uploads.
+router.post('/:album/photos', auth.requireAuth, requireWritableLibrary, async (req, res) => {
+  try {
+    const { album } = req.params;
+    const albumPath = safeAlbumPath(album);
+    if (!await library.albumExists(album)) return res.status(404).json({ error: 'Album not found' });
+    const { canDelete } = await getAlbumAccess(album, req.user).catch(() => ({ canDelete: false }));
+    if (!canDelete) return res.status(403).json({ error: 'Forbidden' });
+    uploads.receive(req, res, albumPath);
   } catch (err) {
     sendError(res, err);
   }
