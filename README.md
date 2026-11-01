@@ -135,15 +135,56 @@ A photo's title, caption and place come from its file (XMP / IPTC / EXIF; the ti
 
 ### 3D globe
 
-`globe.html` shows the photos on the Earth in two views that hand over to each other:
+`globe.html` (the **Globe 3D** card on the home page) shows every geotagged photo on the Earth, seen from space, then down to the street. It is free and keyless from end to end.
 
-- **From space** (Three.js, `public/components/globe/space-view.js`): NASA Blue Marble by day and Black Marble city lights by night, with the day/night line at the sun's real position (updated every minute), sun glint on the oceans only, an atmosphere halo and a starfield with the Milky Way. Photos are round thumbnails, grouped with a count when they overlap on screen; country names are in the reader's language.
-- **The sky of the moment**, around the Earth in the space view: the **Sun** (a glow), the **Moon** and the seven **planets**, each in its real direction at the time shown (`?at=` included) and named in the page's language. The Moon is a sphere with the NASA LRO colour map (SVS CGI Moon Kit, public domain, `moon-1024.webp`, 63 KB), lit by the Sun, so it shows its real phase, and always turns the same face to the Earth; it sits at its real distance but is drawn five times its size (true to scale it would be a 10-pixel dot). The planets are points sized by their brightness and tinted by their colour (Venus brightest, Uranus and Neptune faint). Positions come from `public/utils/globe-math.js`: the Moon from the main terms of Meeus (*Astronomical Algorithms*, ch. 47), the planets from JPL's approximate Keplerian elements (1800–2050) with precession to the date; tested against astronomy-engine — within 0.1° for the Moon, 0.2° for the planets. Labels hide when their body is behind the Earth. The background stars are decorative, not a catalogue.
-- **Close up** (MapLibre GL 6 in globe projection, `public/components/globe/near-view.js`): below ~1 400 km (zooming in, or clicking a photo or a group), the page cross-fades to a map that goes down to the street — **Satellite** (EOxCloudless 2024, Sentinel-2, about 10 m per pixel, with borders and place names from OpenFreeMap) or **Map** (OpenFreeMap Liberty, OpenStreetMap data). Photos are clustered thumbnails; a click opens the photo card. Zooming out — or the globe button — goes back to space. Both views show the Earth at the same apparent size at the switch (`public/utils/globe-math.js`).
+#### What you see and how to use it
 
-**Time zones** (clock button, remembered per browser): the real IANA zones — from timezone-boundary-builder, OpenStreetMap data, ODbL — tint the globe by their current UTC offset (summer time included, six hues in turn so neighbours differ, half-hour zones in gold); the hovered zone stands out and a card gives its local time, place and offset (a tap on touch screens; a second tap closes it). The card also works over the near map. The borders are sharp vector lines (~110 m precision), drawn only where the hour changes — between two land zones or two ocean zones, not along every coast's territorial waters — and redrawn when summer time moves them; the tint blends the four nearest index texels, so its edges are smooth too. The data, built by `scripts/timezone-textures.js` (`public/textures/earth/tz-*`): an equirectangular index image (each pixel: zone number), the zone names, and the borders in a compact binary file (300 KB); offsets and times come from `Intl`, so they stay right without updating the data until zones themselves change.
+- **The Earth from space**, as it is at this very moment: day on one side, city lights on the night side, the day/night line where the sun really is, the sun glinting on the oceans, a thin blue atmosphere, stars and the Milky Way behind. It turns slowly on its own and stops while you touch it (it starts again 6 s after).
+- **The photos** are round thumbnails pinned to the globe. Thumbnails that would overlap on screen are grouped into one with a count; zooming in splits them.
+- **Moving around**: drag to turn the globe, wheel or pinch to zoom, from about 32 000 km up down to 1 400 km, where the close-up map takes over. Country names appear in the page's language when you are close enough.
+- **Going down**: zooming in below about 1 400 km — or clicking a photo or a group — flies there and cross-fades to the **close-up map**, which goes down to the street. A photo opens its card (title, album, date, place, *View in album*); a group frames its photos. **Satellite** / **Map** switch the background; zooming out — or the globe button — goes back to space at the same spot.
+- **The sky of the moment** around the Earth: the **Sun**, the **Moon** with its real phase, and the seven **planets**, each in its real direction, named in the page's language (names hide when their body passes behind the Earth). Turn the globe to find them: like in the real sky, they are not always in view.
+- **Time zones** (clock button, remembered per browser): the real time zones colour the globe by their current offset from UTC; hover a zone (tap on a phone) to see its local time, the zone's reference city and its offset.
+- **Back**: the ← at the top returns to the page you came from, and coming back to the globe finds the view you left (see *Back button*).
 
-Everything is free and keyless: the NASA imagery is public domain and served by the app (`public/textures/earth/`, 2K / 4K / 8K WebP made by `scripts/earth-textures.js` from the NASA sources and a Natural Earth ocean mask; phones get 4K). EOxCloudless is CC BY-NC-SA 4.0 (non-commercial use, with the attribution shown on the map); OpenFreeMap has no limits and needs no key. These two tile hosts are the only additions to the Content-Security-Policy (`img-src` / `connect-src`). MapLibre (1.5 MB) is self-hosted under `/vendor/maplibre-gl/` and downloaded in the background a few seconds after the globe appears. `?still&at=2026-06-21T12:00:00Z` stops the rotation and fixes the sun and clocks (screenshots); `&tz` turns the time zones on.
+#### The two views
+
+- **From space** — Three.js 0.168, `public/components/globe/space-view.js`. The Earth is one sphere with a custom shader: NASA *Blue Marble* (day) and *Black Marble* (night lights) blended across the terminator, which follows the sub-solar point (NOAA formulas, `subsolarPoint`, updated every minute); a sun glint limited to water by a Natural Earth ocean mask; a scattering rim and an atmosphere shell. Stars are 9 000 points with a Milky Way band (decorative, not a catalogue). Photo thumbnails are sprites drawn on canvases, clustered in screen space (`clusterScreen`, 50 px); clicks are ray-cast.
+- **Close up** — MapLibre GL 6 in globe projection, `public/components/globe/near-view.js`: **Satellite** is EOxCloudless 2024 (Sentinel-2, about 10 m per pixel) with borders, roads and place names from OpenFreeMap's vector tiles; **Map** is OpenFreeMap *Liberty* with names in the page's language. Photos are a clustered GeoJSON source drawn as round thumbnails (HTML markers).
+- **The hand-over**: both views show the Earth at the same apparent size at the switch — the space camera's distance and MapLibre's zoom are converted into each other (`distanceToZoom` / `zoomToDistance` in `public/utils/globe-math.js`), so a 450 ms cross-fade hides it. MapLibre (1.5 MB) is downloaded in the background a few seconds after the globe appears, so the first switch is quick.
+
+#### The sky
+
+`public/utils/globe-math.js` computes, for the time shown: the **Moon** from the main terms of Meeus (*Astronomical Algorithms*, ch. 47) and the **planets** from JPL's approximate Keplerian elements (1800–2050, with precession to the date and a rough magnitude); a body of right ascension α and declination δ stands above the point where it is at the zenith (latitude δ, longitude α − sidereal time), since the scene turns with the Earth. Checked against astronomy-engine over 2000–2049: within 0.1° for the Moon, 0.2° for the planets (reference values in the unit tests).
+
+- The **Moon** is a sphere with NASA's LRO colour map (SVS CGI Moon Kit, `moon-1024.webp`, 63 KB), lit by the Sun — hence its real phase —, turning the same face to the Earth, at its real distance but drawn five times its size (true to scale it would be a 10-pixel dot).
+- The **Sun** is a glow, hidden by the Earth when behind it; the **planets** are points sized by their brightness and tinted by their colour (Venus brightest, Uranus and Neptune faint).
+
+#### Time zones
+
+The real IANA zones — from timezone-boundary-builder (OpenStreetMap data, ODbL) — tint the globe by their current UTC offset: six hues in turn so that neighbouring hours differ, half-hour zones in gold, summer time included. The hovered zone stands out; a card gives its local time, reference city (Paris for *Europe/Paris*) and offset, also over the close-up map. Borders are sharp vector lines (about 110 m precision), drawn only where the hour changes — between two land zones or two ocean zones, not along every coast's territorial waters — and redrawn when summer time moves them; the tint blends the four nearest index texels, so its edges are smooth too. The data, built by `scripts/timezone-textures.js` into `public/textures/earth/tz-*`: an equirectangular index image (each pixel: a zone number), the zone names, and the borders in a compact binary file (300 KB). Offsets and times come from `Intl`, so they stay right without new data until the zones themselves change.
+
+#### Performance
+
+The globe appears with 2K textures, then swaps in 8K ones on a large screen whose GPU allows it, 4K on phones and tablets (mobile Safari keeps textures in memory). The time-zone index is 4K, 2K on touch screens. Rendering stops while the close-up map is shown. Textures are WebP, served by the app with a day of cache.
+
+#### Data and licences
+
+| What | Source | Licence |
+|---|---|---|
+| Day, night, ocean mask | NASA Blue Marble NG, Black Marble 2016, Natural Earth 1:50m (`scripts/earth-textures.js`) | public domain |
+| Moon | NASA SVS CGI Moon Kit (LRO LROC) | public domain |
+| Time zones | timezone-boundary-builder 2026e | ODbL |
+| Satellite close up | EOxCloudless 2024 (EOX, Copernicus Sentinel-2) | CC BY-NC-SA 4.0 — non-commercial, credited on the map |
+| Map close up, names, borders | OpenFreeMap (OpenStreetMap data) | ODbL, no key, no limit |
+
+The NASA textures are served by the app (`public/textures/earth/`); the two tile hosts are the only third-party origins in the Content-Security-Policy.
+
+#### For developers
+
+- **URL**: `?still` stops the rotation, `&at=2026-06-21T12:00:00Z` fixes the sun, the sky and the clocks, `&tz` turns the time zones on — for reproducible screenshots.
+- **Files**: `public/globe.html` (import map for Three.js and MapLibre), `public/pages/globe.js` (the page: hand-over, time-zone card, back button), `public/components/globe/space-view.js`, `public/components/globe/near-view.js`, `public/utils/globe-math.js` (geometry, sun, Moon, planets, zoom ↔ distance), `public/utils/timezones.js`, `public/css/globe.css`.
+- **Tests**: `tests/unit_tests/client/globe-math.test.js` (coordinates, sun, Moon and planets against reference values, zoom ↔ distance, clustering), `tests/unit_tests/client/timezones.test.js`, and `tests/visual_tests/globe.spec.js` (the Earth from space with a fixed sun; a group down to the map and back up; the time-zone overlay with its card).
 
 ### Chronological order
 
