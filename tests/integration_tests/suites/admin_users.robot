@@ -31,6 +31,20 @@ GET Generate Password Returns A Password
     Should Not Be Empty    ${data}[password]
     Should Match Regexp    ${data}[password]    ^(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9]).{8,}
 
+Generate Buttons Fill A Strong Password
+    [Documentation]    Through the UI: the API route moved once and the buttons silently stopped working.
+    Click    id=new-user-btn
+    Click    id=new-user-gen-btn
+    Wait For Condition    Element States    id=new-user-password    contains    visible
+    ${pwd}=    Get Property    id=new-user-password    value
+    Should Match Regexp    ${pwd}    ^(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9]).{8,}
+    Click    id=new-user-cancel
+    Click    css=#users-body [data-pwd] >> nth=0
+    Click    id=pwd-gen-btn
+    ${pwd2}=    Get Property    id=pwd-new    value
+    Should Match Regexp    ${pwd2}    ^(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9]).{8,}
+    Click    id=pwd-close-btn
+
 POST User With Weak Password Returns 400
     ${s}=    Evaluate JavaScript    ${NONE}
     ...    () => fetch('/api/admin/users', {method:'POST',

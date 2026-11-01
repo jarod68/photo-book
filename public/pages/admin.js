@@ -20,8 +20,9 @@ function validatePwd(password) {
   return null;
 }
 
+// a strong random password from the server (routes/admin/users.js)
 async function genPassword() {
-  const res = await fetch('/api/admin/generate-password');
+  const res = await fetch('/api/admin/users/generate-password');
   if (!res.ok) return null;
   const { password } = await res.json().catch(() => ({}));
   return password ?? null;
