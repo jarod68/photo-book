@@ -37,6 +37,7 @@
 
 .album-map-btn {
   flex-shrink: 0;
+  text-decoration: none;   /* also the Articles link */
   display: inline-flex;
   align-items: center;
   gap: 5px;
