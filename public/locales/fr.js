@@ -109,6 +109,7 @@ export default {
   'globe.satellite': 'Satellite',
   'globe.map': 'Plan',
   'globe.timezones': 'Fuseaux horaires',
+  'globe.route': 'Tracé',
   'globe.tzCredit': 'fuseaux : timezone-boundary-builder (© contributeurs OpenStreetMap, ODbL)',
   'globe.backToSpace': 'Vue de l’espace',
   'globe.time': 'Heure simulée (72 h avant ou après)',

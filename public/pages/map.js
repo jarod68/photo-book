@@ -3,77 +3,13 @@ import { t, getLang, applyTranslations, initLangSwitcher } from '../utils/i18n.j
 import '../utils/admin-shortcut.js';
 import { markerElement, clusterElement } from '../components/map-marker.js';
 import { getMapPhotos }   from '../api/client.js';
-import {
-  catmullRom, cubicSample,
-  centroid, buildSegments, clusterSegment,
-} from '../utils/map-math.js';
+import { routeData, addRouteLayers, setRouteVisible } from '../utils/route.js';
 import { showBuildTag } from '../utils/build-tag.js';
 import { createMap } from '../utils/base-map.js';
 import { wireBack, pageState, saveState } from '../utils/back.js';
 
 applyTranslations();
 initLangSwitcher('lang-switcher');
-
-const ROUTE_COLOR = '#ff8a5b';   // the app's accent (--accent)
-const ARROW_TS    = [0.2, 0.5, 0.8];
-const ROUTE_LAYERS = ['route-halo', 'route-line', 'route-arrows', 'route-nodes'];
-
-// ── Route (GeoJSON, drawn by MapLibre layers) ─────────────────────────────────
-// Per segment: Catmull-Rom curves between the centroids of nearby photos, a
-// white halo under a dashed coral line, arrows along it (rotated with the
-// curve), a grey dot where several photos share a spot.
-function routeData(photos) {
-  const lines = [], arrows = [], nodes = [];
-  buildSegments(photos).forEach(segment => {
-    const groups    = clusterSegment(segment);
-    const centroids = groups.map(centroid);
-    groups.forEach((g, gi) => {
-      if (g.length > 1) nodes.push({ type: 'Feature', properties: {}, geometry: { type: 'Point', coordinates: [centroids[gi].lng, centroids[gi].lat] } });
-    });
-    for (let i = 0; i < centroids.length - 1; i++) {
-      const a = centroids[i], b = centroids[i + 1];
-      if (a.lat === b.lat && a.lng === b.lng) continue;
-      const { pts, cp1, cp2, P0, P1 } = catmullRom(centroids, i);
-      lines.push({ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: pts.map(([lat, lng]) => [lng, lat]) } });
-      for (const tt of ARROW_TS) {
-        const { lat, lng, deg } = cubicSample(tt, P0, cp1, cp2, P1);
-        arrows.push({ type: 'Feature', properties: { deg }, geometry: { type: 'Point', coordinates: [lng, lat] } });
-      }
-    }
-  });
-  const fc = (features) => ({ type: 'FeatureCollection', features });
-  return { lines: fc(lines), arrows: fc(arrows), nodes: fc(nodes) };
-}
-
-// the arrow head, drawn once (2× for sharp screens)
-function arrowImage() {
-  const c = document.createElement('canvas');
-  c.width = 32; c.height = 44;
-  const g = c.getContext('2d');
-  g.scale(2, 2);
-  g.beginPath();
-  g.moveTo(8, 0); g.lineTo(15.5, 19); g.lineTo(8, 13.5); g.lineTo(0.5, 19); g.closePath();
-  g.fillStyle = ROUTE_COLOR; g.fill();
-  g.lineWidth = 2; g.lineJoin = 'round'; g.strokeStyle = 'rgba(255,255,255,0.95)'; g.stroke();
-  return g.getImageData(0, 0, 32, 44);
-}
-
-function addRoute(map, photos) {
-  const { lines, arrows, nodes } = routeData(photos);
-  map.addImage('route-arrow', arrowImage(), { pixelRatio: 2 });
-  map.addSource('route-lines', { type: 'geojson', data: lines });
-  map.addSource('route-arrows', { type: 'geojson', data: arrows });
-  map.addSource('route-nodes', { type: 'geojson', data: nodes });
-  map.addLayer({ id: 'route-halo', type: 'line', source: 'route-lines', layout: { 'line-cap': 'round', 'line-join': 'round' },
-    paint: { 'line-color': '#ffffff', 'line-width': 7, 'line-opacity': 0.18 } });
-  map.addLayer({ id: 'route-line', type: 'line', source: 'route-lines', layout: { 'line-cap': 'round', 'line-join': 'round' },
-    paint: { 'line-color': ROUTE_COLOR, 'line-width': 3, 'line-opacity': 0.9, 'line-dasharray': [4, 2.7] } });
-  map.addLayer({ id: 'route-nodes', type: 'circle', source: 'route-nodes',
-    paint: { 'circle-radius': 6, 'circle-color': '#94a3b8', 'circle-opacity': 0.75, 'circle-stroke-color': '#fff', 'circle-stroke-width': 2 } });
-  map.addLayer({ id: 'route-arrows', type: 'symbol', source: 'route-arrows',
-    layout: { 'icon-image': 'route-arrow', 'icon-rotate': ['get', 'deg'], 'icon-rotation-alignment': 'map',
-      'icon-allow-overlap': true, 'icon-ignore-placement': true } });
-}
 
 // ── Photos: clustered GeoJSON source, drawn as HTML pins / badges ─────────────
 function addPhotos(ml, map, photos, labels) {
@@ -168,14 +104,14 @@ async function init() {
       .forEach((p, i) => labels.set(p, { n: i + 1, label: `${p.album}-${i + 1}` }));
   });
 
-  const ready = () => { addRoute(map, photos); addPhotos(ml, map, photos, labels); };
+  const ready = () => { addRouteLayers(map, routeData(photos)); addPhotos(ml, map, photos, labels); };
   if (map.isStyleLoaded()) ready(); else map.once('load', ready);
 
   // Route toggle
   const toggleBtn = document.getElementById('route-toggle');
   toggleBtn.addEventListener('click', () => {
     const visible = toggleBtn.classList.toggle('active');
-    for (const id of ROUTE_LAYERS) if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', visible ? 'visible' : 'none');
+    setRouteVisible(map, visible);
     toggleBtn.title = t(visible ? 'map.hideRoute' : 'map.showRoute');
   });
 }

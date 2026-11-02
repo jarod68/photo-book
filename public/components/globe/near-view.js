@@ -6,9 +6,12 @@
  *    and place names from OpenFreeMap's vector tiles drawn over it;
  *  - Map: OpenFreeMap "Liberty" (OpenStreetMap data), down to the street.
  * Photos: clustered GeoJSON source drawn as round thumbnails (HTML markers);
- * a click opens the photo card, or zooms into a group.
+ * a click opens the photo card, or zooms into a group. The route between the
+ * photos is drawn as on the map page (utils/route.js), when turned on.
  * MapLibre (1.5 MB) is imported only when this view is first needed.
  */
+import { routeData, addRouteLayers, setRouteVisible } from '../../utils/route.js';
+
 const OFM = 'https://tiles.openfreemap.org';
 const EOX_TILES = 'https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless-2024_3857/default/g/{z}/{y}/{x}.jpg';
 const EOX_ATTRIBUTION = '<a href="https://cloudless.eox.at" target="_blank" rel="noopener">EOxCloudless 2024</a> by EOX IT Services GmbH '
@@ -80,12 +83,15 @@ const escapeHtml = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&a
 export class NearView {
   /**
    * @param {HTMLElement} container
-   * @param {{ photos: object[], lang: string, t: Function, onFar: Function, onPoint?: Function }} opts
+   * @param {{ photos: object[], lang: string, t: Function, onFar: Function, onPoint?: Function, route?: boolean }} opts
    *   onFar({ lat, lng, zoom }): the user zoomed out below FAR_ZOOM
+   *   route: draw the route between the photos (setRoute changes it)
    */
-  constructor(container, { photos, lang, t, onFar, onPoint = () => {} }) {
+  constructor(container, { photos, lang, t, onFar, onPoint = () => {}, route = true }) {
     this.container = container;
     this.photos = photos;
+    this.route = route;
+    this.routeData = routeData(photos);
     this.lang = lang;
     this.t = t;
     this.onFar = onFar;
@@ -153,6 +159,14 @@ export class NearView {
     });
     // an invisible layer, so the source's features (and clusters) are computed
     this.map.addLayer({ id: 'photos-hit', type: 'circle', source: 'photos', paint: { 'circle-radius': 0, 'circle-opacity': 0 } });
+    // a new style (Satellite / Map) drops the layers: drawn again each time
+    addRouteLayers(this.map, this.routeData, this.route);
+  }
+
+  /** Show or hide the route between the photos. */
+  setRoute(on) {
+    this.route = on;
+    if (this.map) setRouteVisible(this.map, on);
   }
 
   async setMode(mode) {

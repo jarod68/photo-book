@@ -30,6 +30,8 @@ const lang     = getLang();
 const tzBtn    = document.getElementById('globe-tz-btn');
 const tzTip    = document.getElementById('globe-tz-tip');
 const TZ_KEY   = 'pb.globeTimezones';
+const routeBtn = document.getElementById('globe-route-btn');
+const ROUTE_KEY = 'pb.globeRoute';
 
 let state = 'space';
 let busy  = false;
@@ -232,7 +234,11 @@ async function init() {
     ? t('map.photos', { n: photos.length, s: photos.length > 1 ? 's' : '' })
     : t('map.noPhotos');
 
-  near = new NearView(nearEl, { photos, lang, t, onFar: goFar, onPoint });
+  // the route between the photos, as on the map page (on unless turned off):
+  // drawn close up only, so by the near view
+  let routeOn = true;
+  try { routeOn = localStorage.getItem(ROUTE_KEY) !== '0'; } catch { /* private mode */ }
+  near = new NearView(nearEl, { photos, lang, t, onFar: goFar, onPoint, route: routeOn });
   space = new SpaceView(spaceEl, {
     photos, lang, at, still, onPoint,
     onNear: (view) => goNear(view),
@@ -279,6 +285,15 @@ async function init() {
     near.setMode(btn.dataset.mode);
   });
   creditEl.innerHTML = t('globe.credit');
+  const showRoute = (on) => {
+    routeOn = on;
+    near.setRoute(on);
+    routeBtn.setAttribute('aria-pressed', String(on));
+    routeBtn.title = t(on ? 'map.hideRoute' : 'map.showRoute');
+    try { localStorage.setItem(ROUTE_KEY, on ? '1' : '0'); } catch { /* private mode */ }
+  };
+  showRoute(routeOn);
+  routeBtn.addEventListener('click', () => showRoute(!routeOn));
   tzBtn.addEventListener('click', () => setTimezones(!tzOn));
   let saved = null;
   try { saved = localStorage.getItem(TZ_KEY); } catch { /* private mode */ }
