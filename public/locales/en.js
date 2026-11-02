@@ -395,4 +395,11 @@ export default {
   'write.missing': 'Photo not found',
   'write.placeholder': 'Tell the story…',
   'write.adminOnly': 'For the administrator only.',
+
+  // About
+  'about.link': 'About',
+  'about.albums': 'albums',
+  'about.photos': 'photos and videos',
+  'about.articles': 'stories',
+  'about.places': 'photos on the map',
 };

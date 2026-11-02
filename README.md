@@ -214,6 +214,10 @@ Stories written in the app, kept in an album: beside its photos, or alone in an 
 - **Rights.** An album's rights are its articles' rights: public, members only (`401` otherwise), share link. A photo of another album is shown only to readers allowed to see that album. The card of an album of articles only takes the picture of its latest article.
 - **Data.** Table `articles` (migration 9), deleted and renamed with its album (`services/cleanup.js`). Server: `services/articles.js`, `routes/articles.js` (reading), `routes/admin/articles.js` (writing).
 
+### About
+
+`about.html` (*About* in the home page's header and footer): what the site is, what you will find there, how it is made, privacy, thanks — the text in the page's language (`public/utils/about-content.js`, written by hand in French, English and Spanish) — and live figures (albums, photos and videos, stories, photos on the map).
+
 ### Chronological order
 
 - **Home**: albums can be sorted A–Z, most recent first (by the last capture date) or oldest first (by the first capture date); albums without dates come last.

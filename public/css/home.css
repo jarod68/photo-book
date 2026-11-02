@@ -251,7 +251,7 @@
 
 
 /* home: search link */
-.home-search-btn {
+.home-search-btn, .home-about-btn {
   display: inline-flex; align-items: center; gap: 6px;
   height: var(--ctl-h);
   padding: 0 10px;
@@ -262,7 +262,7 @@
   font-size: var(--ctl-fs);
   text-decoration: none;
 }
-.home-search-btn:hover { color: var(--text); border-color: var(--border-h); }
+.home-search-btn:hover, .home-about-btn:hover { color: var(--text); border-color: var(--border-h); }
 
 @media (max-width: 600px) {
   .home-header { padding: 24px 16px 0; gap: 12px; flex-wrap: wrap; align-items: center; }

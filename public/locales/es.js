@@ -395,4 +395,11 @@ export default {
   'write.missing': 'Foto no encontrada',
   'write.placeholder': 'Cuente…',
   'write.adminOnly': 'Solo para el administrador.',
+
+  // About
+  'about.link': 'Acerca de',
+  'about.albums': 'álbumes',
+  'about.photos': 'fotos y vídeos',
+  'about.articles': 'artículos',
+  'about.places': 'fotos en el mapa',
 };

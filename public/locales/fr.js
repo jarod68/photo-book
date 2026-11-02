@@ -395,4 +395,11 @@ export default {
   'write.missing': 'Photo introuvable',
   'write.placeholder': 'Racontez…',
   'write.adminOnly': 'Réservé à l’administrateur.',
+
+  // About
+  'about.link': 'À propos',
+  'about.albums': 'albums',
+  'about.photos': 'photos et vidéos',
+  'about.articles': 'articles',
+  'about.places': 'photos sur la carte',
 };
