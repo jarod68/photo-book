@@ -4,7 +4,9 @@
  *  - NASA Blue Marble by day, Black Marble city lights by night, the
  *    terminator at the sun's real position (updated every minute), sun glint
  *    on the oceans only (Natural Earth water mask), a scattering rim;
- *  - an atmosphere halo, a starfield with a Milky Way band;
+ *  - an atmosphere halo; the real starry sky behind (NASA Deep Star Maps:
+ *    Hipparcos, Tycho and Gaia stars, the Milky Way, the Magellanic Clouds),
+ *    turning with sidereal time like the Sun, the Moon and the planets;
  *  - the sky of the moment: the Sun, the Moon (NASA LRO map, lit by the Sun:
  *    its real phase; five times its size so it reads as a disc) and the
  *    seven planets, in their real directions (utils/globe-math.js);
@@ -22,7 +24,7 @@ import { LineSegments2 } from 'three/addons/lines/LineSegments2.js';
 import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js';
 import { LineMaterial } from 'three/addons/lines/LineMaterial.js';
 import {
-  lonLatToXyz, xyzToLonLat, subsolarPoint, clusterScreen, angularDistance, moonPosition, planetPositions, skyToLonLat,
+  lonLatToXyz, xyzToLonLat, subsolarPoint, gmst, clusterScreen, angularDistance, moonPosition, planetPositions, skyToLonLat,
 } from '../../utils/globe-math.js';
 
 export const FOV = 45;
@@ -32,6 +34,7 @@ const MAX_DISTANCE = 6;
 const MARKER_PX = 54;                     // thumbnail diameter on screen
 const CLUSTER_PX = 50;                    // thumbnails closer than this on screen are grouped
 const TEX = '/textures/earth';
+const SKY_TEX = '/textures/sky';
 
 // ISO code, lat, lng, farthest camera distance at which the name shows
 const COUNTRIES = [
@@ -183,6 +186,32 @@ const STAR_FRAG = /* glsl */ `
     gl_FragColor = vec4(vTint * a, a);
   }`;
 
+// The starry sky: a sphere around the camera showing NASA's Deep Star Maps
+// 2020 (plate carrée in right ascension / declination, 0 h at the centre,
+// right ascension growing to the left). The scene turns with the Earth, so a
+// direction of longitude λ looks at right ascension λ + GMST.
+const SKY_VERT = /* glsl */ `
+  varying vec3 vDir;
+  void main() {
+    vDir = position;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  }`;
+
+const SKY_FRAG = /* glsl */ `
+  uniform sampler2D map;
+  uniform float gmst;          // radians
+  uniform float brightness;
+  varying vec3 vDir;
+  const float PI = 3.141592653589793;
+  void main() {
+    vec3 d = normalize(vDir);
+    float dec = asin(clamp(d.y, -1.0, 1.0));
+    float ra = atan(-d.z, d.x) + gmst;
+    vec2 uv = vec2(fract(0.5 - ra / (2.0 * PI)), 0.5 + dec / PI);
+    gl_FragColor = vec4(texture2D(map, uv).rgb * brightness, 1.0);
+    #include <colorspace_fragment>
+  }`;
+
 // The Moon: lit by the Sun (its phase), a faint earthshine on the night side.
 const MOON_FRAG = /* glsl */ `
   uniform sampler2D map;
@@ -211,7 +240,7 @@ const SUN_FRAG = /* glsl */ `
 
 const MOON_R = 1737.4 / 6371;   // in Earth radii
 const MOON_SCALE = 5;           // real size: ~10 px on screen, a dot; ×5 shows its face
-const SKY_R = 70;               // the Sun and planets: on a sphere inside the stars (80)
+const SKY_R = 70;               // the Sun and planets: on a sphere (the stars are drawn behind everything)
 const SKY_NAMES = {
   fr: { sun: 'Soleil', moon: 'Lune', mercury: 'Mercure', venus: 'Vénus', mars: 'Mars', jupiter: 'Jupiter', saturn: 'Saturne', uranus: 'Uranus', neptune: 'Neptune' },
   en: { sun: 'Sun', moon: 'Moon', mercury: 'Mercury', venus: 'Venus', mars: 'Mars', jupiter: 'Jupiter', saturn: 'Saturn', uranus: 'Uranus', neptune: 'Neptune' },
@@ -373,41 +402,51 @@ export class SpaceView {
   updateSun() {
     const s = subsolarPoint(this.time());
     this.sun.copy(v3(s.lat, s.lng)).normalize();
+    this.updateStars();
     if (this.skyBodies) this.updateSky();
   }
 
   // ── Scene ────────────────────────────────────────────────────────────────
 
   buildStars() {
-    const N = 9000, pos = [], size = [], tint = [];
-    const rnd = (() => { let s = 12345; return () => ((s = (s * 16807) % 2147483647) / 2147483647); })();   // stable sky
-    // galactic plane: a great circle tilted ~63° to the equator
-    const pole = new THREE.Vector3(-0.87, 0.46, -0.18).normalize();
-    for (let i = 0; i < N; i++) {
-      let d = new THREE.Vector3(rnd() * 2 - 1, rnd() * 2 - 1, rnd() * 2 - 1).normalize();
-      const band = i > N * 0.55;                       // 45 % of the stars crowd the Milky Way
-      if (band) {
-        d.addScaledVector(pole, -d.dot(pole) + (rnd() - 0.5) * (rnd() * 0.35)).normalize();
-      }
-      d.multiplyScalar(80);
-      pos.push(d.x, d.y, d.z);
-      const m = rnd() ** (band ? 6 : 3.2);
-      size.push(band ? 0.6 + m * 1.8 : 0.8 + m * 3.6);
-      const t = rnd();                                // colour temperature
-      const c = t < 0.15 ? [0.75, 0.82, 1] : t > 0.9 ? [1, 0.85, 0.7] : [1, 1, 1];
-      const b = band ? 0.35 + m * 0.6 : 0.5 + m * 0.6;
-      tint.push(c[0] * b, c[1] * b, c[2] * b);
-    }
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-    geo.setAttribute('size', new THREE.Float32BufferAttribute(size, 1));
-    geo.setAttribute('tint', new THREE.Float32BufferAttribute(tint, 3));
+    // the planets' round soft dots (buildSky)
     this.starMat = new THREE.ShaderMaterial({
       vertexShader: STAR_VERT, fragmentShader: STAR_FRAG,
       uniforms: { pixelRatio: { value: this.renderer.getPixelRatio() } },
       transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
     });
-    this.scene.add(new THREE.Points(geo, this.starMat));
+    // the sky: drawn first, behind everything, centred on the camera (loop)
+    this.skyMat = new THREE.ShaderMaterial({
+      vertexShader: SKY_VERT, fragmentShader: SKY_FRAG,
+      uniforms: { map: { value: null }, gmst: { value: 0 }, brightness: { value: 0 } },
+      side: THREE.BackSide, depthTest: false, depthWrite: false,
+    });
+    this.starSky = new THREE.Mesh(new THREE.SphereGeometry(90, 64, 32), this.skyMat);
+    this.starSky.renderOrder = -10;
+    this.starSky.frustumCulled = false;
+    this.scene.add(this.starSky);
+    this.updateStars();
+    // 4K first, 8K on a large screen whose GPU allows it (as the Earth)
+    const touch = matchMedia('(pointer: coarse)').matches;
+    const big = !touch && this.renderer.capabilities.maxTextureSize >= 8192
+      && Math.max(screen.width, screen.height) * devicePixelRatio > 1600;
+    const use = (t) => {
+      // no mipmaps: the sky is about one texel per pixel, and mipmaps would
+      // draw a seam where right ascension wraps around
+      t.generateMipmaps = false;
+      t.minFilter = THREE.LinearFilter;
+      this.skyMat.uniforms.map.value?.dispose();
+      this.skyMat.uniforms.map.value = t;
+      this.skyMat.uniforms.brightness.value = 1;
+    };
+    loadTexture(`${SKY_TEX}/sky-4096.webp`)
+      .then((t) => { use(t); return big ? loadTexture(`${SKY_TEX}/sky-8192.webp`).then(use) : null; })
+      .catch(() => {});
+  }
+
+  // the sky turns with sidereal time (the clock, or the time slider): every frame
+  updateStars() {
+    if (this.skyMat) this.skyMat.uniforms.gmst.value = gmst(this.time()) * Math.PI / 180;
   }
 
   // The Sun, the Moon and the planets, placed by updateSky() (every minute).
@@ -861,6 +900,8 @@ export class SpaceView {
       this.lastCam = cam.clone();
     }
 
+    this.starSky.position.copy(this.camera.position);   // infinitely far: no parallax
+    this.updateStars();                                  // turning smoothly, not by the minute
     this.renderer.render(this.scene, this.camera);
     this.labels.render(this.scene, this.camera);
 

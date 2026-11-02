@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  lonLatToXyz, xyzToLonLat, subsolarPoint, moonPosition, planetPositions, skyToLonLat, sphereRadiusPx, distanceToZoom, zoomToDistance, clusterScreen, angularDistance,
+  lonLatToXyz, xyzToLonLat, subsolarPoint, moonPosition, planetPositions, skyToLonLat, gmst, sphereRadiusPx, distanceToZoom, zoomToDistance, clusterScreen, angularDistance,
 } from '../../../public/utils/globe-math.js';
 
 describe('globe-math', () => {
@@ -81,5 +81,26 @@ describe('globe-math', () => {
   it('distance angulaire', () => {
     expect(angularDistance({ lat: 0, lng: 0 }, { lat: 0, lng: 90 })).toBeCloseTo(90, 9);
     expect(angularDistance({ lat: 48.8566, lng: 2.3522 }, { lat: 48.8566, lng: 2.3522 })).toBe(0);
+  });
+});
+
+describe('temps sidéral (le ciel étoilé)', () => {
+  it('GMST : 280,46° à J2000.0, un tour en un jour sidéral, toujours dans [0, 360)', () => {
+    expect(gmst(new Date(Date.UTC(2000, 0, 1, 12)))).toBeCloseTo(280.4606, 3);
+    const d = new Date(Date.UTC(2026, 5, 21, 22));
+    const sidereal = 86164.0905e3;
+    expect(gmst(new Date(d.getTime() + sidereal))).toBeCloseTo(gmst(d), 2);
+    for (const y of [1990, 2026, 2049]) {
+      const g = gmst(new Date(Date.UTC(y, 2, 3)));
+      expect(g).toBeGreaterThanOrEqual(0);
+      expect(g).toBeLessThan(360);
+    }
+  });
+
+  it('une étoile au-dessus du point de longitude α − GMST (Sirius)', () => {
+    const d = new Date(Date.UTC(2026, 5, 21, 22));
+    const s = skyToLonLat({ ra: 101.287, dec: -16.716 }, d);
+    expect(s.lat).toBe(-16.716);
+    expect(((s.lng - (101.287 - gmst(d))) % 360 + 360) % 360).toBeCloseTo(0, 6);
   });
 });

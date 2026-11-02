@@ -154,7 +154,7 @@ A photo's title, caption and place come from its file (XMP / IPTC / EXIF; the ti
 
 #### What you see and how to use it
 
-- **The Earth from space**, as it is at this very moment: day on one side, city lights on the night side, the day/night line where the sun really is, the sun glinting on the oceans, a thin blue atmosphere, stars and the Milky Way behind. It turns slowly on its own and stops while you touch it (it starts again 6 s after).
+- **The Earth from space**, as it is at this very moment: day on one side, city lights on the night side, the day/night line where the sun really is, the sun glinting on the oceans, a thin blue atmosphere, and behind it the real starry sky — the stars where they are, the Milky Way with its dust lanes, the Magellanic Clouds — turning with the hour. It turns slowly on its own and stops while you touch it (it starts again 6 s after).
 - **The photos** are round thumbnails pinned to the globe. Thumbnails that would overlap on screen are grouped into one with a count; zooming in splits them.
 - **Moving around**: drag to turn the globe, wheel or pinch to zoom, from about 32 000 km up down to 1 400 km, where the close-up map takes over. Country names appear in the page's language when you are close enough.
 - **Going down**: zooming in below about 1 400 km — or clicking a photo or a group — flies there and cross-fades to the **close-up map**, which goes down to the street. A photo opens its card (title, album, date, place, *View in album*); a group frames its photos. **Satellite** / **Map** switch the background; zooming out — or the globe button — goes back to space at the same spot.
@@ -166,7 +166,7 @@ A photo's title, caption and place come from its file (XMP / IPTC / EXIF; the ti
 
 #### The two views
 
-- **From space** — Three.js 0.168, `public/components/globe/space-view.js`. The Earth is one sphere with a custom shader: NASA *Blue Marble* (day) and *Black Marble* (night lights) blended across the terminator, which follows the sub-solar point (NOAA formulas, `subsolarPoint`, updated every minute); a sun glint limited to water by a Natural Earth ocean mask; a scattering rim and an atmosphere shell. Stars are 9 000 points with a Milky Way band (decorative, not a catalogue). Photo thumbnails are sprites drawn on canvases, clustered in screen space (`clusterScreen`, 50 px); clicks are ray-cast.
+- **From space** — Three.js 0.168, `public/components/globe/space-view.js`. The Earth is one sphere with a custom shader: NASA *Blue Marble* (day) and *Black Marble* (night lights) blended across the terminator, which follows the sub-solar point (NOAA formulas, `subsolarPoint`, updated every minute); a sun glint limited to water by a Natural Earth ocean mask; a scattering rim and an atmosphere shell. The sky is NASA's *Deep Star Maps 2020* (1.7 billion stars of the Hipparcos-2, Tycho-2 and Gaia DR2 catalogues, with their real brightness and colour) on a sphere around the camera, drawn behind everything: a shader turns each view direction into right ascension and declination (longitude + Greenwich sidereal time, `gmst` in `globe-math.js`), so the sky turns with the time shown, the time slider included — the stars, the Sun, the Moon and the planets stay where they really are relative to each other. Photo thumbnails are sprites drawn on canvases, clustered in screen space (`clusterScreen`, 50 px); clicks are ray-cast.
 - **Close up** — MapLibre GL 6 in globe projection, `public/components/globe/near-view.js`: **Satellite** is EOxCloudless 2024 (Sentinel-2, about 10 m per pixel) with borders, roads and place names from OpenFreeMap's vector tiles; **Map** is OpenFreeMap *Liberty* with names in the page's language. Photos are a clustered GeoJSON source drawn as round thumbnails (HTML markers).
 - **The hand-over**: both views show the Earth at the same apparent size at the switch — the space camera's distance and MapLibre's zoom are converted into each other (`distanceToZoom` / `zoomToDistance` in `public/utils/globe-math.js`), so a 450 ms cross-fade hides it. MapLibre (1.5 MB) is downloaded in the background a few seconds after the globe appears, so the first switch is quick.
 
@@ -183,7 +183,7 @@ The real IANA zones — from timezone-boundary-builder (OpenStreetMap data, ODbL
 
 #### Performance
 
-The globe appears with 2K textures, then swaps in 8K ones on a large screen whose GPU allows it, 4K on phones and tablets (mobile Safari keeps textures in memory). The time-zone index is 4K, 2K on touch screens. Rendering stops while the close-up map is shown. Textures are WebP, served by the app with a day of cache.
+The globe appears with 2K textures, then swaps in 8K ones on a large screen whose GPU allows it, 4K on phones and tablets (mobile Safari keeps textures in memory). The sky is 4K, then 8K on the same large screens (no mipmaps: about one texel per pixel, and no seam where right ascension wraps). The time-zone index is 4K, 2K on touch screens. Rendering stops while the close-up map is shown. Textures are WebP, served by the app with a day of cache.
 
 #### Data and licences
 
@@ -191,11 +191,12 @@ The globe appears with 2K textures, then swaps in 8K ones on a large screen whos
 |---|---|---|
 | Day, night, ocean mask | NASA Blue Marble NG, Black Marble 2016, Natural Earth 1:50m (`scripts/earth-textures.js`) | public domain |
 | Moon | NASA SVS CGI Moon Kit (LRO LROC) | public domain |
+| Stars, Milky Way | NASA SVS *Deep Star Maps 2020* (Ernie Wright; Hipparcos-2, Tycho-2, Gaia DR2), `scripts/sky-textures.js` | public domain |
 | Time zones | timezone-boundary-builder 2026e | ODbL |
 | Satellite close up | EOxCloudless 2024 (EOX, Copernicus Sentinel-2) | CC BY-NC-SA 4.0 — non-commercial, credited on the map |
 | Map close up, names, borders | OpenFreeMap (OpenStreetMap data) | ODbL, no key, no limit |
 
-The NASA textures are served by the app (`public/textures/earth/`); the two tile hosts are the only third-party origins in the Content-Security-Policy.
+The NASA textures are served by the app (`public/textures/earth/`, `public/textures/sky/`); the two tile hosts are the only third-party origins in the Content-Security-Policy.
 
 #### For developers
 

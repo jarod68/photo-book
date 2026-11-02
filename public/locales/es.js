@@ -115,7 +115,7 @@ export default {
   'globe.time': 'Hora simulada (72 h antes o después)',
   'globe.now': 'Ahora',
   'globe.timeNow': 'ahora',
-  'globe.credit': 'Imágenes: NASA Blue Marble &amp; Black Marble · costas: Natural Earth',
+  'globe.credit': 'Imágenes: NASA Blue Marble &amp; Black Marble · costas: Natural Earth · estrellas: NASA Deep Star Maps',
 
   'map.title':       'Mapa',
   'map.back':        'Volver',

@@ -51,8 +51,12 @@ export function eclipticToEquatorial(lon, lat, date = new Date()) {
 
 /** { ra, dec } → { lat, lng } of the point that has it at the zenith at `date`. */
 export function skyToLonLat({ ra, dec }, date = new Date()) {
-  const gmst = (18.697374558 + 24.06570982441908 * daysJ2000(date)) * 15;   // degrees
-  return { lat: dec, lng: norm180(ra - gmst) };
+  return { lat: dec, lng: norm180(ra - gmst(date)) };
+}
+
+/** Greenwich mean sidereal time at `date`, in degrees [0, 360). */
+export function gmst(date = new Date()) {
+  return (((18.697374558 + 24.06570982441908 * daysJ2000(date)) * 15) % 360 + 360) % 360;
 }
 
 // Main periodic terms of Meeus, Astronomical Algorithms ch. 47: [D, M, M', F,
