@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
   getAlbums, getAlbum, getLiked, toggleLike, recordView, geocode, getMapPhotos,
   createShareToken, deleteShareToken,
+  getLatestArticles, getAlbumArticles, getArticle, saveArticle, deleteArticle,
 } from '../../../public/api/client.js';
 
 const ok  = (data) => ({ ok: true,  json: () => Promise.resolve(data) });
@@ -212,5 +213,34 @@ describe('deleteShareToken', () => {
   it('retourne false si non ok', async () => {
     fetch.mockResolvedValue({ ok: false });
     expect(await deleteShareToken('Paris', 1)).toBe(false);
+  });
+});
+
+// ── Articles ──────────────────────────────────────────────────────────────────
+
+describe('articles', () => {
+  it('lecture : adresses, lien de partage', async () => {
+    fetch.mockResolvedValue(ok([]));
+    await getLatestArticles(3);
+    expect(fetch).toHaveBeenLastCalledWith('/api/articles?limit=3');
+    await getAlbumArticles('Ibérie', 'tok');
+    expect(fetch).toHaveBeenLastCalledWith('/api/articles/Ib%C3%A9rie?share=tok');
+    await getArticle('A', 'jour 1');
+    expect(fetch).toHaveBeenLastCalledWith('/api/articles/A/jour%201');
+  });
+
+  it("une erreur porte le statut HTTP (401 : album réservé)", async () => {
+    fetch.mockResolvedValue(err(401));
+    await expect(getArticle('A', 's')).rejects.toMatchObject({ status: 401, message: 'getArticle: 401' });
+  });
+
+  it('écriture : créer (POST), modifier (PUT), supprimer (DELETE)', async () => {
+    fetch.mockResolvedValue(ok({ id: 1 }));
+    await saveArticle(null, { album: 'A', title: 'T' });
+    expect(fetch).toHaveBeenLastCalledWith('/api/admin/articles', expect.objectContaining({ method: 'POST', body: '{"album":"A","title":"T"}' }));
+    await saveArticle(4, { title: 'T' });
+    expect(fetch).toHaveBeenLastCalledWith('/api/admin/articles/4', expect.objectContaining({ method: 'PUT' }));
+    await deleteArticle(4);
+    expect(fetch).toHaveBeenLastCalledWith('/api/admin/articles/4', { method: 'DELETE' });
   });
 });

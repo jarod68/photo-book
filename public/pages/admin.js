@@ -246,6 +246,7 @@ function renderAlbumRow(a, readOnly = false) {
       <td class="admin-row-actions">
         <button class="admin-icon-btn" data-settings="${esc(a.album)}" title="${t('admin.settings')}">${iconGear()}</button>
         <button class="admin-icon-btn" data-photos="${esc(a.album)}" title="${t('admin.editPhotos')}">${iconImages()}</button>
+        <a class="admin-icon-btn" href="album.html?album=${encodeURIComponent(a.album)}" title="${esc(t('art.articles'))}">${iconArticles()}</a>
         <button class="admin-icon-btn" data-upload="${esc(a.album)}" title="${t('admin.uploadPhotos')}"${off}>${iconUpload()}</button>
         <button class="admin-icon-btn" data-rename="${esc(a.album)}" title="${t('admin.rename')}"${off}>${iconPencil()}</button>
         <button class="admin-icon-btn admin-icon-btn--danger" data-delete="${esc(a.album)}" title="${t('admin.log.album_delete')}"${off}>${iconTrash()}</button>
@@ -674,6 +675,11 @@ function iconImages() {
       15 11V3a1 1 0 0 0-1-1zM2.002 4a1 1 0 0 0-1 1v8l2.646-2.354a.5.5 0 0 1 .63-.062l2.66
       1.773 3.71-3.71a.5.5 0 0 1 .577-.094l1.777 1.947V5a1 1 0 0 0-1-1h-10z"/>
   </svg>`;
+}
+
+function iconArticles() {
+  return `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <path d="M4 4h12a4 4 0 0 1 4 4v12H8a4 4 0 0 1-4-4z"/><path d="M8 9h8M8 13h8M8 17h5"/></svg>`;
 }
 
 function iconUpload() {

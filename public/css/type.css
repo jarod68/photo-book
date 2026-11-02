@@ -1,7 +1,8 @@
 /* The display type of titles, over every area's own sizes: imported last. */
 
 .home-logo, .login-logo, .map-page-title, .admin-title, .home-section-title,
-.album-card-name, .home-hero-title {
+.album-card-name, .home-hero-title,
+.article-card-title, .carnet-section-title, .carnet-hero-title, .article-title, .article-body h2, .article-body h3 {
   font-family: var(--font-display);
   font-optical-sizing: auto;
 }

@@ -199,6 +199,33 @@ const MIGRATIONS = [
       await q('ALTER TABLE album_settings ADD COLUMN collection VARCHAR(100)');
     },
   },
+  {
+    version: 9,
+    name: 'articles',
+    async up(q) {
+      // stories written in the app, in an album (with or without photos);
+      // body: Markdown, its photos referenced as ![caption](<Album/file.jpg>);
+      // cover: "Album/file.jpg" too; story_date: the day the story tells
+      await q(`
+        CREATE TABLE articles (
+          id          SERIAL PRIMARY KEY,
+          album       VARCHAR(255) NOT NULL,
+          slug        VARCHAR(120) NOT NULL,
+          title       TEXT         NOT NULL,
+          summary     TEXT,
+          body        TEXT         NOT NULL DEFAULT '',
+          cover       TEXT,
+          place       TEXT,
+          story_date  DATE,
+          published   BOOLEAN      NOT NULL DEFAULT false,
+          author_id   INTEGER      REFERENCES users(id) ON DELETE SET NULL,
+          created_at  TIMESTAMPTZ  NOT NULL DEFAULT now(),
+          updated_at  TIMESTAMPTZ  NOT NULL DEFAULT now(),
+          UNIQUE (album, slug)
+        )
+      `);
+    },
+  },
 ];
 
 const LOCK_KEY = 726571;   // arbitrary, constant: pg_advisory_xact_lock key

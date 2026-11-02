@@ -9,7 +9,8 @@ const LOCK_SVG = `<svg viewBox="0 0 16 16" fill="currentColor" xmlns="http://www
 export function createAlbumCard(album) {
   const card = document.createElement('a');
   card.className = 'album-card';
-  card.href = `viewer.html?album=${encodeURIComponent(album.name)}`;
+  // an album with stories opens on its journal, the others on their photos
+  card.href = `${album.articles ? 'album' : 'viewer'}.html?album=${encodeURIComponent(album.name)}`;
 
   if (album.cover) {
     const img = document.createElement('img');
@@ -44,7 +45,11 @@ export function createAlbumCard(album) {
   const count = document.createElement('div');
   count.className = 'album-card-count';
   const dates = formatDateRange(album.dateFrom, album.dateTo);
-  count.textContent = t('album.photos', { n: album.count, s: album.count !== 1 ? 's' : '' }) + (dates ? ` · ${dates}` : '');
+  count.textContent = [
+    album.count || !album.articles ? t('album.photos', { n: album.count, s: album.count !== 1 ? 's' : '' }) : null,
+    album.articles ? t('art.count', { n: album.articles, s: album.articles !== 1 ? 's' : '' }) : null,
+    dates || null,
+  ].filter(Boolean).join(' · ');
 
   info.appendChild(name);
   info.appendChild(count);

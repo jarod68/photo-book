@@ -13,6 +13,7 @@ Key features:
 - **Album browser** — photos are organised into sub-directories; the app scans them automatically on startup
 - **360° viewer** — equirectangular panoramas (detected via EXIF `ProjectionType` or a 2:1 aspect ratio) are rendered with Pannellum
 - **Interactive map** — all GPS-tagged photos are plotted across albums; clicking a marker opens the photo
+- **Articles** — stories written in the app, in an album beside its photos or in an album of articles only, with the album's photos (or any album's) inside; read like a travel blog (home page, the album's journal, the article page)
 - **View counts & likes** — tracked per user session (anonymous UUID) and persisted in PostgreSQL
 - **Reverse geocoding** — GPS coordinates are resolved to human-readable place names via Nominatim (OpenStreetMap), cached in the database
 - **Preview generation** — sharp generates thumbnails and previews in the background and keeps them on disk; subsequent server restarts are near-instant
@@ -159,6 +160,7 @@ A photo's title, caption and place come from its file (XMP / IPTC / EXIF; the ti
 - **Going down**: zooming in below about 1 400 km — or clicking a photo or a group — flies there and cross-fades to the **close-up map**, which goes down to the street. A photo opens its card (title, album, date, place, *View in album*); a group frames its photos. **Satellite** / **Map** switch the background; zooming out — or the globe button — goes back to space at the same spot.
 - **The sky of the moment** around the Earth: the **Sun**, the **Moon** with its real phase, and the seven **planets**, each in its real direction, named in the page's language (names hide when their body passes behind the Earth). Turn the globe to find them: like in the real sky, they are not always in view.
 - **Travel in time**: the slider at the bottom moves the scene up to **72 hours back or ahead**, in 15-minute steps (keyboard arrows too): day and night, the Sun, the Moon (its phase) and the planets, and the time-zone colours and clocks follow; the bar shows the simulated date and time (in your own zone) and the offset, **Now** comes back. Simulated time keeps running from there; Back returns to the time you left.
+- **Route** (button next to Time zones, on by default, remembered per browser): the route between the photos as on the map page, with the same rules (`public/utils/route.js`), on the close-up map — thin, and only from zoom 6 (a region) on, like on the map page: from further away it would only clutter the view.
 - **Time zones** (clock button, remembered per browser): the real time zones colour the globe by their current offset from UTC; hover a zone (tap on a phone) to see its local time, the zone's reference city and its offset.
 - **Back**: the ← at the top returns to the page you came from, and coming back to the globe finds the view you left (see *Back button*).
 
@@ -200,6 +202,17 @@ The NASA textures are served by the app (`public/textures/earth/`); the two tile
 - **URL**: `?still` stops the rotation, `&at=2026-06-21T12:00:00Z` fixes the sun, the sky and the clocks, `&tz` turns the time zones on — for reproducible screenshots. The time slider adds its offset to that time (or to the clock): `SpaceView.setTimeOffset(ms)` / `time()`, and `simNow()` in `pages/globe.js` for the time zones.
 - **Files**: `public/globe.html` (import map for Three.js and MapLibre), `public/pages/globe.js` (the page: hand-over, time-zone card, back button), `public/components/globe/space-view.js`, `public/components/globe/near-view.js`, `public/utils/globe-math.js` (geometry, sun, Moon, planets, zoom ↔ distance), `public/utils/timezones.js`, `public/css/globe.css`.
 - **Tests**: `tests/unit_tests/client/globe-math.test.js` (coordinates, sun, Moon and planets against reference values, zoom ↔ distance, clustering), `tests/unit_tests/client/timezones.test.js`, `tests/visual_tests/globe.spec.js` (the Earth from space with a fixed sun; a group down to the map and back up; the time-zone overlay with its card) and `tests/integration_tests/suites/ui_globe.robot` (the time slider: range, offset shown, keyboard, Now, the sun moved, Back).
+
+### Articles
+
+Stories written in the app, kept in an album: beside its photos, or alone in an album holding only articles (a travel diary, a blog) — such an album is just an album with no photo of its own.
+
+- **Reading.** The home page shows the **latest articles** (newest first) above *Explore*. An album with articles opens on its **journal** (`album.html`): its cover and description, its articles as a timeline in the order of the trip (by the story's day, then writing order), then a glimpse of its photos and *See the N photos* (the viewer). The viewer has an **Articles** button on such albums. An **article** (`article.html`) opens on its picture across the top with the title over it, the day, the place and the reading time, then the lead and the text in a narrow column, its photos wider than the text — one alone as a figure, several in a row as a gallery; a click opens the photo in the viewer. Previous / next articles of the album at the bottom.
+- **Writing (admin).** *New article* on the journal, *Edit* on an article, or the articles icon of an album in Admin → Albums open the editor (`write.html`): title, lead, day, place, cover; the text on the left, the article as readers will see it on the right (tabs on a phone). Ctrl/Cmd+S saves; *Published* off = a draft, seen by the admin only. The address (`?a=slug`, from the title) never changes, so links keep working after a title change.
+- **Text.** A small, safe Markdown (`public/utils/article-render.js`): `## heading`, `### sub-heading`, `**bold**`, `*italic*`, `> quote`, `- list`, `1. list`, `[link](https://…)`, `---`. No HTML passes through (everything is escaped); links only to web pages, mail addresses or this site.
+- **Photos.** The **Photo** button opens a picker over any album (click the photos in order; several make a gallery), which can also upload photos to an album. They are written `![caption](<Album/file.jpg>)` — just `<file.jpg>` for the article's own album — so an article shows photos without copying them, and an album of articles only borrows those of the others. The cover is such a reference too (none: the first photo of the text). Renaming an album rewrites these references; a deleted photo just disappears from the article.
+- **Rights.** An album's rights are its articles' rights: public, members only (`401` otherwise), share link. A photo of another album is shown only to readers allowed to see that album. The card of an album of articles only takes the picture of its latest article.
+- **Data.** Table `articles` (migration 9), deleted and renamed with its album (`services/cleanup.js`). Server: `services/articles.js`, `routes/articles.js` (reading), `routes/admin/articles.js` (writing).
 
 ### Chronological order
 
@@ -370,6 +383,8 @@ Content varies depending on the authenticated user. Anonymous visitors and basic
 | `GET /api/albums/:album` (restricted) | `401` | ✓ if authorized | ✓ |
 | `GET /api/map` | public albums | + authorized restricted | all |
 | `GET /api/search` | public albums | + authorized restricted | all |
+| `GET /api/articles` | latest of public albums | + authorized restricted | all (published) |
+| `GET /api/articles/:album[/:slug]` | public album: ✓ (published) · restricted: `401` | ✓ if authorized (published) | ✓ + drafts |
 
 `canDelete` (returned by `/api/albums` and `/api/albums/:album`) is `true` for admins and for basic users authorized on that album. It controls whether the delete button appears in the viewer.
 
@@ -402,6 +417,9 @@ All `/api/admin/*` routes first pass through `requireAuth` (→ `401` if no sess
 | `POST /api/admin/users` | `401` | `403` | ✓ |
 | `PATCH /api/admin/users/:id` | `401` | `403` | ✓ † |
 | `DELETE /api/admin/users/:id` | `401` | `403` | ✓ † |
+| `POST /api/admin/articles` | `401` | `403` | ✓ |
+| `PUT /api/admin/articles/:id` | `401` | `403` | ✓ |
+| `DELETE /api/admin/articles/:id` | `401` | `403` | ✓ |
 
 > ⚠️ `GET /api/admin/top-photos` only carries `requireAuth`, not `requireAdmin` — an authenticated basic user can access it.
 >
@@ -444,7 +462,7 @@ The frontend is vanilla JavaScript with ES modules — no bundler, no framework.
 
 **Styles.** One sheet per area in `public/css/` — `base` (reset, tokens, fonts, language switcher, build stamp), `home`, `maps` (map page and the viewer's maps), `globe`, `viewer`, `login`, `admin`, `search`, and `type` (the titles' typeface, last) — imported in that order by `public/style.css`; `npm run build` bundles them back into one minified sheet (esbuild). In each, the base rules come first and the screen-size / touch-screen adjustments last, so they really override. The split was checked by comparing the computed style of every element of every page, desktop and phone, before and after.
 
-**Look.** Dark throughout, with one warm accent — coral `#ff8a5b` (`--accent` in `style.css`; `--accent-ink` for text on it, `--accent-soft` for accent text on dark) — and Fraunces for titles over the system sans-serif. Secondary text is 62 % white, enough contrast for WCAG AA. The home page opens on the latest album (its cover full width, title, "open" button), then **Explore** (map, globe) and the **Albums** grid; the login page sits on a blurred album cover. **Maps.** Every map — the map page, the viewer's mini-map and album maps, the globe's close-up view — is MapLibre GL with OpenFreeMap's keyless vector tiles (OpenStreetMap data): the 2D maps in its *dark* style with place names in the page's language (`utils/base-map.js`; MapLibre is loaded only when a map is first shown), numbered coral pins (white for the current photo), clusters with a count, the route of the map page as dashed lines with arrows. On phones the admin tables become cards.
+**Look.** Dark throughout, with one warm accent — coral `#ff8a5b` (`--accent` in `style.css`; `--accent-ink` for text on it, `--accent-soft` for accent text on dark) — and Fraunces for titles over the system sans-serif. Secondary text is 62 % white, enough contrast for WCAG AA. The home page opens on the latest album (its cover full width, title, "open" button), then the **latest articles**, **Explore** (map, globe) and the **Albums** grid; the login page sits on a blurred album cover. **Maps.** Every map — the map page, the viewer's mini-map and album maps, the globe's close-up view — is MapLibre GL with OpenFreeMap's keyless vector tiles (OpenStreetMap data): the 2D maps in its *dark* style with place names in the page's language (`utils/base-map.js`; MapLibre is loaded only when a map is first shown), numbered coral pins (white for the current photo), clusters with a count, the route between the photos (map page, globe close up) as a thin dashed line with arrows, from zoom 6 on (`utils/route.js`). On phones the admin tables become cards.
 
 ```
 public/
@@ -577,6 +595,24 @@ CREATE TABLE album_users (
 );
 
 -- Title / caption / place edited in the admin (migration 2); NULL = use the file's value
+-- Articles (migration 9): Markdown body, photos referenced as ![caption](<Album/file>)
+CREATE TABLE articles (
+  id          SERIAL PRIMARY KEY,
+  album       VARCHAR(255) NOT NULL,
+  slug        VARCHAR(120) NOT NULL,          -- address in the album, from the title, kept
+  title       TEXT NOT NULL,
+  summary     TEXT,                           -- the lead
+  body        TEXT NOT NULL DEFAULT '',
+  cover       TEXT,                           -- "Album/file" or "file"; NULL = first photo
+  place       TEXT,
+  story_date  DATE,                           -- the day the story tells
+  published   BOOLEAN NOT NULL DEFAULT false, -- false: a draft (admin only)
+  author_id   INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (album, slug)
+);
+
 CREATE TABLE photo_overrides (
   album       VARCHAR(255) NOT NULL,
   filename    VARCHAR(255) NOT NULL,

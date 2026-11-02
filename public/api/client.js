@@ -1,7 +1,8 @@
 // @ts-check
 /**
  * @typedef {{ name: string, count: number, cover: string|null, coverPreview: string|null, coverThumb: string|null,
- *   visibility?: string, description?: string|null, collection?: string|null, dateFrom?: string|null, dateTo?: string|null }} Album
+ *   visibility?: string, description?: string|null, collection?: string|null, dateFrom?: string|null, dateTo?: string|null,
+ *   articles?: number, drafts?: number }} Album
  */
 
 /**
@@ -179,4 +180,47 @@ export async function getMapPhotos() {
   const r = await fetch('/api/map');
   if (!r.ok) throw new Error(`getMapPhotos: ${r.status}`);
   return r.json();
+}
+
+// ── Articles ──────────────────────────────────────────────────────────────────
+
+/**
+ * @typedef {{ id: number, album: string, slug: string, title: string, summary: string, date: string|null,
+ *   place: string|null, published: boolean, readMinutes: number, cover: object|null }} ArticleCard
+ */
+
+// an error carrying the HTTP status (401: restricted album, 404: no such article)
+async function jsonOrThrow(r, what) {
+  if (r.ok) return r.json();
+  const err = /** @type {Error & { status?: number }} */ (new Error(`${what}: ${r.status}`));
+  err.status = r.status;
+  throw err;
+}
+const shareQs = (share) => (share ? `?share=${encodeURIComponent(share)}` : '');
+
+/** The latest published articles the visitor may read. @returns {Promise<ArticleCard[]>} */
+export async function getLatestArticles(limit = 6) {
+  return jsonOrThrow(await fetch(`/api/articles?limit=${limit}`), 'getLatestArticles');
+}
+
+/** @returns {Promise<{ album: string, articles: ArticleCard[], canEdit: boolean }>} */
+export async function getAlbumArticles(album, share = null) {
+  return jsonOrThrow(await fetch(`/api/articles/${encodeURIComponent(album)}${shareQs(share)}`), 'getAlbumArticles');
+}
+
+/** One article: its card, body, photos ("Album/file" → photo), prev / next. */
+export async function getArticle(album, slug, share = null) {
+  return jsonOrThrow(await fetch(`/api/articles/${encodeURIComponent(album)}/${encodeURIComponent(slug)}${shareQs(share)}`), 'getArticle');
+}
+
+/** Create (`id` null, `fields.album` set) or change an article (admin). */
+export async function saveArticle(id, fields) {
+  const r = await fetch(id ? `/api/admin/articles/${id}` : '/api/admin/articles', {
+    method: id ? 'PUT' : 'POST', headers: JSON_HEADERS, body: JSON.stringify(fields),
+  });
+  return jsonOrThrow(r, 'saveArticle');
+}
+
+export async function deleteArticle(id) {
+  return jsonOrThrow(await fetch(`/api/admin/articles/${id}`, { method: 'DELETE' }), 'deleteArticle');
 }

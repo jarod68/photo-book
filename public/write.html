@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <!-- web app: installable, own icon and colours (manifest.webmanifest) -->
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="icon" href="/icons/icon.svg" type="image/svg+xml">
+  <link rel="icon" href="/icons/favicon-32.png" sizes="32x32" type="image/png">
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+  <meta name="theme-color" content="#0d0d0e">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-title" content="Photo Book">
+  <title>Photo Book</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="page-write">
+
+  <header class="article-bar write-bar">
+    <a href="index.html" class="map-page-back write-back" data-i18n-aria="map.back">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
+    </a>
+    <div class="write-bar-title">
+      <h1 id="write-heading" class="map-page-title" data-i18n="write.newTitle">New article</h1>
+      <span id="write-album" class="write-bar-album"></span>
+    </div>
+    <span class="article-bar-spacer"></span>
+    <div class="write-tabs" role="tablist">
+      <button type="button" class="write-tab" data-tab="edit" aria-selected="true" data-i18n="art.write">Write</button>
+      <button type="button" class="write-tab" data-tab="preview" aria-selected="false" data-i18n="write.preview">Preview</button>
+    </div>
+    <span id="write-status" class="write-status" aria-live="polite"></span>
+    <label class="write-publish">
+      <input type="checkbox" id="write-published">
+      <span data-i18n="write.published">Published</span>
+    </label>
+    <button type="button" id="write-save" class="carnet-btn carnet-btn--accent" data-i18n="write.save">Save</button>
+    <div id="lang-switcher"></div>
+  </header>
+
+  <p id="write-message" class="carnet-message" hidden></p>
+
+  <div id="write" class="write" data-tab="edit" hidden>
+    <form id="write-form" class="write-form" autocomplete="off">
+      <input id="write-title" class="write-title" name="title" maxlength="200" required data-i18n-placeholder="write.title" placeholder="Title">
+      <textarea id="write-summary" class="write-summary" name="summary" rows="2" maxlength="600" data-i18n-placeholder="write.summary" placeholder="Lead (optional)"></textarea>
+      <div class="write-fields">
+        <label class="write-field"><span data-i18n="write.date">Date</span><input id="write-date" type="date" name="date"></label>
+        <label class="write-field write-field--grow"><span data-i18n="write.place">Place</span><input id="write-place" name="place" maxlength="200"></label>
+        <div class="write-field write-cover">
+          <span data-i18n="write.cover">Cover</span>
+          <div class="write-cover-row">
+            <img id="write-cover-img" class="write-cover-img" alt="" hidden>
+            <span id="write-cover-none" class="write-cover-none" data-i18n="write.noCover">None</span>
+            <button type="button" id="write-cover-pick" class="carnet-btn" data-i18n="write.choose">Choose</button>
+            <button type="button" id="write-cover-clear" class="carnet-btn" data-i18n="write.remove" hidden>Remove</button>
+          </div>
+        </div>
+      </div>
+      <div class="write-toolbar" role="toolbar">
+        <button type="button" data-md="bold" data-i18n-title="write.bold"><b>B</b></button>
+        <button type="button" data-md="italic" data-i18n-title="write.italic"><i>I</i></button>
+        <button type="button" data-md="heading" data-i18n-title="write.heading">H</button>
+        <button type="button" data-md="quote" data-i18n-title="write.quote">❝</button>
+        <button type="button" data-md="list" data-i18n-title="write.list">•</button>
+        <button type="button" data-md="link" data-i18n-title="write.link">🔗</button>
+        <button type="button" id="write-photo" class="write-toolbar-photo">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="8.5" cy="10" r="1.5"/><path d="M21 16l-5-5-9 8"/></svg>
+          <span data-i18n="write.photo">Photo</span>
+        </button>
+      </div>
+      <textarea id="write-body" class="write-body" name="body" data-i18n-placeholder="write.placeholder" placeholder="Tell the story…"></textarea>
+      <p class="write-hint" data-i18n="write.hint"></p>
+      <button type="button" id="write-delete" class="write-delete" data-i18n="write.delete" hidden>Delete the article</button>
+    </form>
+    <section class="write-preview article">
+      <header id="write-preview-hero" class="article-hero"></header>
+      <article id="write-preview-body" class="article-body"></article>
+    </section>
+  </div>
+
+  <!-- choosing photos: insert them, or take one as the cover -->
+  <dialog id="picker" class="picker">
+    <div class="picker-head">
+      <h2 data-i18n="write.pickTitle">Photos</h2>
+      <select id="picker-album" class="search-select" data-i18n-aria="write.pickTitle"></select>
+      <button type="button" id="picker-upload" class="carnet-btn" data-i18n="write.upload">Add photos to the album</button>
+      <button type="button" class="picker-close" data-i18n-aria="write.cancel">✕</button>
+    </div>
+    <p class="picker-hint" data-i18n="write.pickHint"></p>
+    <div id="picker-grid" class="picker-grid"></div>
+    <div class="picker-foot">
+      <button type="button" class="carnet-btn picker-cancel" data-i18n="write.cancel">Cancel</button>
+      <button type="button" id="picker-cover" class="carnet-btn" data-i18n="write.setCover" disabled>Use as cover</button>
+      <button type="button" id="picker-insert" class="carnet-btn carnet-btn--accent" data-i18n="write.insert" disabled>Insert</button>
+    </div>
+  </dialog>
+
+  <script type="module" src="pages/write.js"></script>
+</body>
+</html>

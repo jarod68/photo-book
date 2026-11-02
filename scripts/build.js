@@ -21,7 +21,7 @@ async function main() {
     // Frontend pages: bundle all imports into one file per page, minify
     esbuild.build({
       ...shared,
-      entryPoints: ['admin', 'home', 'login', 'map', 'search', 'viewer'].map(p => `public/pages/${p}.js`),
+      entryPoints: ['admin', 'album', 'article', 'home', 'login', 'map', 'search', 'viewer', 'write'].map(p => `public/pages/${p}.js`),
       bundle:  true,
       minify:  true,
       format:  'esm',
@@ -85,7 +85,7 @@ async function main() {
 
   // HTML pages, the service worker (push notifications: it must be served
   // from the site root) and the web app manifest — copied as they are
-  for (const f of ['index.html', 'admin.html', 'login.html', 'map.html', 'search.html', 'viewer.html', 'globe.html',
+  for (const f of ['index.html', 'admin.html', 'album.html', 'article.html', 'login.html', 'map.html', 'search.html', 'viewer.html', 'write.html', 'globe.html',
     'sw.js', 'manifest.webmanifest']) {
     copyFile(path.join(ROOT, 'public', f), path.join(DIST, 'public', f));
   }

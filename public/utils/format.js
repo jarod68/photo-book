@@ -24,3 +24,10 @@ export function formatDateRange(from, to, lang = getLang()) {
   if (fmt.format(a) === fmt.format(b)) return fmt.format(a);
   return fmt.formatRange ? fmt.formatRange(a, b) : `${fmt.format(a)} – ${fmt.format(b)}`;
 }
+
+// "1 avril 2026" (an article's day: a calendar date, no time zone)
+/** @param {string|null} date @param {string} [lang] @param {Intl.DateTimeFormatOptions} [opts] */
+export function formatDay(date, lang = getLang(), opts = { day: 'numeric', month: 'long', year: 'numeric' }) {
+  if (!date) return '';
+  return new Intl.DateTimeFormat(LOCALES[lang] ?? lang, { ...opts, timeZone: 'UTC' }).format(new Date(`${date}T00:00:00Z`));
+}

@@ -20,7 +20,7 @@ vi.mock('../../../public/utils/i18n.js', () => {
   };
 });
 
-const { formatViews, formatLikes, formatDateRange } = await import('../../../public/utils/format.js');
+const { formatViews, formatLikes, formatDateRange, formatDay } = await import('../../../public/utils/format.js');
 
 describe('formatViews', () => {
   it('affiche "1 vue" au singulier', () => {
@@ -91,5 +91,14 @@ describe('formatDateRange (F3)', () => {
   });
   it('les dates sont lues en UTC (heure locale de l\'appareil photo)', () => {
     expect(formatDateRange('2024-03-31T23:30:00.000Z', null, 'en')).toBe('Mar 2024');
+  });
+});
+
+describe('formatDay (articles)', () => {
+  it('une date du calendrier, sans fuseau', () => {
+    expect(formatDay(null)).toBe('');
+    expect(formatDay('2026-04-01', 'fr')).toBe('1 avril 2026');
+    expect(formatDay('2026-04-01', 'en', { day: 'numeric' })).toBe('1');
+    expect(formatDay('2026-12-31')).toBe('31 décembre 2026');
   });
 });

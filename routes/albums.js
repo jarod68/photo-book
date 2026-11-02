@@ -15,6 +15,7 @@ const database = require('../services/database');
 const auth     = require('../services/auth');
 const activity = require('../services/activity');
 const uploads  = require('../services/uploads');
+const articles = require('../services/articles');
 const { resolveUser, getAlbumAccess, filterVisibleAlbums } = require('../services/access');
 
 const { BadRequest, sendError, requireWritableLibrary } = require('../services/http-errors');
@@ -40,13 +41,21 @@ router.get('/', async (req, res) => {
 
     const info = await albumInfo.loadAlbumInfo()
       .catch((err) => { console.error('Failed to load album info:', err.message); return new Map(); });
+    const counts = await articles.counts()
+      .catch((err) => { console.error('Failed to count articles:', err.message); return new Map(); });
+    const isAdmin = user?.role === 'admin';
+    const visible = new Set(filtered.map((e) => e.name));
     // Photo metadata comes from the cached library index (cover, date range).
     const albums = await Promise.all(filtered.map(async e => {
       const photos = (await library.getAlbumPhotos(e.name)) ?? [];
       const { coverFile, ...summary } = albumInfo.summarize(photos, info.get(e.name));
       const visibility = visibilityMap.get(e.name) ?? 'public';
-      const canDelete  = user?.role === 'admin' || (user?.role === 'basic' && authorizedSet.has(e.name));
-      return { name: e.name, ...summary, visibility, canDelete };
+      const canDelete  = isAdmin || (user?.role === 'basic' && authorizedSet.has(e.name));
+      const n = counts.get(e.name) ?? { published: 0, drafts: 0 };
+      const album = { name: e.name, ...summary, visibility, canDelete, articles: n.published, ...(isAdmin && { drafts: n.drafts }) };
+      // an album of articles only: its latest article's picture on the card
+      if (!album.cover && n.published) Object.assign(album, await articleCover(e.name, visible));
+      return album;
     }));
 
     res.json(albums);
@@ -54,6 +63,18 @@ router.get('/', async (req, res) => {
     sendError(res, err);
   }
 });
+
+// { cover, coverPreview, coverThumb } of the album's latest article with a
+// picture the reader may see (its albums among `visible`), or {}.
+async function articleCover(album, visible) {
+  const list = await articles.listForAlbum(album).catch(() => []);
+  const photos = await articles.resolvePhotos(list.flatMap((a) => articles.photoRefs(a)), async (name) => visible.has(name));
+  for (const a of list.reverse()) {
+    const c = articles.card(a, photos).cover;
+    if (c?.thumbUrl) return { cover: c.url, coverPreview: c.previewUrl, coverThumb: c.thumbUrl };
+  }
+  return {};
+}
 
 // GET /api/albums/:album/download/zip
 router.get('/:album/download/zip', async (req, res) => {

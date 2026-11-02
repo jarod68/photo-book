@@ -108,9 +108,9 @@ describe('deleteAlbumFromDb', () => {
     database._setState({ query: mockQuery }, true);
     await deleteAlbumFromDb('Paris');
     const sqls = mockQuery.mock.calls.map(c => c[0]);
-    expect(sqls).toHaveLength(8);
+    expect(sqls).toHaveLength(9);
     for (const t of ['photo_view_log', 'photo_likes', 'photo_views', 'photo_overrides',
-      'album_users', 'album_settings', 'share_tokens', 'push_subscriptions']) {
+      'album_users', 'album_settings', 'share_tokens', 'push_subscriptions', 'articles']) {
       expect(sqls.some(s => s.includes(`DELETE FROM ${t} `))).toBe(true);
     }
   });

@@ -31,10 +31,12 @@ const mapRouter          = require('./routes/map');
 const searchRouter       = require('./routes/search');
 const shareRouter        = require('./routes/share');
 const pushRouter         = require('./routes/push');
+const articlesRouter     = require('./routes/articles');
 const adminStatsRouter   = require('./routes/admin/stats');
 const adminUsersRouter   = require('./routes/admin/users');
 const adminAlbumsRouter  = require('./routes/admin/albums');
 const adminLogsRouter    = require('./routes/admin/logs');
+const adminArticlesRouter = require('./routes/admin/articles');
 
 if (process.env.NODE_ENV !== 'test' && !process.env.POSTGRES_PASSWORD) {
   console.error('Missing required environment variable: POSTGRES_PASSWORD');
@@ -259,6 +261,7 @@ app.use('/api/map',     mapRouter);
 app.use('/api/search',  searchRouter);
 app.use('/api/share',   shareRouter);
 app.use('/api/push',    pushRouter);
+app.use('/api/articles', articlesRouter);
 
 // Admin routes require authentication at the router level
 app.use('/api/admin', auth.requireAuth);
@@ -266,6 +269,7 @@ app.use('/api/admin', adminStatsRouter);
 app.use('/api/admin/users',  adminUsersRouter);
 app.use('/api/admin/albums', adminAlbumsRouter);
 app.use('/api/admin/logs',   adminLogsRouter);
+app.use('/api/admin/articles', adminArticlesRouter);
 
 // ─── File watching ────────────────────────────────────────────────────────────
 

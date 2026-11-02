@@ -6,6 +6,8 @@ import { sortAlbums, loadOrder, saveOrder } from '../utils/order.js';
 import { formatDateRange } from '../utils/format.js';
 import { rememberScroll, restoreScroll } from '../utils/back.js';
 import { Uploader, dragHasFiles, preventFileDrops } from '../components/uploader.js';
+import { createArticleCard } from '../components/article-card.js';
+import { getLatestArticles } from '../api/client.js';
 
 applyTranslations();
 initLangSwitcher('lang-switcher');
@@ -29,6 +31,7 @@ async function init() {
   ]);
 
   renderAuth(authData.user);
+  renderArticles();
 
   const totalPhotos = albums.reduce((n, a) => n + a.count, 0);
   const aS = albums.length !== 1 ? 's' : '';
@@ -133,6 +136,15 @@ function groupAlbums(albums, mode) {
   if (groups.has(null)) keys.push(null);
   const rest = mode === 'year' ? t('home.groupUndated') : t('home.groupOther');
   return keys.map(k => ({ title: k === null ? rest : String(k), items: groups.get(k) }));
+}
+
+// The latest published stories, newest first (hidden when there are none).
+async function renderArticles() {
+  const list = await getLatestArticles(6).catch(() => []);
+  if (!list.length) return;
+  const grid = document.getElementById('home-articles-grid');
+  for (const a of list) grid.appendChild(createArticleCard(a, { showAlbum: true }));
+  document.getElementById('home-articles').hidden = false;
 }
 
 // The latest album (by its last photo's date) across the top: its cover, big

@@ -428,8 +428,8 @@ describe('PATCH /api/admin/albums/:album', () => {
     expect(res.status).toBe(200);
     expect(res.body.ok).toBe(true);
     expect(renameSpy).toHaveBeenCalledTimes(1);
-    // BEGIN + 8 UPDATEs + COMMIT = 10
-    expect(clientQuery).toHaveBeenCalledTimes(10);
+    // BEGIN + 9 UPDATEs + the articles' photo references + COMMIT = 12
+    expect(clientQuery).toHaveBeenCalledTimes(12);
     expect(clientRelease).toHaveBeenCalledTimes(1);
   });
 
@@ -495,9 +495,9 @@ describe('DELETE /api/admin/albums/:album', () => {
     expect(res.body.ok).toBe(true);
     // album dir + previews + medium
     expect(rmSpy).toHaveBeenCalledTimes(3);
-    // 7 DELETE queries (view_log, likes, views, album_users, album_settings,
-    // share_tokens, push_subscriptions, photo_overrides) + 1 INSERT activity_log
-    expect(mockQuery).toHaveBeenCalledTimes(9);
+    // 9 DELETE queries (view_log, likes, views, photo_overrides, album_users,
+    // album_settings, share_tokens, push_subscriptions, articles) + 1 INSERT activity_log
+    expect(mockQuery).toHaveBeenCalledTimes(10);
   });
 
   it('supprime sans erreur si DB non prête', async () => {

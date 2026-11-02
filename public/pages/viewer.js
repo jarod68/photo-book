@@ -39,6 +39,7 @@ const subscribedAlbums = new Map(getStoredAlbums().map(a => [a, null]));
 const tabsEl      = document.getElementById('album-tabs');
 const thumbsEl    = document.getElementById('thumbnails');
 const albumMapBtn = document.getElementById('album-map-btn');
+const articlesBtn = /** @type {HTMLAnchorElement} */ (document.getElementById('album-articles-btn'));
 const locationEl  = document.getElementById('photo-location');
 const viewsEl     = document.getElementById('photo-views');
 const likeBtn     = document.getElementById('like-btn');
@@ -416,6 +417,9 @@ async function selectAlbum(name, targetFilename = null) {
 
   albumMapBtn.disabled = !state.photos.some(p => p.gps);
   slideshowBtn.disabled = state.photos.length < 2;
+  // the album's stories (for the admin, `drafts` is set: always, to write one)
+  articlesBtn.hidden = !entry?.articles && entry?.drafts === undefined;
+  articlesBtn.href = `album.html?album=${encodeURIComponent(name)}${shareToken ? `&share=${encodeURIComponent(shareToken)}` : ''}`;
 
   state.canUpload = !!data.canUpload;
   uploadBtn.hidden = !state.canUpload;
