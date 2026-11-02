@@ -90,7 +90,7 @@ const HOUR_COLORS = [[0.30, 0.62, 1.00], [0.25, 0.85, 0.75], [0.55, 0.90, 0.35],
 const OFF_HOUR = [1.0, 0.86, 0.25];
 function zoneColors(names) {
   const out = new Uint8Array(512 * 4);
-  const now = at ?? new Date();
+  const now = simNow();
   names.forEach((name, i) => {
     const m = offsetMinutes(name, now);
     const c = m % 60 ? OFF_HOUR : HOUR_COLORS[(((m / 60) % 6) + 6) % 6];
@@ -102,8 +102,9 @@ function zoneColors(names) {
 // Borders where the hour changes now (summer time moves some): redrawn only
 // when that set changes.
 let bordersKey = '';
+let tzBorders = null;     // the decoded borders, once loaded
 function drawBorders(borders) {
-  const now = at ?? new Date();
+  const now = simNow();
   const offsets = tz.names.map((n) => offsetMinutes(n, now));
   const shown = borders.filter((b) => offsets[b.a] !== offsets[b.b]);
   const key = shown.length + ':' + offsets.join(',');
@@ -122,6 +123,7 @@ async function setTimezones(on) {
   const touch = matchMedia('(pointer: coarse)').matches;
   const [zones, borders] = await Promise.all([loadTimezones(touch ? 2048 : 4096), loadBorders()]);
   tz = zones;
+  tzBorders = borders;
   if (!tzOn) return;
   await space.setTimezones({ url: `/textures/earth/tz-index-${tz.index.width}.png`, width: tz.index.width, colors: zoneColors(tz.names) });
   drawBorders(borders);
@@ -143,7 +145,7 @@ function showTip(p) {
   const n = zoneIndexAt(tz.index, p.lat, p.lng);
   if (n < 0) { showTip(null); return; }
   tipPoint = p;
-  const z = zoneLabel(tz.names[n], at ?? new Date(), lang);
+  const z = zoneLabel(tz.names[n], simNow(), lang);
   tzTip.innerHTML = `<strong>${z.time}</strong><span>${z.place ? `${z.place} · ` : ''}${z.offset}</span><small>${z.day}</small>`;
   const box = document.getElementById('globe-container').getBoundingClientRect();
   const x = Math.min(p.x - box.left + 16, box.width - 180), y = Math.max(8, p.y - box.top - 70);
@@ -168,6 +170,60 @@ function onPoint(p) {
 // ?at=2026-06-21T12:00:00Z fixes the sun, ?still stops the rotation (reproducible screenshots)
 const params = new URLSearchParams(location.search);
 const at = params.get('at') ? new Date(params.get('at')) : null;
+
+// ── Time slider: the Earth, its sky and the clocks up to 72 h back or ahead ────
+// The offset is added to the clock (or to ?at=), so simulated time keeps
+// running; the space view moves its sun, terminator, Moon and planets, the
+// time zones their colours, borders and card. Kept for Back (history state).
+let offsetMs = 0;
+const simNow = () => new Date((at ? at.getTime() : Date.now()) + offsetMs);
+const timeRange = /** @type {HTMLInputElement} */ (document.getElementById('globe-time-range'));
+const timeLabel = document.getElementById('globe-time-label');
+const timeNowBtn = document.getElementById('globe-time-now');
+// the viewer's own time, its zone named ("14:00 UTC+2")
+const timeFmt = new Intl.DateTimeFormat(lang, { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZoneName: 'short' });
+
+/** "+5 h", "−12 h 30", "" for now. */
+function offsetText(hours) {
+  if (!hours) return '';
+  const m = Math.round(Math.abs(hours) * 60);
+  return `${hours > 0 ? '+' : '−'}${Math.floor(m / 60)} h${m % 60 ? ` ${String(m % 60).padStart(2, '0')}` : ''}`;
+}
+
+function showTime() {
+  const hours = offsetMs / 3600e3;
+  const off = offsetText(hours);
+  timeLabel.innerHTML = `<strong>${timeFmt.format(simNow())}</strong> <span>${off || t('globe.timeNow')}</span>`;
+  timeNowBtn.hidden = !hours;
+  document.getElementById('globe-time').classList.toggle('globe-time--moved', !!hours);
+  // the filled part of the track runs from "now" (the middle) to the thumb
+  const pct = ((hours + 72) / 144) * 100;
+  timeRange.style.setProperty('--from', `${Math.min(50, pct)}%`);
+  timeRange.style.setProperty('--to', `${Math.max(50, pct)}%`);
+}
+
+let timeFrame = 0;
+function setOffset(hours) {
+  offsetMs = Math.round(hours * 4) * 15 * 60e3;   // 15-minute steps
+  timeRange.value = String(offsetMs / 3600e3);
+  showTime();
+  saveState({ globeOffset: offsetMs });
+  if (timeFrame) return;
+  timeFrame = requestAnimationFrame(() => {          // at most once a frame while dragging
+    timeFrame = 0;
+    space?.setTimeOffset(offsetMs);
+    if (tzOn && tz) {
+      space.setTimezoneColors(zoneColors(tz.names));
+      if (tzBorders) drawBorders(tzBorders);
+      if (tipPoint) showTip(tipPoint);
+    }
+  });
+}
+timeRange.addEventListener('input', () => setOffset(Number(timeRange.value)));
+timeNowBtn.addEventListener('click', () => setOffset(0));
+// the clock moves on: refresh the label every minute (shown at once, before the 3D view)
+setInterval(showTime, 60_000);
+showTime();
 const still = params.has('still');
 
 async function init() {
@@ -193,6 +249,7 @@ async function init() {
   // above the same spot)
   const lastView = pageState().globe;
   if (lastView) space.setView(lastView.lat, lastView.lng, Math.max(lastView.distance, NEAR_DISTANCE * 1.12));
+  setOffset((pageState().globeOffset ?? 0) / 3600e3);   // and the time it showed
   addEventListener('pagehide', () => {
     if (state === 'near' && near.map) {
       const c = near.map.getCenter();

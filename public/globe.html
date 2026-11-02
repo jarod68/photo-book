@@ -62,6 +62,16 @@
     </div>
     <div class="globe-switch-spinner" aria-hidden="true"><div class="globe-loading-dot"></div></div>
     <div id="globe-tz-tip" class="globe-tz-tip" hidden></div>
+    <!-- time slider: the Earth, its sky and the clocks 72 h back or ahead -->
+    <div id="globe-time" class="globe-time">
+      <output id="globe-time-label" class="globe-time-label" for="globe-time-range"></output>
+      <div class="globe-time-track">
+        <span class="globe-time-edge">−72 h</span>
+        <input id="globe-time-range" type="range" min="-72" max="72" step="0.25" value="0" data-i18n-aria="globe.time">
+        <span class="globe-time-edge">+72 h</span>
+      </div>
+      <button type="button" id="globe-time-now" class="globe-time-now" data-i18n="globe.now" hidden>Now</button>
+    </div>
     <p id="globe-credit" class="globe-credit"></p>
   </div>
 

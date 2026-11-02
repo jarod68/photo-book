@@ -158,6 +158,7 @@ A photo's title, caption and place come from its file (XMP / IPTC / EXIF; the ti
 - **Moving around**: drag to turn the globe, wheel or pinch to zoom, from about 32 000 km up down to 1 400 km, where the close-up map takes over. Country names appear in the page's language when you are close enough.
 - **Going down**: zooming in below about 1 400 km — or clicking a photo or a group — flies there and cross-fades to the **close-up map**, which goes down to the street. A photo opens its card (title, album, date, place, *View in album*); a group frames its photos. **Satellite** / **Map** switch the background; zooming out — or the globe button — goes back to space at the same spot.
 - **The sky of the moment** around the Earth: the **Sun**, the **Moon** with its real phase, and the seven **planets**, each in its real direction, named in the page's language (names hide when their body passes behind the Earth). Turn the globe to find them: like in the real sky, they are not always in view.
+- **Travel in time**: the slider at the bottom moves the scene up to **72 hours back or ahead**, in 15-minute steps (keyboard arrows too): day and night, the Sun, the Moon (its phase) and the planets, and the time-zone colours and clocks follow; the bar shows the simulated date and time (in your own zone) and the offset, **Now** comes back. Simulated time keeps running from there; Back returns to the time you left.
 - **Time zones** (clock button, remembered per browser): the real time zones colour the globe by their current offset from UTC; hover a zone (tap on a phone) to see its local time, the zone's reference city and its offset.
 - **Back**: the ← at the top returns to the page you came from, and coming back to the globe finds the view you left (see *Back button*).
 
@@ -196,9 +197,9 @@ The NASA textures are served by the app (`public/textures/earth/`); the two tile
 
 #### For developers
 
-- **URL**: `?still` stops the rotation, `&at=2026-06-21T12:00:00Z` fixes the sun, the sky and the clocks, `&tz` turns the time zones on — for reproducible screenshots.
+- **URL**: `?still` stops the rotation, `&at=2026-06-21T12:00:00Z` fixes the sun, the sky and the clocks, `&tz` turns the time zones on — for reproducible screenshots. The time slider adds its offset to that time (or to the clock): `SpaceView.setTimeOffset(ms)` / `time()`, and `simNow()` in `pages/globe.js` for the time zones.
 - **Files**: `public/globe.html` (import map for Three.js and MapLibre), `public/pages/globe.js` (the page: hand-over, time-zone card, back button), `public/components/globe/space-view.js`, `public/components/globe/near-view.js`, `public/utils/globe-math.js` (geometry, sun, Moon, planets, zoom ↔ distance), `public/utils/timezones.js`, `public/css/globe.css`.
-- **Tests**: `tests/unit_tests/client/globe-math.test.js` (coordinates, sun, Moon and planets against reference values, zoom ↔ distance, clustering), `tests/unit_tests/client/timezones.test.js`, and `tests/visual_tests/globe.spec.js` (the Earth from space with a fixed sun; a group down to the map and back up; the time-zone overlay with its card).
+- **Tests**: `tests/unit_tests/client/globe-math.test.js` (coordinates, sun, Moon and planets against reference values, zoom ↔ distance, clustering), `tests/unit_tests/client/timezones.test.js`, `tests/visual_tests/globe.spec.js` (the Earth from space with a fixed sun; a group down to the map and back up; the time-zone overlay with its card) and `tests/integration_tests/suites/ui_globe.robot` (the time slider: range, offset shown, keyboard, Now, the sun moved, Back).
 
 ### Chronological order
 

@@ -295,7 +295,8 @@ export class SpaceView {
    *   at: a fixed date for the sun (screenshots); still: no auto-rotation
    */
   constructor(container, { photos, lang, onNear, onPhoto, onGroup, onPoint = () => {}, at = null, still = false }) {
-    this.at = at;
+    this.at = at;           // a fixed base time (?at=, screenshots); else the clock
+    this.timeOffset = 0;    // ms added by the page's time slider (past or future)
     this.onPoint = onPoint;      // pointer over the Earth ({ lat, lng, x, y, tap }) or off it (null)
     this.container = container;
     this.onNear = onNear;
@@ -358,8 +359,19 @@ export class SpaceView {
     requestAnimationFrame(this.loop);
   }
 
+  /** The time shown: the clock (or ?at=) moved by the time slider. */
+  time() {
+    return new Date((this.at ? this.at.getTime() : Date.now()) + this.timeOffset);
+  }
+
+  /** Show the Earth and its sky `ms` milliseconds from now (negative: past). */
+  setTimeOffset(ms) {
+    this.timeOffset = ms;
+    this.updateSun();
+  }
+
   updateSun() {
-    const s = subsolarPoint(this.at ?? new Date());
+    const s = subsolarPoint(this.time());
     this.sun.copy(v3(s.lat, s.lng)).normalize();
     if (this.skyBodies) this.updateSky();
   }
@@ -449,7 +461,7 @@ export class SpaceView {
   }
 
   updateSky() {
-    const date = this.at ?? new Date();
+    const date = this.time();
     const [sun, moonBody, ...planetBodies] = this.skyBodies;
 
     sun.pos.copy(this.sun).multiplyScalar(SKY_R);

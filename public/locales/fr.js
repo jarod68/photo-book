@@ -111,6 +111,9 @@ export default {
   'globe.timezones': 'Fuseaux horaires',
   'globe.tzCredit': 'fuseaux : timezone-boundary-builder (© contributeurs OpenStreetMap, ODbL)',
   'globe.backToSpace': 'Vue de l’espace',
+  'globe.time': 'Heure simulée (72 h avant ou après)',
+  'globe.now': 'Maintenant',
+  'globe.timeNow': 'maintenant',
   'globe.credit': 'Images : NASA Blue Marble &amp; Black Marble · côtes : Natural Earth',
 
   'map.title':     'Carte',

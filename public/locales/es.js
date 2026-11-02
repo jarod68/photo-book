@@ -111,6 +111,9 @@ export default {
   'globe.timezones': 'Husos horarios',
   'globe.tzCredit': 'husos: timezone-boundary-builder (© colaboradores de OpenStreetMap, ODbL)',
   'globe.backToSpace': 'Vista desde el espacio',
+  'globe.time': 'Hora simulada (72 h antes o después)',
+  'globe.now': 'Ahora',
+  'globe.timeNow': 'ahora',
   'globe.credit': 'Imágenes: NASA Blue Marble &amp; Black Marble · costas: Natural Earth',
 
   'map.title':       'Mapa',
