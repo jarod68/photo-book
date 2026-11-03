@@ -700,15 +700,18 @@ erDiagram
 
 ## Tests in CI
 
-Every push, on any branch, runs the three test layers in GitHub Actions (`.github/workflows/ci.yml`); the image is built and pushed only from `main`, and only when all of them pass:
+Every push, on any branch, runs the test layers in GitHub Actions (`.github/workflows/ci.yml`); the image is built and pushed only from `main`, and only when all of them pass:
 
 | Job | What | Against |
 |---|---|---|
 | `test` | **ESLint** (`npm run lint`, `eslint.config.mjs`: the recommended rules — a name declared twice, an undefined or unused variable…), **type checks** (`npm run typecheck`, TypeScript on the JavaScript: every file starting with `// @ts-check` is checked against its JSDoc and inferred types — about forty modules so far, add the line to a file when it passes), then Vitest unit + route tests, with **coverage thresholds** (statements 89 %, branches 82 %, functions 84 %, lines 91 % over `server.js`, `routes/`, `services/`, `public/api/`, `public/utils/`) | mocks |
 | `robot` | Robot Framework suites (`tests/integration_tests`), report kept as an artifact | the built app + PostgreSQL 17 |
 | `visual` | Playwright screenshots compared with the **Linux** baselines in `tests/visual_tests/snapshots`, in Playwright's image `mcr.microsoft.com/playwright:v1.64.1-noble`; diffs kept as an artifact on failure | the built app + PostgreSQL 17 |
+| `load` | **Load test** (`scripts/test-load.sh`, k6 2.3): 3 albums of 30 real-sized photos and 6 articles (`tests/load/seed.js`), then visitors browsing like the pages do — home, an album (a dozen thumbnails, photos, views, likes), an article, the map or a search — ramping up to **50 at once** for a minute (`tests/load/browse.js`). Fails above the budgets (95th percentile: pages 150 ms, API 400 ms — 1 s at the 99th —, images 300 ms, views 400 ms), at 1 % errors, or when the server's memory peaks above **768 MB** (prod's pod: 1 GiB). The results table goes to the run's summary page | the built app + PostgreSQL 17 (rate limits off in test mode: the app's capacity) |
 
-`scripts/e2e-server.sh start` prepares the app for the last two, with no Docker: it builds, starts `dist/server.js` against the given PostgreSQL (`POSTGRES_*` variables) with an empty photo library, sets the admin password (`Admin@test1`) and creates the `robot-basic` user. Locally:
+`npm run test:load` runs the load test locally (k6 on the PATH; `-e LOAD_VUS=150` to push harder). It found the search rebuilding its index with two database reads per photo whose place was never looked up: 9.5 s per search at 150 visitors, 0.5 s since such misses are remembered for 5 minutes (`services/places.js`).
+
+`scripts/e2e-server.sh start` prepares the app for the browser suites, with no Docker: it builds, starts `dist/server.js` against the given PostgreSQL (`POSTGRES_*` variables) with an empty photo library, sets the admin password (`Admin@test1`) and creates the `robot-basic` user. Locally:
 
 ```bash
 POSTGRES_HOST=localhost POSTGRES_DB=pb_e2e POSTGRES_USER=… POSTGRES_PASSWORD=… scripts/e2e-server.sh start

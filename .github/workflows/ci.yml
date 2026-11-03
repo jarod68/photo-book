@@ -72,6 +72,41 @@ jobs:
             ${{ runner.temp }}/photo-book-e2e/server.log
           retention-days: 14
 
+  # Load: the built app with real-sized photos (tests/load/seed.js), visitors
+  # simulated by k6 ramping up to 50 at once (tests/load/browse.js). Fails
+  # when an answer is slower than its budget at the 95th percentile, on
+  # errors, or when the server's memory goes over 768 MB (prod: 1 GiB).
+  load:
+    runs-on: ubuntu-26.04
+    needs: test
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env: { POSTGRES_USER: photobook, POSTGRES_PASSWORD: photobook, POSTGRES_DB: photobook }
+        ports: ["5432:5432"]
+        options: --health-cmd "pg_isready -U photobook" --health-interval 2s --health-timeout 5s --health-retries 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26
+          cache: npm
+      - uses: grafana/setup-k6-action@v1
+        with:
+          k6-version: '2.3.0'
+      - run: npm ci
+      - name: Load test (k6)
+        run: scripts/test-load.sh
+      - name: Load test results as artifact
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: load-report
+          path: |
+            load-results/
+            ${{ runner.temp }}/photo-book-e2e/server.log
+          retention-days: 14
+
   # Visual regression: Playwright screenshots compared with the Linux
   # baselines in tests/visual_tests/snapshots. Runs in Playwright's own image
   # (same browsers and fonts as the baselines). After an intended UI change,
@@ -173,7 +208,7 @@ jobs:
   # :latest (prod) is never touched here — see promote.yml.
   docker:
     runs-on: ubuntu-26.04
-    needs: [test, robot, visual, sbom]
+    needs: [test, robot, visual, sbom, load]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     steps:
       - uses: actions/checkout@v7

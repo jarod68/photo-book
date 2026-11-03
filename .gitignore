@@ -161,3 +161,4 @@ tests/visual_tests/.auth/
 tests/visual_tests/report/
 playwright-report/
 test-results/
+load-results/

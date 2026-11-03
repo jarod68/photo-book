@@ -220,11 +220,14 @@ async function resolvePhotos(refs, canSee) {
     if (!byAlbum.has(r.album)) byAlbum.set(r.album, []);
     byAlbum.get(r.album).push(r.file);
   }
-  for (const [album, files] of byAlbum) {
-    if (!(await canSee(album).catch(() => false))) continue;
-    const photos = await library.getAlbumPhotos(album).catch(() => null);
-    if (!photos) continue;
-    const ovs = await overrides.loadOverrides([album]).catch(() => new Map());
+  // the albums side by side (each: its rights, its photos, its edited titles)
+  await Promise.all([...byAlbum].map(async ([album, files]) => {
+    if (!(await canSee(album).catch(() => false))) return;
+    const [photos, ovs] = await Promise.all([
+      library.getAlbumPhotos(album).catch(() => null),
+      overrides.loadOverrides([album]).catch(() => new Map()),
+    ]);
+    if (!photos) return;
     for (const file of files) {
       const p = photos.find((x) => x.filename === file);
       if (!p) continue;
@@ -235,7 +238,7 @@ async function resolvePhotos(refs, canSee) {
         width: o.exif?.width ?? null, height: o.exif?.height ?? null,
       });
     }
-  }
+  }));
   return out;
 }
 

@@ -5,7 +5,7 @@ import js from '@eslint/js';
 import globals from 'globals';
 
 export default [
-  { ignores: ['dist/**', 'coverage/**', 'node_modules/**', 'public/vendor/**', 'playwright-report/**', 'test-results/**', 'robot-results/**'] },
+  { ignores: ['dist/**', 'coverage/**', 'node_modules/**', 'public/vendor/**', 'playwright-report/**', 'test-results/**', 'robot-results/**', 'load-results/**'] },
   js.configs.recommended,
   {
     rules: {
@@ -31,5 +31,14 @@ export default [
   {
     files: ['tests/**/*.js', '*.config.*', 'tests/**/*.mjs'],
     languageOptions: { sourceType: 'module', globals: { ...globals.node, ...globals.browser } },
+  },
+  // the load test: its data and summary on Node (CommonJS), the visitors on k6
+  {
+    files: ['tests/load/seed.js', 'tests/load/summary.js'],
+    languageOptions: { sourceType: 'commonjs', globals: { ...globals.node } },
+  },
+  {
+    files: ['tests/load/browse.js'],
+    languageOptions: { sourceType: 'module', globals: { __ENV: 'readonly', __VU: 'readonly', __ITER: 'readonly' } },
   },
 ];

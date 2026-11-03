@@ -20,6 +20,22 @@ describe('places (F6)', () => {
     expect(query.mock.calls.some(([sql, params]) => sql.includes('INSERT INTO place_cache') && params[0] === '-32.057,115.744')).toBe(true);
   });
 
+  it('un lieu absent du cache n’est redemandé à la base qu’après 5 minutes (la recherche le lit pour chaque photo)', async () => {
+    const query = vi.fn().mockResolvedValue({ rows: [] });
+    database._setState({ query }, true);
+    vi.useFakeTimers();
+    try {
+      expect(await places.cached(1, 2)).toBeUndefined();
+      expect(await places.cachedTerms(1, 2)).toBeUndefined();
+      expect(query).toHaveBeenCalledTimes(1);
+      vi.advanceTimersByTime(5 * 60_000 + 1);
+      await places.cached(1, 2);
+      expect(query).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('relit le cache persistant sans appel réseau', async () => {
     database._setState({ query: vi.fn().mockResolvedValue({ rows: [{ location: 'Porto, Portugal' }] }) }, true);
     const f = ok({});

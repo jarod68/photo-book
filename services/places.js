@@ -16,6 +16,11 @@ const MIN_GAP_MS = 1100;
 const RETRY_MS   = 24 * 60 * 60 * 1000;   // a failed lookup is retried after a day
 const memo = new Map();                    // key → { location (string | null), terms (string | null = not fetched yet) }
 const failedAt = new Map();                // key → time of the last network failure
+// places never looked up: remembered a while too, or every search would ask
+// the database again for each such photo (2 queries a photo); a lookup that
+// finds the place replaces the entry at once (memo.set)
+const missedAt = new Map();                // key → time the database had nothing
+const MISS_MS = 5 * 60_000;
 let queue = Promise.resolve();
 let lastCall = 0;
 
@@ -61,8 +66,10 @@ async function fromDb(key) {
 
 async function entry(key) {
   if (memo.has(key)) return memo.get(key);
+  if (Date.now() - (missedAt.get(key) ?? -Infinity) < MISS_MS) return undefined;
   const v = await fromDb(key).catch(() => undefined);
   if (v !== undefined) memo.set(key, v);
+  else missedAt.set(key, Date.now());
   return v;
 }
 
@@ -123,6 +130,6 @@ async function fillMissing(photos, _deps = {}) {
   return n;
 }
 
-function _reset() { memo.clear(); failedAt.clear(); queue = Promise.resolve(); lastCall = 0; }
+function _reset() { memo.clear(); failedAt.clear(); missedAt.clear(); queue = Promise.resolve(); lastCall = 0; }
 
 module.exports = { keyOf, cached, cachedTerms, lookup, fillMissing, fetchPlace, MIN_GAP_MS, _reset };

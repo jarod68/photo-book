@@ -16,7 +16,8 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "test:robot": "bash scripts/test-robot.sh",
-    "test:visual": "bash scripts/test-visual.sh"
+    "test:visual": "bash scripts/test-visual.sh",
+    "test:load": "bash scripts/test-load.sh"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
