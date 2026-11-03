@@ -35,6 +35,7 @@ const MARKER_PX = 54;                     // thumbnail diameter on screen
 const CLUSTER_PX = 50;                    // thumbnails closer than this on screen are grouped
 const TEX = '/textures/earth';
 const SKY_TEX = '/textures/sky';
+const SKY_BRIGHTNESS = 0.7;   // a little darker than NASA's map: the Earth and the planets stand out
 
 // ISO code, lat, lng, farthest camera distance at which the name shows
 const COUNTRIES = [
@@ -437,7 +438,7 @@ export class SpaceView {
       t.minFilter = THREE.LinearFilter;
       this.skyMat.uniforms.map.value?.dispose();
       this.skyMat.uniforms.map.value = t;
-      this.skyMat.uniforms.brightness.value = 1;
+      this.skyMat.uniforms.brightness.value = SKY_BRIGHTNESS;
     };
     loadTexture(`${SKY_TEX}/sky-4096.webp`)
       .then((t) => { use(t); return big ? loadTexture(`${SKY_TEX}/sky-8192.webp`).then(use) : null; })

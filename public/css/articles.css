@@ -6,8 +6,8 @@
 /* ── Cards ─────────────────────────────────────────────────────────────────── */
 .article-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 14px;
   margin-top: 14px;   /* as the explore grid */
 }
 .article-card {
@@ -20,7 +20,7 @@
 }
 .article-card:hover { border-color: var(--border-h); background: var(--surface-h); transform: translateY(-2px); }
 .article-card-pic {
-  position: relative; aspect-ratio: 16 / 9; overflow: hidden;
+  position: relative; aspect-ratio: 16 / 10; overflow: hidden;
   background: linear-gradient(135deg, rgba(255,138,91,0.18), rgba(255,255,255,0.03));
 }
 .article-card-pic img {
@@ -36,13 +36,18 @@
   color: #fde68a; font-size: 11px; font-weight: 600; letter-spacing: 0.04em;
 }
 .article-card--draft .article-card-pic img { filter: saturate(0.4); }
-.article-card-body { padding: 14px 16px 18px; display: flex; flex-direction: column; gap: 6px; }
-.article-card-meta { font-size: 11.5px; color: var(--accent-soft); letter-spacing: 0.02em; }
-.article-card-title { font-size: 21px; font-weight: 600; line-height: 1.2; letter-spacing: -0.01em; color: #fff; }
-.article-card-summary {
-  font-size: 14px; line-height: 1.55; color: var(--text-dim);
-  display: -webkit-box; -webkit-line-clamp: 3; line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+.article-card-body { padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.article-card-meta { font-size: 11px; color: var(--accent-soft); letter-spacing: 0.02em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.article-card-title {
+  font-size: 17px; font-weight: 600; line-height: 1.22; letter-spacing: -0.01em; color: #fff;
+  display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
 }
+.article-card-summary {
+  font-size: 13.5px; line-height: 1.5; color: var(--text-dim);
+  display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+/* the home page's cards: the picture, the day, the title — no text */
+.article-grid .article-card-summary { display: none; }
 
 /* small buttons of these pages */
 .carnet-btn {
@@ -111,9 +116,9 @@
 .carnet-day strong { font-family: var(--font-display); font-size: 30px; font-weight: 600; line-height: 1; color: #fff; }
 .carnet-day span { margin-top: 3px; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-dim); }
 .carnet-item .article-card { flex-direction: row; }
-.carnet-item .article-card-pic { flex: 0 0 min(42%, 360px); aspect-ratio: 3 / 2; }
-.carnet-item .article-card-body { padding: 18px 22px; justify-content: center; }
-.carnet-item .article-card-title { font-size: 25px; }
+.carnet-item .article-card-pic { flex: 0 0 min(34%, 220px); aspect-ratio: 3 / 2; }
+.carnet-item .article-card-body { padding: 12px 18px; justify-content: center; }
+.carnet-item .article-card-title { font-size: 21px; }
 
 .carnet-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px; }
 .carnet-thumb { aspect-ratio: 1; overflow: hidden; border-radius: 6px; background: var(--surface); display: block; }
@@ -127,10 +132,10 @@
   .carnet-item { grid-template-columns: 48px 1fr; gap: 10px; }
   .carnet-day strong { font-size: 22px; }
   .carnet-day span { font-size: 9.5px; letter-spacing: 0.02em; }
-  .carnet-item .article-card { flex-direction: column; }
-  .carnet-item .article-card-pic { flex: none; aspect-ratio: 16 / 9; }
-  .carnet-item .article-card-body { padding: 12px 14px 16px; }
-  .carnet-item .article-card-title { font-size: 20px; }
+  .carnet-item .article-card-pic { flex: 0 0 38%; aspect-ratio: 1; }
+  .carnet-item .article-card-body { padding: 8px 10px; }
+  .carnet-item .article-card-title { font-size: 16px; }
+  .carnet-item .article-card-summary { display: none; }
 }
 
 /* ── An article (article.html; also the editor's preview) ──────────────────── */

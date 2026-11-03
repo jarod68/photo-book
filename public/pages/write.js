@@ -9,6 +9,7 @@ import { getAlbums, getAlbum, getArticle, saveArticle, deleteArticle } from '../
 import { renderArticle, photoRefs, parseRef, refFor, esc } from '../utils/article-render.js';
 import { articleMeta } from '../components/article-card.js';
 import { Uploader, preventFileDrops } from '../components/uploader.js';
+import { wireBack } from '../utils/back.js';
 
 applyTranslations();
 initLangSwitcher('lang-switcher');
@@ -25,7 +26,12 @@ const form = { title: $('write-title'), summary: $('write-summary'), date: $('wr
 const statusEl = $('write-status');
 const albumHref = `album.html?album=${encodeURIComponent(album)}`;
 $('write-album').textContent = album;
-/** @type {HTMLAnchorElement} */ (document.querySelector('.write-back')).href = albumHref;
+// ←: back where the admin came from (the journal, the article), like the
+// other pages — a plain link would add a page, and the journal's own ←
+// would then come back here
+const back = /** @type {HTMLAnchorElement} */ (document.querySelector('.write-back'));
+back.href = albumHref;          // opened from outside: the album's journal
+wireBack(back);
 
 // ── Photos of the albums, loaded once each (for the preview and the picker) ──
 /** @type {Map<string, any[]>} */

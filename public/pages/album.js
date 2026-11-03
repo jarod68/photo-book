@@ -9,6 +9,10 @@ import { createArticleCard } from '../components/article-card.js';
 import { formatDateRange, formatDay } from '../utils/format.js';
 import { wireBack } from '../utils/back.js';
 import { showBuildTag } from '../utils/build-tag.js';
+
+// back from the editor, the page comes out of the browser's cache as it was:
+// load it again, with what was just saved
+addEventListener('pageshow', (e) => { if (e.persisted) location.reload(); });
 import { esc } from '../utils/article-render.js';
 
 applyTranslations();

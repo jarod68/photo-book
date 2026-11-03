@@ -222,11 +222,11 @@ describe('articles', () => {
   it('lecture : adresses, lien de partage', async () => {
     fetch.mockResolvedValue(ok([]));
     await getLatestArticles(3);
-    expect(fetch).toHaveBeenLastCalledWith('/api/articles?limit=3');
+    expect(fetch).toHaveBeenLastCalledWith('/api/articles?limit=3', { cache: 'no-cache' });
     await getAlbumArticles('Ibérie', 'tok');
-    expect(fetch).toHaveBeenLastCalledWith('/api/articles/Ib%C3%A9rie?share=tok');
+    expect(fetch).toHaveBeenLastCalledWith('/api/articles/Ib%C3%A9rie?share=tok', { cache: 'no-cache' });
     await getArticle('A', 'jour 1');
-    expect(fetch).toHaveBeenLastCalledWith('/api/articles/A/jour%201');
+    expect(fetch).toHaveBeenLastCalledWith('/api/articles/A/jour%201', { cache: 'no-cache' });
   });
 
   it("une erreur porte le statut HTTP (401 : album réservé)", async () => {

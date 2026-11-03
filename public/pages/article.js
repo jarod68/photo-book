@@ -10,6 +10,10 @@ import { articleHref, articleMeta } from '../components/article-card.js';
 import { wireBack } from '../utils/back.js';
 import { showBuildTag } from '../utils/build-tag.js';
 
+// back from the editor, the page comes out of the browser's cache as it was:
+// load it again, with what was just saved
+addEventListener('pageshow', (e) => { if (e.persisted) location.reload(); });
+
 applyTranslations();
 initLangSwitcher('lang-switcher');
 

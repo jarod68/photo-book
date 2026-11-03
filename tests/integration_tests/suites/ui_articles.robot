@@ -187,3 +187,29 @@ The Globe Route Button Is Remembered
     Get Attribute    id=globe-route-btn    aria-pressed    ==    false
     Click    id=globe-route-btn
     Get Attribute    id=globe-route-btn    aria-pressed    ==    true
+
+Back From The Editor Returns To The Journal, Then Home
+    As Admin
+    Go To    ${BASE_URL}/
+    Wait For Elements State    css=#album-grid a.album-card[href*="${TRIP}"]    visible    timeout=10s
+    Click    css=#album-grid a.album-card[href*="${TRIP}"]
+    Wait For Elements State    css=body.page-album #carnet-new:not([hidden])    visible    timeout=10s
+    Click    id=carnet-new
+    Wait For Elements State    id=write-title    visible    timeout=10s
+    Click    css=.write-back
+    Wait For Elements State    css=body.page-album    visible    timeout=10s
+    Click    css=.map-page-back
+    Wait For Elements State    css=body.page-home    visible    timeout=10s
+
+An Article Edited Shows Its New Title Once Back
+    ${slug}=    Create Article By API    ${TRIP}    { title: 'Avant', published: true }
+    As Admin
+    Go To    ${BASE_URL}/article.html?album=${TRIP}&a=${slug}
+    Wait For Elements State    id=article-edit    visible    timeout=10s
+    Click    id=article-edit
+    Wait For Elements State    id=write-title    visible    timeout=10s
+    Fill Text    id=write-title    Après
+    Click    id=write-save
+    Wait For Elements State    css=.write-status--saved    visible    timeout=8s
+    Click    css=.write-back
+    Wait For Elements State    css=h1.article-title >> text=Après    visible    timeout=10s

@@ -197,20 +197,23 @@ async function jsonOrThrow(r, what) {
   throw err;
 }
 const shareQs = (share) => (share ? `?share=${encodeURIComponent(share)}` : '');
+// always asked again (a 304 when unchanged): coming Back to a page, browsers
+// reuse their cached answer without asking, and would show it as before an edit
+const FRESH = { cache: /** @type {RequestCache} */ ('no-cache') };
 
 /** The latest published articles the visitor may read. @returns {Promise<ArticleCard[]>} */
 export async function getLatestArticles(limit = 6) {
-  return jsonOrThrow(await fetch(`/api/articles?limit=${limit}`), 'getLatestArticles');
+  return jsonOrThrow(await fetch(`/api/articles?limit=${limit}`, FRESH), 'getLatestArticles');
 }
 
 /** @returns {Promise<{ album: string, articles: ArticleCard[], canEdit: boolean }>} */
 export async function getAlbumArticles(album, share = null) {
-  return jsonOrThrow(await fetch(`/api/articles/${encodeURIComponent(album)}${shareQs(share)}`), 'getAlbumArticles');
+  return jsonOrThrow(await fetch(`/api/articles/${encodeURIComponent(album)}${shareQs(share)}`, FRESH), 'getAlbumArticles');
 }
 
 /** One article: its card, body, photos ("Album/file" → photo), prev / next. */
 export async function getArticle(album, slug, share = null) {
-  return jsonOrThrow(await fetch(`/api/articles/${encodeURIComponent(album)}/${encodeURIComponent(slug)}${shareQs(share)}`), 'getArticle');
+  return jsonOrThrow(await fetch(`/api/articles/${encodeURIComponent(album)}/${encodeURIComponent(slug)}${shareQs(share)}`, FRESH), 'getArticle');
 }
 
 /** Create (`id` null, `fields.album` set) or change an article (admin). */
