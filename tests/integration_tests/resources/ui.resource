@@ -32,8 +32,10 @@ Delete Albums By API
     END
 
 Upload Generated Photos
-    [Documentation]    ${count} small PNGs drawn in the page (random colours: never identical,
-    ...                unless ${colour} is given), uploaded to ${url}. Returns the count accepted.
+    [Documentation]    ${count} small PNGs drawn in the page (random colours among 16 million: never
+    ...                identical — 360 hues made two suites' photos twins now and then, a stray
+    ...                pair for the duplicates test —, unless ${colour} is given), uploaded to ${url}.
+    ...                Returns the count accepted.
     [Arguments]    ${url}    ${count}=1    ${prefix}=gen    ${colour}=${EMPTY}
     ${n}=    Evaluate JavaScript    ${NONE}
     ...    async () => {
@@ -41,7 +43,7 @@ Upload Generated Photos
     ...      for (let i = 0; i < ${count}; i++) {
     ...        const c = document.createElement('canvas'); c.width = 64; c.height = 48;
     ...        const g = c.getContext('2d');
-    ...        g.fillStyle = '${colour}' || ('hsl(' + Math.floor(Math.random() * 360) + ' 70% 50%)');
+    ...        g.fillStyle = '${colour}' || ('#' + Math.floor(Math.random() * 0x1000000).toString(16).padStart(6, '0'));
     ...        g.fillRect(0, 0, 64, 48);
     ...        const blob = await new Promise((r) => c.toBlob(r, 'image/png'));
     ...        fd.append('photos', blob, '${prefix}-' + i + '.png');
@@ -65,7 +67,7 @@ Drop Generated Photos On
     ...      for (let i = 0; i < ${count}; i++) {
     ...        const c = document.createElement('canvas'); c.width = 64; c.height = 48;
     ...        const g = c.getContext('2d');
-    ...        g.fillStyle = 'hsl(' + Math.floor(Math.random() * 360) + ' 70% 50%)'; g.fillRect(0, 0, 64, 48);
+    ...        g.fillStyle = '#' + Math.floor(Math.random() * 0x1000000).toString(16).padStart(6, '0'); g.fillRect(0, 0, 64, 48);
     ...        const blob = await new Promise((r) => c.toBlob(r, 'image/png'));
     ...        dt.items.add(new File([blob], '${prefix}-' + i + '-' + Date.now() + '.png', { type: 'image/png' }));
     ...      }

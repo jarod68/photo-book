@@ -246,7 +246,8 @@ Duplicates Lists Identical Files Across Albums And Deletes One
     Upload Generated Photos As Admin    ui-dup-2    1    same    \#123456
     Go To Admin Page
     Click    id=dup-btn
-    Wait For Elements State    css=#dup-results .admin-dup-group    visible    timeout=30s
+    # this test's pair (other suites' photos may form groups too)
+    Wait For Elements State    css=#dup-results .admin-dup-group >> text=ui-dup-1    visible    timeout=30s
     Get Text    id=dup-results    contains    ui-dup-1
     Get Text    id=dup-results    contains    ui-dup-2
     Handle Future Dialogs    action=accept
