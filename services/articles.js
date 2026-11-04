@@ -128,11 +128,11 @@ async function listForAlbum(album, { drafts = false } = {}) {
   return rows.map(fromRow);
 }
 
-/** The latest published articles of these albums (newest first). */
+/** The latest published articles of these albums: by their date, newest first (undated last). */
 async function latest(albums, limit = 6) {
   if (!database.dbReady || !albums.length) return [];
   const { rows } = await database.db.query(
-    `${SELECT} WHERE published AND album = ANY($1) ORDER BY created_at DESC, id DESC LIMIT $2`, [albums, limit]);
+    `${SELECT} WHERE published AND album = ANY($1) ORDER BY story_date DESC NULLS LAST, created_at DESC, id DESC LIMIT $2`, [albums, limit]);
   return rows.map(fromRow);
 }
 

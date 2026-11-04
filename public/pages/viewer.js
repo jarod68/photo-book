@@ -40,6 +40,7 @@ const tabsEl      = document.getElementById('album-tabs');
 const thumbsEl    = document.getElementById('thumbnails');
 const albumMapBtn = document.getElementById('album-map-btn');
 const articlesBtn = /** @type {HTMLAnchorElement} */ (document.getElementById('album-articles-btn'));
+const newArticleBtn = /** @type {HTMLAnchorElement} */ (document.getElementById('new-article-btn'));
 const locationEl  = document.getElementById('photo-location');
 const viewsEl     = document.getElementById('photo-views');
 const likeBtn     = document.getElementById('like-btn');
@@ -423,7 +424,11 @@ async function selectAlbum(name, targetFilename = null) {
 
   state.canUpload = !!data.canUpload;
   uploadBtn.hidden = !state.canUpload;
-  const hasActions = data.canDownload || data.canDelete || data.canUpload;
+  // write an article in this album (the admin), like adding photos
+  const canWrite = entry?.drafts !== undefined;
+  newArticleBtn.hidden = !canWrite;
+  newArticleBtn.href = `write.html?album=${encodeURIComponent(name)}`;
+  const hasActions = data.canDownload || data.canDelete || data.canUpload || canWrite;
   if (hasActions) {
     actionsEl.removeAttribute('hidden');
   } else {

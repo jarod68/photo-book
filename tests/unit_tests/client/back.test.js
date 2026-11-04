@@ -2,7 +2,7 @@
  * @vitest-environment happy-dom
  */
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { cameFromApp, wireBack, saveState, pageState } from '../../../public/utils/back.js';
+import { cameFromApp, wireBack, saveState, pageState, levelOf } from '../../../public/utils/back.js';
 
 const referrer = (url) => Object.defineProperty(document, 'referrer', { value: url, configurable: true });
 const historyLength = (n) => Object.defineProperty(history, 'length', { value: n, configurable: true });
@@ -27,6 +27,7 @@ describe('retour en arrière (back.js)', () => {
 
   it('le bouton ← fait history.back(), sinon suit son lien', () => {
     const back = vi.spyOn(history, 'back').mockImplementation(() => {});
+    history.replaceState(null, '', '/viewer.html?album=A');   // a photo, opened from the map
     const a = document.createElement('a');
     a.href = 'index.html';
     document.body.append(a);
@@ -50,6 +51,39 @@ describe('retour en arrière (back.js)', () => {
     a.dispatchEvent(e3);
     expect(e3.defaultPrevented).toBe(false);
     a.remove();
+    history.replaceState(null, '', '/');
+  });
+
+  it('profondeur des pages : accueil, pages ouvertes depuis l’accueil, photo / article, éditeur', () => {
+    expect(levelOf('/')).toBe(0);
+    expect(levelOf('/index.html')).toBe(0);
+    expect(levelOf('/album.html')).toBe(1);
+    expect(levelOf('/map.html')).toBe(1);
+    expect(levelOf('/viewer.html')).toBe(2);
+    expect(levelOf('/article.html')).toBe(2);
+    expect(levelOf('/write.html')).toBe(3);
+  });
+
+  it('jamais de retour vers une page plus profonde (pas de boucle) : le lien est suivi', () => {
+    const back = vi.spyOn(history, 'back').mockImplementation(() => {});
+    history.replaceState(null, '', '/album.html?album=A');
+    const a = document.createElement('a');
+    a.href = 'index.html';
+    document.body.append(a);
+    wireBack(a);
+    historyLength(4);
+    // the journal opened by an article's "all the articles" link
+    referrer(`${location.origin}/article.html?album=A&a=x`);
+    const e = new MouseEvent('click', { bubbles: true, cancelable: true, button: 0 });
+    a.dispatchEvent(e);
+    expect(back).not.toHaveBeenCalled();
+    expect(e.defaultPrevented).toBe(false);
+    // from the home page: a real back
+    referrer(`${location.origin}/`);
+    a.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, button: 0 }));
+    expect(back).toHaveBeenCalledTimes(1);
+    a.remove();
+    history.replaceState(null, '', '/');
   });
 
   it('l\'état de la page se complète sans nouvelle entrée d\'historique', () => {

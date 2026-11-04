@@ -23,11 +23,27 @@ export function cameFromApp() {
   } catch { return false; }
 }
 
-/** Make a ← link go back in history when that leads to a page of the site. */
+// How deep a page is: home, then the pages it opens (an album's journal, the
+// map, the globe, search…), then a photo or an article, then the editor.
+const LEVELS = { '': 0, 'index.html': 0, 'viewer.html': 2, 'article.html': 2, 'write.html': 3 };
+/** @param {string} pathname */
+export function levelOf(pathname) {
+  return LEVELS[pathname.replace(/^.*\//, '')] ?? 1;
+}
+
+/**
+ * Make a ← link go back in history when that leads to a page of the site no
+ * deeper than this one. When the previous page is deeper — this page was
+ * opened by a link from one of its own articles or photos ("all the
+ * articles", the viewer's Articles button…) — going back would return down
+ * there, whose ← comes back here: a loop. The link (this page's parent) is
+ * followed instead, so ← always ends at the home page.
+ */
 export function wireBack(el) {
   el?.addEventListener('click', (e) => {
     if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;   // new tab: the link
     if (!cameFromApp()) return;
+    if (levelOf(new URL(document.referrer).pathname) > levelOf(location.pathname)) return;
     e.preventDefault();
     history.back();
   });

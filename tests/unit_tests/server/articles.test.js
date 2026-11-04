@@ -88,7 +88,7 @@ async function query(sql, params = []) {
   if (s.includes('FROM articles')) {
     let list = rows.slice();
     if (s.includes('WHERE id = $1')) list = list.filter(r => r.id === params[0]);
-    else if (s.includes('album = ANY($1)')) list = list.filter(r => r.published && params[0].includes(r.album)).sort((a, b) => b.created_at - a.created_at).slice(0, params[1]);
+    else if (s.includes('album = ANY($1)')) list = list.filter(r => r.published && params[0].includes(r.album)).sort((a, b) => (b.date ?? '').localeCompare(a.date ?? '') || b.created_at - a.created_at).slice(0, params[1]);
     else {
       list = list.filter(r => r.album === params[0]);
       if (s.includes('slug = $2')) list = list.filter(r => r.slug === params[1]);
@@ -125,13 +125,13 @@ afterEach(() => vi.restoreAllMocks());
 const as = (req, token) => (token ? req.set('Cookie', `pb_session=${token}`) : req);
 
 describe('GET /api/articles (accueil)', () => {
-  it('les derniers articles publiés des albums visibles, sans corps', async () => {
+  it('les derniers articles publiés des albums visibles, par leur date (les plus récents d’abord, sans date à la fin), sans corps', async () => {
     const res = await request(app).get('/api/articles');
     expect(res.status).toBe(200);
-    expect(res.body.map(a => a.slug)).toEqual(['notes', 'jour-2', 'jour-1']);
+    expect(res.body.map(a => a.slug)).toEqual(['jour-2', 'jour-1', 'notes']);
     expect(res.body[0].body).toBeUndefined();
     // la couverture d'un carnet sans photo vient d'un autre album
-    expect(res.body[0].cover.thumbUrl).toBe('/previews/Voyage/c.jpg.thumb.jpg');
+    expect(res.body.find(a => a.slug === 'notes').cover.thumbUrl).toBe('/previews/Voyage/c.jpg.thumb.jpg');
   });
 
   it('un membre connecté voit aussi les albums réservés qui lui sont ouverts (ici l’admin)', async () => {

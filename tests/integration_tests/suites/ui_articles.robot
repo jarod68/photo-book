@@ -12,11 +12,12 @@ Suite Teardown    Clean Up
 ${TRIP}       ui-art-trip
 ${NOTES}      ui-art-notes
 ${SECRET}     ui-art-secret
+${DATED}      ui-art-dated
 
 *** Keywords ***
 Prepare
     Login As Admin
-    Delete Albums By API    ${TRIP}    ${NOTES}    ${SECRET}
+    Delete Albums By API    ${TRIP}    ${NOTES}    ${SECRET}    ${DATED}
     Create Album By API    ${TRIP}
     Create Album By API    ${NOTES}
     Create Album By API    ${SECRET}
@@ -33,7 +34,7 @@ Prepare
 
 Clean Up
     Run Keyword And Ignore Error    Switch Context    ${ADMIN_CTX}
-    Delete Albums By API    ${TRIP}    ${NOTES}    ${SECRET}
+    Delete Albums By API    ${TRIP}    ${NOTES}    ${SECRET}    ${DATED}
     Close Browser
 
 As Admin
@@ -213,3 +214,45 @@ An Article Edited Shows Its New Title Once Back
     Wait For Elements State    css=.write-status--saved    visible    timeout=8s
     Click    css=.write-back
     Wait For Elements State    css=h1.article-title >> text=Après    visible    timeout=10s
+
+No Loop Between A Journal And Its Article
+    [Documentation]    home → journal → article → "all the articles" (a link) → ← : the home page,
+    ...                not back down to the article (whose ← would come back here)
+    ${slug}=    Create Article By API    ${TRIP}    { title: 'Boucle', published: true }
+    As Admin
+    Go To    ${BASE_URL}/
+    Wait For Elements State    css=#album-grid a.album-card[href*="${TRIP}"]    visible    timeout=10s
+    Click    css=#album-grid a.album-card[href*="${TRIP}"]
+    Wait For Elements State    css=#carnet-list .article-card >> text=Boucle    visible    timeout=10s
+    Click    css=#carnet-list .article-card >> text=Boucle
+    Wait For Elements State    css=a.article-nav-album    visible    timeout=10s
+    Click    css=a.article-nav-album
+    Wait For Elements State    css=body.page-album #carnet-list    visible    timeout=10s
+    Click    css=.map-page-back
+    Wait For Elements State    css=body.page-home    visible    timeout=10s
+
+A New Article Starts On The Day Of The Album's First Photo
+    As Admin
+    Create Album By API    ${DATED}
+    Go To Admin Page
+    Upload Photos To Album    ${DATED}    ${FIXTURE_DIR}/gps-a.tiff    ${FIXTURE_DIR}/gps-e.tiff
+    Go To    ${BASE_URL}/write.html?album=${DATED}
+    Wait For Elements State    id=write-title    visible    timeout=10s
+    # gps-e: 24 May 2024, the earliest of the two
+    Get Property    id=write-date    value    ==    2024-05-24
+
+The Viewer's Menu Writes An Article In The Album
+    As Admin
+    Go To    ${BASE_URL}/viewer.html?album=${TRIP}
+    Wait For Elements State    id=photo-actions-toggle    visible    timeout=10s
+    Click    id=photo-actions-toggle
+    Wait For Elements State    id=new-article-btn    visible    timeout=5s
+    Click    id=new-article-btn
+    Wait For Elements State    id=write-title    visible    timeout=10s
+    ${url}=    Get Url
+    Should Contain    ${url}    write.html?album=${TRIP}
+    # a visitor has no such item
+    As Reader
+    Go To    ${BASE_URL}/viewer.html?album=${TRIP}
+    Wait For Elements State    css=#thumbnails .thumb >> nth=0    visible    timeout=10s
+    Get Element Count    css=#new-article-btn:not([hidden])    ==    0

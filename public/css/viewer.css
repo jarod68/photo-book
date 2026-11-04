@@ -483,6 +483,10 @@
   -webkit-backdrop-filter: blur(6px);
   pointer-events: auto;
 }
+/* no likes yet: no count, a round button with the heart in its middle */
+.like-btn { justify-content: center; }
+.like-btn:has(#like-count:empty) { width: 30px; padding: 0; gap: 0; }
+#like-count:empty { display: none; }
 .like-btn:hover         { color: #fff; border-color: rgba(255,255,255,0.32); }
 .like-btn.liked         { color: #ff4d6d; background: rgba(255,77,109,0.12); border-color: rgba(255,77,109,0.38); }
 .like-heart-outline     { display: block; }
@@ -1033,6 +1037,7 @@ a#zip-btn { text-decoration: none; }
   #photo-meta { gap: 8px; }
   #photo-meta .photo-location { flex-basis: 100%; margin-bottom: 0; font-size: 12px; }
   .like-btn, .photo-actions-toggle { height: 38px; padding: 0 12px; }
+  .like-btn:has(#like-count:empty) { width: 38px; padding: 0; }
   .download-photo-btn, .exif-toggle-btn, .push-subscribe-btn { width: 38px; height: 38px; }
   .like-btn svg, .download-photo-btn svg, .exif-toggle-btn svg, .push-subscribe-btn svg, .photo-actions-toggle svg { width: 16px; height: 16px; }
 

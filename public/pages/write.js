@@ -126,7 +126,7 @@ async function remove() {
   if (!id || !confirm(t('write.confirmDelete', { title: form.title.value }))) return;
   await deleteArticle(id).catch(() => null);
   dirty = false;
-  location.href = albumHref;
+  location.replace(albumHref);   // the editor of a deleted article is no page to come back to
 }
 
 // ── Markdown toolbar ──────────────────────────────────────────────────────────
@@ -275,7 +275,9 @@ async function init() {
       return;
     }
   } else {
-    form.date.value = new Date().toISOString().slice(0, 10);
+    // the day of the album's first photo (capture date), else today
+    const first = (await photosOf(album)).map((p) => p.takenAt).filter(Boolean).sort()[0];
+    form.date.value = (first ?? new Date().toISOString()).slice(0, 10);
     document.title = `${t('write.newTitle')} — ${album}`;
   }
   $('write').hidden = false;
