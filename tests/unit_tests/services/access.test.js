@@ -61,21 +61,21 @@ describe('getAlbumAccess', () => {
     mockQuery.mockResolvedValue({ rows: [{ visibility: 'public' }] });
     database._setState({ query: mockQuery }, true);
     const result = await access.getAlbumAccess('Paris', null);
-    expect(result).toEqual({ allowed: true, canDelete: false });
+    expect(result).toEqual({ allowed: true, canDelete: false, canManage: false });
   });
 
   it('album public + admin → allowed true, canDelete true', async () => {
     mockQuery.mockResolvedValue({ rows: [{ visibility: 'public' }] });
     database._setState({ query: mockQuery }, true);
     const result = await access.getAlbumAccess('Paris', { role: 'admin' });
-    expect(result).toEqual({ allowed: true, canDelete: true });
+    expect(result).toEqual({ allowed: true, canDelete: true, canManage: true });
   });
 
   it('album public + utilisateur basique → allowed true, canDelete false', async () => {
     mockQuery.mockResolvedValue({ rows: [{ visibility: 'public' }] });
     database._setState({ query: mockQuery }, true);
     const result = await access.getAlbumAccess('Paris', { id: 5, role: 'basic' });
-    expect(result).toEqual({ allowed: true, canDelete: false });
+    expect(result).toEqual({ allowed: true, canDelete: false, canManage: false });
   });
 
   it('album restreint + share token valide → allowed true, canDelete false', async () => {
@@ -84,14 +84,14 @@ describe('getAlbumAccess', () => {
       .mockResolvedValueOnce({ rows: [{ '?column?': 1 }] });           // validateShareToken
     database._setState({ query: mockQuery }, true);
     const result = await access.getAlbumAccess('Private', null, 'valid-token');
-    expect(result).toEqual({ allowed: true, canDelete: false });
+    expect(result).toEqual({ allowed: true, canDelete: false, canManage: false });
   });
 
   it('album restreint + pas d\'utilisateur ni de token → forbidden', async () => {
     mockQuery.mockResolvedValue({ rows: [{ visibility: 'restricted' }] });
     database._setState({ query: mockQuery }, true);
     const result = await access.getAlbumAccess('Private', null);
-    expect(result).toEqual({ allowed: false, canDelete: false });
+    expect(result).toEqual({ allowed: false, canDelete: false, canManage: false });
   });
 
   it('album restreint + pas d\'utilisateur + share token invalide → forbidden', async () => {
@@ -100,14 +100,14 @@ describe('getAlbumAccess', () => {
       .mockResolvedValueOnce({ rows: [] }); // token invalid
     database._setState({ query: mockQuery }, true);
     const result = await access.getAlbumAccess('Private', null, 'bad-token');
-    expect(result).toEqual({ allowed: false, canDelete: false });
+    expect(result).toEqual({ allowed: false, canDelete: false, canManage: false });
   });
 
   it('album restreint + admin → allowed true, canDelete true', async () => {
     mockQuery.mockResolvedValue({ rows: [{ visibility: 'restricted' }] });
     database._setState({ query: mockQuery }, true);
     const result = await access.getAlbumAccess('Private', { role: 'admin' });
-    expect(result).toEqual({ allowed: true, canDelete: true });
+    expect(result).toEqual({ allowed: true, canDelete: true, canManage: true });
   });
 
   it('album restreint + utilisateur basique autorisé → allowed true, canDelete true', async () => {
@@ -116,7 +116,7 @@ describe('getAlbumAccess', () => {
       .mockResolvedValueOnce({ rows: [{ '?column?': 1 }] });           // isUserAuthorized
     database._setState({ query: mockQuery }, true);
     const result = await access.getAlbumAccess('Private', { id: 7, role: 'basic' });
-    expect(result).toEqual({ allowed: true, canDelete: true });
+    expect(result).toEqual({ allowed: true, canDelete: true, canManage: false });
   });
 
   it('album restreint + utilisateur basique non autorisé → forbidden', async () => {
@@ -125,7 +125,31 @@ describe('getAlbumAccess', () => {
       .mockResolvedValueOnce({ rows: [] }); // not authorized
     database._setState({ query: mockQuery }, true);
     const result = await access.getAlbumAccess('Private', { id: 8, role: 'basic' });
-    expect(result).toEqual({ allowed: false, canDelete: false });
+    expect(result).toEqual({ allowed: false, canDelete: false, canManage: false });
+  });
+
+  it('propriétaire : tout, même sur un album privé ; un autre utilisateur, rien sur un album privé', async () => {
+    mockQuery.mockResolvedValue({ rows: [{ visibility: 'private', owner_id: 7 }] });
+    database._setState({ query: mockQuery }, true);
+    expect(await access.getAlbumAccess('Mine', { id: 7, role: 'basic' })).toEqual({ allowed: true, canDelete: true, canManage: true });
+    expect(await access.getAlbumAccess('Mine', { id: 8, role: 'basic' })).toEqual({ allowed: false, canDelete: false, canManage: false });
+    expect(await access.getAlbumAccess('Mine', null)).toEqual({ allowed: false, canDelete: false, canManage: false });
+    expect(await access.getAlbumAccess('Mine', { id: 1, role: 'admin' })).toEqual({ allowed: true, canDelete: true, canManage: true });
+  });
+
+  it('album privé : un lien de partage de son propriétaire l’ouvre en lecture', async () => {
+    mockQuery
+      .mockResolvedValueOnce({ rows: [{ visibility: 'private', owner_id: 7 }] })
+      .mockResolvedValueOnce({ rows: [{ '?column?': 1 }] });
+    database._setState({ query: mockQuery }, true);
+    expect(await access.getAlbumAccess('Mine', null, 'tok')).toEqual({ allowed: true, canDelete: false, canManage: false });
+  });
+
+  it('album privé : un membre de la liste n’y a pas accès (c’est réservé à son propriétaire)', async () => {
+    mockQuery.mockResolvedValue({ rows: [{ visibility: 'private', owner_id: 7 }] });
+    database._setState({ query: mockQuery }, true);
+    expect((await access.getAlbumAccess('Mine', { id: 9, role: 'basic' })).allowed).toBe(false);
+    expect(mockQuery).toHaveBeenCalledTimes(1);   // no member lookup
   });
 
   it('DB non prête → visibilité retombe sur public (allowed true)', async () => {
@@ -205,4 +229,41 @@ describe('filterVisibleAlbums', () => {
     expect(visibilityMap.get('A')).toBe('restricted');
     expect(authorizedSet.has('A')).toBe(true);
   });
+
+  it('albums privés : seulement pour leur propriétaire (et l’admin) ; un membre n’y entre pas', async () => {
+    const settings = { rows: [
+      { album: 'Mine', visibility: 'private', owner_id: 5 },
+      { album: 'Theirs', visibility: 'private', owner_id: 6 },
+      { album: 'Shared', visibility: 'restricted', owner_id: 6 },
+    ] };
+    mockQuery.mockResolvedValueOnce(settings).mockResolvedValueOnce({ rows: [{ album: 'Theirs' }, { album: 'Shared' }] });
+    database._setState({ query: mockQuery }, true);
+    const { filtered, ownerMap } = await access.filterVisibleAlbums(
+      [dir('Paris'), dir('Mine'), dir('Theirs'), dir('Shared')], { id: 5, role: 'basic' });
+    expect(filtered.map(d => d.name)).toEqual(['Paris', 'Mine', 'Shared']);
+    expect(ownerMap.get('Theirs')).toBe(6);
+    mockQuery.mockResolvedValueOnce(settings);
+    expect((await access.filterVisibleAlbums([dir('Mine'), dir('Theirs')], { id: 1, role: 'admin' })).filtered).toHaveLength(2);
+  });
 });
+
+// ── requireAlbumManager ───────────────────────────────────────────────────────
+
+describe('requireAlbumManager', () => {
+  const run = async (user, ownerId) => {
+    mockQuery.mockResolvedValue({ rows: ownerId === undefined ? [] : [{ visibility: 'public', owner_id: ownerId }] });
+    database._setState({ query: mockQuery }, true);
+    const res = { status: vi.fn(() => res), json: vi.fn(() => res) };
+    const next = vi.fn();
+    await access.requireAlbumManager({ user, params: { album: 'A' } }, res, next);
+    return { next: next.mock.calls.length, status: res.status.mock.calls[0]?.[0] };
+  };
+
+  it('l’admin et le propriétaire passent ; un autre utilisateur 403 ; un album sans propriétaire est à l’admin', async () => {
+    expect(await run({ id: 1, role: 'admin' }, 9)).toEqual({ next: 1, status: undefined });
+    expect(await run({ id: 9, role: 'basic' }, 9)).toEqual({ next: 1, status: undefined });
+    expect(await run({ id: 8, role: 'basic' }, 9)).toEqual({ next: 0, status: 403 });
+    expect(await run({ id: 8, role: 'basic' }, undefined)).toEqual({ next: 0, status: 403 });
+  });
+});
+

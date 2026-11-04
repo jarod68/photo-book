@@ -36,6 +36,7 @@
 }
 
 .home-auth-user {
+  text-decoration: none;
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -204,6 +205,11 @@
   line-height: 1.3;
 }
 
+.album-card-by {
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--accent-soft);
+}
 .album-card-count {
   margin-top: 3px;
   font-size: 10.5px;
@@ -271,7 +277,9 @@
   .home-header-right { order: 1; padding-top: 0; }
   .home-summary-row { order: 2; flex-basis: 100%; margin-top: 0; }
   .home-search-btn span { display: none; }
-  .home-auth-user { display: none; }
+  /* the account link stays (the only way to it), shortened */
+  .home-auth-user { max-width: 92px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: inline-block; line-height: var(--ctl-h); }
+  .home-auth-user .home-auth-dot { display: none; }
   .home-auth-btn { font-size: var(--ctl-fs); padding: 0 10px; }
   .album-grid  {
     grid-template-columns: 1fr 1fr;

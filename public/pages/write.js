@@ -1,11 +1,12 @@
 // @ts-check
-// Writing an article (write.html?album=…[&a=slug]), for the admin: the form
+// Writing an article (write.html?album=…[&a=slug]), for the admin or the
+// album's owner: the form
 // on the left, the article as readers will see it on the right (one or the
 // other on a phone). Photos come from any album, chosen in the picker —
 // inserted in the text as ![](<Album/file.jpg>), or taken as the cover;
 // photos can be uploaded to an album from there too.
 import { t, applyTranslations, initLangSwitcher } from '../utils/i18n.js';
-import { getAlbums, getAlbum, getArticle, saveArticle, deleteArticle } from '../api/client.js';
+import { getAlbums, getAlbum, getAlbumArticles, getArticle, saveArticle, deleteArticle } from '../api/client.js';
 import { renderArticle, photoRefs, parseRef, refFor, esc } from '../utils/article-render.js';
 import { articleMeta } from '../components/article-card.js';
 import { Uploader, preventFileDrops } from '../components/uploader.js';
@@ -248,9 +249,10 @@ const uploader = new Uploader({
 
 // ── Start ─────────────────────────────────────────────────────────────────────
 async function init() {
-  const me = await fetch('/api/auth/me').then((r) => r.json()).catch(() => ({ user: null }));
+  // the admin, or the album's owner
+  const canEdit = await getAlbumArticles(album).then((d) => d.canEdit, () => false);
   const msg = $('write-message');
-  if (me.user?.role !== 'admin') {
+  if (!canEdit) {
     msg.innerHTML = `${esc(t('write.adminOnly'))} <a href="login.html">${esc(t('nav.signIn'))}</a>`;
     msg.hidden = false;
     return;

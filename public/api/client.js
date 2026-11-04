@@ -2,7 +2,8 @@
 /**
  * @typedef {{ name: string, count: number, cover: string|null, coverPreview: string|null, coverThumb: string|null,
  *   visibility?: string, description?: string|null, collection?: string|null, dateFrom?: string|null, dateTo?: string|null,
- *   articles?: number, drafts?: number }} Album
+ *   articles?: number, drafts?: number, canManage?: boolean,
+ *   owner?: { username: string, displayName: string|null, admin: boolean } | null }} Album
  */
 
 /**

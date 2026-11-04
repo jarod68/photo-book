@@ -1020,7 +1020,7 @@ describe('GET /api/admin/albums/:album/settings', () => {
     // database._reset() in beforeEach → dbReady = false
     const res = await request(app).get('/api/admin/albums/Paris/settings');
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({ visibility: 'public', users: [], notifyNew: true, gpsPrivacy: 'exact' });
+    expect(res.body).toEqual({ visibility: 'public', users: [], notifyNew: true, gpsPrivacy: 'exact', ownerId: null });
   });
 
   it('retourne visibility public et users vides si aucune entrée en DB', async () => {
@@ -1064,9 +1064,9 @@ describe('PUT /api/admin/albums/:album/settings', () => {
     database._setState({ query: mockQuery }, true);
     const res = await request(app)
       .put('/api/admin/albums/Paris/settings')
-      .send({ visibility: 'private' });
+      .send({ visibility: 'secret' });
     expect(res.status).toBe(400);
-    expect(res.body.error).toBe('visibility must be public or restricted');
+    expect(res.body.error).toBe('visibility must be one of public, restricted, private');
   });
 
   it('retourne 400 si userIds contient une valeur non entière', async () => {

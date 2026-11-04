@@ -48,8 +48,8 @@ const art = (o) => ({
 async function query(sql, params = []) {
   const s = sql.replace(/\s+/g, ' ');
   if (s.includes('FROM user_sessions')) return { rows: USERS[params[0]] ? [USERS[params[0]]] : [] };
-  if (s.startsWith('SELECT visibility FROM album_settings')) return { rows: VISIBILITY[params[0]] ? [{ visibility: VISIBILITY[params[0]] }] : [] };
-  if (s.startsWith('SELECT album, visibility FROM album_settings')) return { rows: Object.entries(VISIBILITY).map(([album, visibility]) => ({ album, visibility })) };
+  if (s.startsWith('SELECT visibility, owner_id FROM album_settings')) return { rows: VISIBILITY[params[0]] ? [{ visibility: VISIBILITY[params[0]], owner_id: null }] : [] };
+  if (s.startsWith('SELECT album, visibility, owner_id FROM album_settings')) return { rows: Object.entries(VISIBILITY).map(([album, visibility]) => ({ album, visibility, owner_id: null })) };
   if (s.includes('FROM album_users') || s.includes('FROM share_tokens') || s.includes('FROM photo_overrides')) return { rows: [] };
   if (s.includes('FROM album_settings')) return { rows: [] };
   if (s.startsWith('INSERT INTO activity_log')) return { rows: [], rowCount: 1 };

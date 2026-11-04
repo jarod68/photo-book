@@ -52,6 +52,13 @@ export function createAlbumCard(album) {
   ].filter(Boolean).join(' · ');
 
   info.appendChild(name);
+  // made by a user (not the admin): "by Ana"
+  if (album.owner && !album.owner.admin) {
+    const by = document.createElement('div');
+    by.className = 'album-card-by';
+    by.textContent = t('album.by', { name: album.owner.displayName || album.owner.username });
+    info.appendChild(by);
+  }
   info.appendChild(count);
   if (album.description) {
     const desc = document.createElement('div');

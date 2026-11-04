@@ -10,6 +10,7 @@ const compression  = require('compression');
 const { PHOTOS_DIR, PREVIEWS_DIR, MEDIUM_DIR, isImage, isMedia, isAlbumDir, preGenerateAll } = require('./services/image');
 const database = require('./services/database'); // database.db, database.dbReady (getters)
 const auth     = require('./services/auth');
+const { getAlbumAccess } = require('./services/access');
 const push     = require('./services/push');
 const maintenance = require('./services/maintenance');
 const cleanup     = require('./services/cleanup');
@@ -32,6 +33,8 @@ const searchRouter       = require('./routes/search');
 const shareRouter        = require('./routes/share');
 const pushRouter         = require('./routes/push');
 const articlesRouter     = require('./routes/articles');
+const usersRouter        = require('./routes/users');
+const meRouter           = require('./routes/me');
 const adminStatsRouter   = require('./routes/admin/stats');
 const adminUsersRouter   = require('./routes/admin/users');
 const adminAlbumsRouter  = require('./routes/admin/albums');
@@ -203,42 +206,6 @@ function albumAccessGuard() {
   };
 }
 
-// ─── Shared helpers (kept in server.js for watcher and guard) ─────────────────
-
-async function getAlbumVisibility(album) {
-  if (!database.dbReady) return 'public';
-  const { rows } = await database.db.query(
-    'SELECT visibility FROM album_settings WHERE album = $1', [album],
-  );
-  return rows[0]?.visibility ?? 'public';
-}
-
-async function isUserAuthorizedForAlbum(album, userId) {
-  const { rows } = await database.db.query(
-    'SELECT 1 FROM album_users WHERE album = $1 AND user_id = $2', [album, userId],
-  );
-  return rows.length > 0;
-}
-
-// Returns { allowed, canDelete }
-async function getAlbumAccess(album, user, shareToken = null) {
-  const visibility = await getAlbumVisibility(album);
-  if (visibility === 'public') {
-    return { allowed: true, canDelete: user?.role === 'admin' };
-  }
-  if (shareToken && database.dbReady) {
-    const { rows } = await database.db.query(
-      `SELECT 1 FROM share_tokens WHERE token = $1 AND album = $2 AND expires_at > NOW()`,
-      [shareToken, album],
-    );
-    if (rows.length > 0) return { allowed: true, canDelete: false };
-  }
-  if (!user) return { allowed: false, canDelete: false };
-  if (user.role === 'admin') return { allowed: true, canDelete: true };
-  const authorized = await isUserAuthorizedForAlbum(album, user.id);
-  return { allowed: authorized, canDelete: authorized };
-}
-
 // ─── Health check ─────────────────────────────────────────────────────────────
 
 // CSP violation reports from browsers (T6) — logged once each, see services/csp.js
@@ -262,6 +229,8 @@ app.use('/api/search',  searchRouter);
 app.use('/api/share',   shareRouter);
 app.use('/api/push',    pushRouter);
 app.use('/api/articles', articlesRouter);
+app.use('/api/users',    usersRouter);
+app.use('/api/me',       meRouter);
 
 // Admin routes require authentication at the router level
 app.use('/api/admin', auth.requireAuth);

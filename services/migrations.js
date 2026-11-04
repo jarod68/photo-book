@@ -226,6 +226,21 @@ const MIGRATIONS = [
       `);
     },
   },
+  {
+    version: 10,
+    name: 'user profiles and album owners',
+    async up(q) {
+      // an album's owner manages it like the admin (NULL: the admin's, as
+      // every album was before); 'private' joins 'public' and 'restricted'
+      await q('ALTER TABLE album_settings ADD COLUMN owner_id INTEGER REFERENCES users(id) ON DELETE SET NULL');
+      // the public profile: a name shown, a few lines, a small picture (WebP,
+      // 256 px, kept in the database — no volume to add)
+      await q('ALTER TABLE users ADD COLUMN display_name VARCHAR(80)');
+      await q('ALTER TABLE users ADD COLUMN bio TEXT');
+      await q('ALTER TABLE users ADD COLUMN avatar BYTEA');
+      await q('ALTER TABLE users ADD COLUMN avatar_updated_at TIMESTAMPTZ');
+    },
+  },
 ];
 
 const LOCK_KEY = 726571;   // arbitrary, constant: pg_advisory_xact_lock key

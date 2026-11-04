@@ -54,11 +54,12 @@ Member Sees The Album He Is Authorized On, Not The Other
     Get Element Count    css=a.album-card[href*="${MINE}"]    ==    1
     Get Element Count    css=a.album-card[href*="${OTHER}"]    ==    0
 
-Member Has No Admin Link
+Member Has No Admin Link, Only His Own Albums
     As Member
     Go To    ${BASE_URL}/
     Wait For Elements State    css=#album-grid a.album-card >> nth=0    visible    timeout=10s
-    Get Element Count    css=a[href="/admin.html"]    ==    0
+    Get Element Count    css=a[href="/admin.html"]:not(.home-auth-btn--mine)    ==    0
+    Get Element Count    css=a.home-auth-btn--mine    ==    1
 
 Member Menu Offers Add And Delete On His Album
     Member Opens    ${MINE}

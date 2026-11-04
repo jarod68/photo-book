@@ -16,7 +16,8 @@ const auth     = require('../services/auth');
 const activity = require('../services/activity');
 const uploads  = require('../services/uploads');
 const articles = require('../services/articles');
-const { resolveUser, getAlbumAccess, filterVisibleAlbums } = require('../services/access');
+const { resolveUser, getAlbumAccess, filterVisibleAlbums, canManageAlbum } = require('../services/access');
+const profiles = require('../services/profiles');
 
 const { BadRequest, sendError, requireWritableLibrary } = require('../services/http-errors');
 
@@ -37,22 +38,28 @@ router.get('/', async (req, res) => {
     const entries = (await library.listAlbums()).map(name => ({ name, isDirectory: () => true }));
 
     const user = await resolveUser(req.cookies?.pb_session);
-    const { filtered, visibilityMap, authorizedSet } = await filterVisibleAlbums(entries, user);
+    const { filtered, visibilityMap, ownerMap, authorizedSet } = await filterVisibleAlbums(entries, user);
+    // who made each album (its card says so, unless it is the admin's)
+    const owners = await profiles.byIds([...new Set(filtered.map((e) => ownerMap.get(e.name)).filter(Boolean))])
+      .catch(() => new Map());
 
     const info = await albumInfo.loadAlbumInfo()
       .catch((err) => { console.error('Failed to load album info:', err.message); return new Map(); });
     const counts = await articles.counts()
       .catch((err) => { console.error('Failed to count articles:', err.message); return new Map(); });
-    const isAdmin = user?.role === 'admin';
     const visible = new Set(filtered.map((e) => e.name));
     // Photo metadata comes from the cached library index (cover, date range).
     const albums = await Promise.all(filtered.map(async e => {
       const photos = (await library.getAlbumPhotos(e.name)) ?? [];
       const { coverFile, ...summary } = albumInfo.summarize(photos, info.get(e.name));
       const visibility = visibilityMap.get(e.name) ?? 'public';
-      const canDelete  = isAdmin || (user?.role === 'basic' && authorizedSet.has(e.name));
+      const ownerId    = ownerMap.get(e.name) ?? null;
+      const canManage  = canManageAlbum(user, ownerId);
+      const canDelete  = canManage || (!!user && visibility === 'restricted' && authorizedSet.has(e.name));
+      const o = ownerId ? owners.get(ownerId) : null;
+      const owner = o ? { username: o.username, displayName: o.displayName, admin: o.role === 'admin' } : null;
       const n = counts.get(e.name) ?? { published: 0, drafts: 0 };
-      const album = { name: e.name, ...summary, visibility, canDelete, articles: n.published, ...(isAdmin && { drafts: n.drafts }) };
+      const album = { name: e.name, ...summary, visibility, owner, canDelete, canManage, articles: n.published, ...(canManage && { drafts: n.drafts }) };
       // an album of articles only: its latest article's picture on the card
       if (!album.cover && n.published) Object.assign(album, await articleCover(e.name, visible));
       return album;

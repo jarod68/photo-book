@@ -54,6 +54,7 @@
           <option value="" data-i18n="admin.f.allVis">Any visibility</option>
           <option value="public" data-i18n="admin.f.public">Public</option>
           <option value="restricted" data-i18n="admin.f.restricted">Restricted</option>
+          <option value="private" data-i18n="admin.visPrivate">Private</option>
         </select>
         <select id="album-filter-coll" class="admin-select" data-i18n-aria="admin.f.allColl">
           <option value="" data-i18n="admin.f.allColl">Any collection</option>
@@ -168,7 +169,7 @@
       </details>
     </section>
 
-    <section class="admin-section">
+    <section class="admin-section" id="section-top">
       <h2 class="admin-section-title" data-i18n="admin.topPhotos">Top photos</h2>
       <div class="admin-table-wrap">
         <table class="admin-table" id="photos-table">
@@ -255,6 +256,15 @@
             <input type="radio" name="album-visibility" value="restricted" id="vis-restricted">
             <span><span data-i18n="admin.visRestricted">Restricted</span> <span class="vis-hint" data-i18n="admin.visRestrictedHint">— selected users only</span></span>
           </label>
+          <label class="album-settings-radio">
+            <input type="radio" name="album-visibility" value="private" id="vis-private">
+            <span><span data-i18n="admin.visPrivate">Private</span> <span class="vis-hint" data-i18n="admin.visPrivateHint">— its owner only</span></span>
+          </label>
+        </div>
+        <!-- who owns the album: the admin decides -->
+        <div id="album-settings-owner" class="album-settings-users" hidden>
+          <p class="album-settings-users-label" data-i18n="admin.owner">Owner</p>
+          <select id="album-owner-select" class="admin-role-select"></select>
         </div>
         <div id="album-settings-users" class="album-settings-users" hidden>
           <p class="album-settings-users-label" data-i18n="admin.authorizedUsers">Authorized users</p>

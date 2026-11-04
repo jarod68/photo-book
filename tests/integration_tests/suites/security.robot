@@ -73,20 +73,27 @@ Unauth Logs Returns 401
 
 # ── Basic user ─────────────────────────────────────────────────────────────────
 
-Basic User Stats Returns 403
+Basic User Stats List Only Their Own Albums
     [Tags]    basic
     Login As Basic
-    ${s}=    Evaluate JavaScript    ${NONE}    () => fetch('${API_STATS}').then(r => r.status)
-    Should Be Equal As Integers    ${s}    403
+    ${others}=    Evaluate JavaScript    ${NONE}
+    ...    async () => { const r = await fetch('${API_STATS}'); if (!r.ok) return 'HTTP ' + r.status;
+    ...      return (await r.json()).albums.filter((a) => !a.owner || a.owner.username !== '${BASIC_USER}').length; }
+    Should Be Equal As Integers    ${others}    0
 
-Basic User Create Album Returns 403
+Basic User Creates An Album They Own, And May Delete It
     [Tags]    basic
     Login As Basic
     ${s}=    Evaluate JavaScript    ${NONE}
     ...    () => fetch('${API_ALBUMS}', {method:'POST',
     ...    headers:{'Content-Type':'application/json'},
     ...    body:'${NEW_ALBUM_JSON}'}).then(r => r.status)
-    Should Be Equal As Integers    ${s}    403
+    Should Be Equal As Integers    ${s}    201
+    ${owner}=    Evaluate JavaScript    ${NONE}
+    ...    () => fetch('${API_ALBUMS}/robot-sec-album/settings').then((r) => r.json()).then((s) => s.ownerId > 0)
+    Should Be True    ${owner}
+    ${d}=    Evaluate JavaScript    ${NONE}    () => fetch('${API_ALBUMS}/robot-sec-album', {method:'DELETE'}).then(r => r.status)
+    Should Be Equal As Integers    ${d}    200
 
 Basic User Create User Returns 403
     [Tags]    basic
@@ -112,17 +119,16 @@ Basic User Delete Album Returns 403
     ...    () => fetch('${API_ALBUMS}/any', {method:'DELETE'}).then(r => r.status)
     Should Be Equal As Integers    ${s}    403
 
-Basic User Cannot See Admin Sections On Admin Page
+Basic User Sees Only Their Albums On The Admin Page
     [Tags]    basic
     Login As Basic
     Go To    ${BASE_URL}/admin.html
     Wait For Elements State    id=section-albums    attached    timeout=5s
     ${albums_hidden}=    Evaluate JavaScript    ${NONE}    () => document.getElementById('section-albums').hidden
-    ${users_hidden}=     Evaluate JavaScript    ${NONE}    () => document.getElementById('section-users').hidden
-    ${system_hidden}=    Evaluate JavaScript    ${NONE}    () => document.getElementById('section-system').hidden
-    Should Be True    ${albums_hidden}
-    Should Be True    ${users_hidden}
-    Should Be True    ${system_hidden}
+    ${hidden}=    Evaluate JavaScript    ${NONE}
+    ...    () => ['section-users', 'section-system', 'section-top', 'section-duplicates', 'section-logs'].every((id) => document.getElementById(id).hidden)
+    Should Not Be True    ${albums_hidden}
+    Should Be True    ${hidden}
 
 # ── Admin ──────────────────────────────────────────────────────────────────────
 

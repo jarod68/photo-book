@@ -38,7 +38,8 @@ async function albumAccess(req, res) {
     return null;
   }
   if (!access.allowed) { res.status(401).json({ error: 'Unauthorized' }); return null; }
-  return { user, shareToken, isAdmin: user?.role === 'admin' };
+  // the admin and the album's owner: drafts too, and the pen
+  return { user, shareToken, canManage: access.canManage };
 }
 
 // GET /api/articles — the latest published articles of the albums the reader may see
@@ -61,9 +62,9 @@ router.get('/:album', async (req, res) => {
   try {
     const ctx = await albumAccess(req, res);
     if (!ctx) return;
-    const list = await articles.listForAlbum(req.params.album, { drafts: ctx.isAdmin });
+    const list = await articles.listForAlbum(req.params.album, { drafts: ctx.canManage });
     const photos = await articles.resolvePhotos(list.flatMap((a) => articles.photoRefs(a)), seer(ctx.user, req.params.album, ctx.shareToken));
-    res.json({ album: req.params.album, articles: list.map((a) => articles.card(a, photos)), canEdit: ctx.isAdmin });
+    res.json({ album: req.params.album, articles: list.map((a) => articles.card(a, photos)), canEdit: ctx.canManage });
   } catch (err) {
     sendError(res, err);
   }
@@ -75,7 +76,7 @@ router.get('/:album/:slug', async (req, res) => {
     const ctx = await albumAccess(req, res);
     if (!ctx) return;
     const { album, slug } = req.params;
-    const list = await articles.listForAlbum(album, { drafts: ctx.isAdmin });
+    const list = await articles.listForAlbum(album, { drafts: ctx.canManage });
     const i = list.findIndex((a) => a.slug === slug);
     if (i < 0) return res.status(404).json({ error: 'Not found' });
     const article = list[i];
@@ -88,7 +89,7 @@ router.get('/:album/:slug', async (req, res) => {
       coverRef: article.cover,
       photos: Object.fromEntries(photos),
       prev: near(list[i - 1]), next: near(list[i + 1]),
-      canEdit: ctx.isAdmin,
+      canEdit: ctx.canManage,
     });
   } catch (err) {
     sendError(res, err);

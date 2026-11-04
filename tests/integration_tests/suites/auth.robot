@@ -48,11 +48,13 @@ Basic User Login With Valid Credentials Succeeds
     Wait For Elements State    css=body.page-home    visible    timeout=12s
     Wait For Elements State    css=#home-auth .home-auth-user    visible    timeout=5s
 
-Basic User Login Does Not Show Admin Button
+Basic User Login Shows My Albums, Not The Admin Button
     Open Login Page
     Submit Login Form    ${BASIC_USER}    ${BASIC_PASS}
     Wait For Elements State    css=#home-auth    visible    timeout=5s
-    ${count}=    Get Element Count    css=a[href="/admin.html"]
+    # every user manages their own albums on the admin page ("My albums")
+    Wait For Elements State    css=a.home-auth-btn--mine[href="/admin.html"]    visible    timeout=5s
+    ${count}=    Get Element Count    css=a[href="/admin.html"]:not(.home-auth-btn--mine)
     Should Be Equal As Integers    ${count}    0
 
 Admin Login Shows Admin Button

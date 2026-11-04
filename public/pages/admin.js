@@ -52,11 +52,15 @@ async function copyPassword(input) {
 const { user } = await fetch('/api/auth/me').then(r => r.json());
 if (user) document.getElementById('admin-user-label').textContent = user.username;
 
+// The admin sees everything; a user manages their own albums here ("My
+// albums": the stats API lists only theirs), nothing else.
 const isAdmin = user?.role === 'admin';
 if (!isAdmin) {
-  for (const id of ['section-albums', 'section-users', 'section-system']) {
+  for (const id of ['section-users', 'section-system', 'section-top', 'section-duplicates', 'section-logs']) {
     document.getElementById(id).hidden = true;
   }
+  document.querySelector('.admin-title').textContent = t('admin.myAlbums');
+  document.title = `${t('admin.myAlbums')} — Photo Book`;
 }
 
 document.getElementById('logout-btn').addEventListener('click', async () => {
@@ -224,9 +228,10 @@ function showReadOnly(readOnly) {
   btn.title = readOnly ? t('admin.readOnlyShort') : '';
 }
 
-// collection and dates under the album's name
+// owner (the admin's view, when not the admin's), collection and dates under the album's name
 function albumMeta(a) {
-  const parts = [a.collection, formatDateRange(a.dateFrom, a.dateTo)].filter(Boolean);
+  const owner = isAdmin && a.owner && a.owner.username !== user?.username ? `@${a.owner.username}` : null;
+  const parts = [owner, a.collection, formatDateRange(a.dateFrom, a.dateTo)].filter(Boolean);
   return parts.length ? `<div class="admin-album-meta">${parts.map(esc).join(' · ')}</div>` : '';
 }
 
@@ -943,13 +948,22 @@ async function openAlbumSettings(albumName) {
   albumSettingsError.textContent = '';
   albumSettingsOverlay.hidden = false;
 
+  // the people who may be members: every account but the admins (who see all)
+  // and the album's owner (who owns it)
   const [settingsRes, usersRes, subsRes] = await Promise.all([
     fetch(`/api/admin/albums/${encodeURIComponent(albumName)}/settings`).then(r => r.json()),
-    fetch('/api/admin/users').then(r => r.json()),
+    isAdmin ? fetch('/api/admin/users').then(r => r.json()) : fetch('/api/users').then(r => r.json()).then(users => ({ users })),
     fetch(`/api/admin/albums/${encodeURIComponent(albumName)}/subscribers`).then(r => r.json()).catch(() => ({ count: 0, subscribers: [] })),
   ]);
 
-  const basicUsers    = (usersRes.users ?? []).filter(u => u.role === 'basic');
+  const basicUsers    = (usersRes.users ?? []).filter(u => u.role !== 'admin' && u.id !== settingsRes.ownerId && u.username !== user?.username);
+  const ownerEl = /** @type {HTMLSelectElement} */ (document.getElementById('album-owner-select'));
+  document.getElementById('album-settings-owner').hidden = !isAdmin;
+  if (isAdmin) {
+    ownerEl.innerHTML = `<option value="">${esc(t('admin.ownerNone'))}</option>`
+      + (usersRes.users ?? []).filter(u => u.role !== 'admin')
+        .map(u => `<option value="${u.id}"${u.id === settingsRes.ownerId ? ' selected' : ''}>${esc(u.username)}</option>`).join('');
+  }
   const authorizedIds = new Set((settingsRes.users ?? []).map(u => u.id));
 
   document.getElementById('album-notify-new').checked = settingsRes.notifyNew ?? true;
@@ -1027,6 +1041,7 @@ document.getElementById('album-settings-save-btn').addEventListener('click', asy
       visibility, userIds,
       notifyNew:  document.getElementById('album-notify-new').checked,
       gpsPrivacy: document.querySelector('input[name="album-gps"]:checked')?.value ?? 'exact',
+      ...(isAdmin && { ownerId: Number(/** @type {HTMLSelectElement} */ (document.getElementById('album-owner-select')).value) || null }),
     }),
   });
   if (res.ok) {
@@ -1157,10 +1172,10 @@ document.getElementById('clear-logs-btn').addEventListener('click', async () => 
   if (res.ok) loadLogs(1, logAction);
 });
 
-loadTopPhotos();
+loadAlbums();
 if (isAdmin) {
+  loadTopPhotos();
   loadSystem();
-  loadAlbums();
   loadUsers();
   loadLogs();
 }

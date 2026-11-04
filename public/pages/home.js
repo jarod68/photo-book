@@ -185,11 +185,14 @@ function renderAuth(user) {
       </a>`;
     return;
   }
+  // the name opens one's account; every user manages their own albums
   authEl.innerHTML = `
-    <span class="home-auth-user">
+    <a href="account.html" class="home-auth-user" title="${esc(t('nav.account'))}">
       <span class="home-auth-dot"></span>
       ${esc(user.username)}
-    </span>
+    </a>
+    ${user.role !== 'admin' ? `
+      <a href="/admin.html" class="home-auth-btn home-auth-btn--admin home-auth-btn--mine">${esc(t('nav.myAlbums'))}</a>` : ''}
     ${user.role === 'admin' ? `
       <a href="/admin.html" class="home-auth-btn home-auth-btn--admin">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">

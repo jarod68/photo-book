@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <!-- web app: installable, own icon and colours (manifest.webmanifest) -->
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="icon" href="/icons/icon.svg" type="image/svg+xml">
+  <link rel="icon" href="/icons/favicon-32.png" sizes="32x32" type="image/png">
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+  <meta name="theme-color" content="#0d0d0e">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-title" content="Photo Book">
+  <title>Photo Book</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="page-account">
+
+  <header class="map-page-header">
+    <a href="index.html" class="map-page-back account-back" data-i18n-aria="map.back">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
+    </a>
+    <div class="map-page-title-wrap">
+      <h1 class="map-page-title" data-i18n="account.title">My account</h1>
+    </div>
+    <div id="lang-switcher"></div>
+  </header>
+
+  <main class="account">
+    <section class="account-card">
+      <h2 class="account-h" data-i18n="account.profile">Profile</h2>
+      <div class="account-avatar-row">
+        <div id="account-avatar" class="avatar avatar--lg"></div>
+        <div class="account-avatar-actions">
+          <p class="account-label" data-i18n="account.avatar">Profile picture</p>
+          <div class="account-buttons">
+            <button type="button" id="avatar-upload" class="carnet-btn" data-i18n="account.upload">Upload a picture</button>
+            <button type="button" id="avatar-pick" class="carnet-btn" data-i18n="account.fromPhotos">Pick one of my photos</button>
+            <button type="button" id="avatar-remove" class="carnet-btn" data-i18n="account.removeAvatar" hidden>Remove</button>
+          </div>
+        </div>
+      </div>
+      <form id="profile-form" class="account-form">
+        <label class="account-field"><span data-i18n="account.displayName">Name shown</span>
+          <input id="profile-name" maxlength="80" autocomplete="name"></label>
+        <label class="account-field"><span data-i18n="account.bio">A few words about you</span>
+          <textarea id="profile-bio" rows="4" maxlength="1000"></textarea></label>
+        <div class="account-row">
+          <button type="submit" class="carnet-btn carnet-btn--accent" data-i18n="account.save">Save</button>
+          <span id="profile-status" class="account-status" aria-live="polite"></span>
+        </div>
+      </form>
+      <p class="account-links">
+        <a id="public-profile" class="carnet-btn" data-i18n="account.publicProfile">See my public profile</a>
+        <a href="admin.html" class="carnet-btn" data-i18n="account.manageAlbums">Manage my albums</a>
+      </p>
+    </section>
+
+    <section class="account-card">
+      <h2 class="account-h" data-i18n="account.password">Password</h2>
+      <form id="password-form" class="account-form" autocomplete="on">
+        <input type="text" id="pw-username" autocomplete="username" hidden>
+        <label class="account-field"><span data-i18n="account.current">Current password</span>
+          <input id="pw-current" type="password" autocomplete="current-password" required></label>
+        <label class="account-field"><span data-i18n="account.new">New password</span>
+          <input id="pw-new" type="password" autocomplete="new-password" required></label>
+        <label class="account-field"><span data-i18n="account.confirm">Confirm</span>
+          <input id="pw-confirm" type="password" autocomplete="new-password" required></label>
+        <div class="account-row">
+          <button type="submit" class="carnet-btn carnet-btn--accent" data-i18n="account.change">Change the password</button>
+          <span id="password-status" class="account-status" aria-live="polite"></span>
+        </div>
+      </form>
+    </section>
+  </main>
+
+  <!-- picking a profile picture among one's photos -->
+  <dialog id="picker" class="picker">
+    <div class="picker-head">
+      <h2 data-i18n="account.pickTitle">Pick a photo</h2>
+      <select id="picker-album" class="search-select"></select>
+      <button type="button" class="picker-close" data-i18n-aria="write.cancel">✕</button>
+    </div>
+    <div id="picker-grid" class="picker-grid"></div>
+  </dialog>
+
+  <script type="module" src="pages/account.js"></script>
+</body>
+</html>

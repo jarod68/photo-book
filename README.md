@@ -336,16 +336,19 @@ Visits the site without logging in. Can browse and interact with all **public** 
 - View the album grid and open any public album
 - Browse the global GPS map (public albums only)
 - Record views and toggle likes (tracked by an anonymous UUID stored in `localStorage`)
-- Restricted albums are invisible — they do not appear in lists and return `401` if accessed directly
+- Restricted and private albums are invisible — they do not appear in lists and return `401` if accessed directly
 
 #### Basic — authenticated, `role = 'basic'`
 
-A named user who has been granted access to specific restricted albums by an admin.
+A named user, made by the admin (no sign-up). They have **their own albums** and a **profile**.
 
 - Everything an anonymous visitor can do
-- Sees restricted albums they have been explicitly authorized for (via `album_users`)
-- Can delete photos from albums they have access to (`canDelete = true`)
-- Cannot access the admin panel or any `/api/admin/*` route
+- Sees restricted albums they have been explicitly authorized for (via `album_users`), and can add and delete photos there (`canDelete = true`)
+- **Owns the albums they create** (`album_settings.owner_id`): on them, everything the admin can do — rename, delete, upload and delete photos, titles, cover, description, collection, visibility and members, share links, push notifications, articles (`canManage = true`). They manage them on **My albums** (`/admin.html`, which shows them their albums only: `GET /api/admin/stats` lists only theirs, every route of an album (`/api/admin/albums/:album/*`) answers `403` on another's — `requireAlbumManager` in `services/access.js`)
+- **Profile** (`account.html`): the name shown, a few lines, a picture (uploaded, or one of their photos; 256 px WebP kept in the database), their password (the current one first; their other sessions are then closed). Their **public page** `profile.html?u=<username>` shows them with their albums and stories as the visitor may see them, and their albums' cards say *by &lt;name&gt;*
+- No other `/api/admin/*` route (users, logs, system, duplicates, top photos)
+
+**Visibility of an album**: `public` (everybody), `restricted` (its members — and its owner, and the admin; a share link) or `private` (its owner and the admin only; a share link they make). Albums made before owners existed belong to the admin (`owner_id` NULL); the admin can give an album to a user, or take it back, in its settings.
 
 #### Admin — authenticated, `role = 'admin'`
 
@@ -356,7 +359,8 @@ Full control over the application.
 - Create, rename, and delete albums
 - Upload and delete photos
 - Manage users (create, change role, change password, delete) — except the built-in `admin` account cannot be deleted or have its role changed
-- Configure per-album visibility (`public` / `restricted`) and the list of authorized users
+- Configure per-album visibility (`public` / `restricted` / `private`), the list of authorized users and the album's owner
+- Sees the owner of each album in the admin panel (`@username`), and can act on every album, whoever owns it
 
 ---
 
@@ -391,7 +395,8 @@ Content varies depending on the authenticated user. Anonymous visitors and basic
 | `GET /api/map` | public albums | + authorized restricted | all |
 | `GET /api/search` | public albums | + authorized restricted | all |
 | `GET /api/articles` | latest of public albums | + authorized restricted | all (published) |
-| `GET /api/articles/:album[/:slug]` | public album: ✓ (published) · restricted: `401` | ✓ if authorized (published) | ✓ + drafts |
+| `GET /api/articles/:album[/:slug]` | public album: ✓ (published) · restricted: `401` | ✓ if authorized (published); + drafts on their albums | ✓ + drafts |
+| `GET /api/users/:username`, `…/avatar` | ✓ | ✓ | ✓ |
 
 `canDelete` (returned by `/api/albums` and `/api/albums/:album`) is `true` for admins and for basic users authorized on that album. It controls whether the delete button appears in the viewer.
 
@@ -400,33 +405,25 @@ Content varies depending on the authenticated user. Anonymous visitors and basic
 | Route | Anonymous | Basic | Admin | Notes |
 |---|---|---|---|---|
 | `DELETE /api/albums/:album/photos/:filename` | `401` | ✓ if `canDelete` | ✓ | `403` if `canDelete = false` |
+| `GET /api/users` | `401` | ✓ | ✓ | the directory, to choose an album's members |
+| `GET/PUT /api/me`, `PUT/DELETE /api/me/avatar`, `PUT /api/me/password` | `401` | ✓ | ✓ | one's own profile and password |
+| `GET /api/admin/stats` | `401` | ✓ their albums | ✓ all | |
+| `POST /api/admin/albums` | `401` | ✓ (they own it) | ✓ | |
+| `/api/admin/albums/:album/*` | `401` | ✓ on their albums, else `403` | ✓ | rename, delete, photos, settings, share, subscribers, notify |
+| `POST /api/admin/articles`, `PUT/DELETE /api/admin/articles/:id` | `401` | ✓ in their albums, else `403` | ✓ | |
 
 #### Admin routes — requires `role = 'admin'`
 
-All `/api/admin/*` routes first pass through `requireAuth` (→ `401` if no session), then `requireAdmin` (→ `403` if `role ≠ 'admin'`).
+All `/api/admin/*` routes first pass through `requireAuth` (→ `401` if no session), then `requireAdmin` (→ `403` if `role ≠ 'admin'`) — except those a user may use on their own albums, listed above.
 
 | Route | Anonymous | Basic | Admin |
 |---|---|---|---|
-| `GET /api/admin/stats` | `401` | `403` | ✓ |
 | `GET /api/admin/system` | `401` | `403` | ✓ |
 | `GET /api/admin/top-photos` | `401` | ✓ ⚠️ | ✓ |
-| `POST /api/admin/albums` | `401` | `403` | ✓ |
-| `PATCH /api/admin/albums/:album` | `401` | `403` | ✓ |
-| `DELETE /api/admin/albums/:album` | `401` | `403` | ✓ |
-| `POST /api/admin/albums/:album/photos` | `401` | `403` | ✓ |
-| `DELETE /api/admin/albums/:album/photos/:filename` | `401` | `403` | ✓ |
-| `GET /api/admin/albums/:album/photos` | `401` | `403` | ✓ |
-| `PUT /api/admin/albums/:album/photos/:filename/meta` | `401` | `403` | ✓ |
-| `PUT /api/admin/albums/:album/details` | `401` | `403` | ✓ |
-| `GET /api/admin/albums/:album/settings` | `401` | `403` | ✓ |
-| `PUT /api/admin/albums/:album/settings` | `401` | `403` | ✓ |
 | `GET /api/admin/users` | `401` | `403` | ✓ |
 | `POST /api/admin/users` | `401` | `403` | ✓ |
 | `PATCH /api/admin/users/:id` | `401` | `403` | ✓ † |
 | `DELETE /api/admin/users/:id` | `401` | `403` | ✓ † |
-| `POST /api/admin/articles` | `401` | `403` | ✓ |
-| `PUT /api/admin/articles/:id` | `401` | `403` | ✓ |
-| `DELETE /api/admin/articles/:id` | `401` | `403` | ✓ |
 
 > ⚠️ `GET /api/admin/top-photos` only carries `requireAuth`, not `requireAdmin` — an authenticated basic user can access it.
 >
@@ -594,6 +591,10 @@ CREATE TABLE album_settings (
   notify_new  BOOLEAN NOT NULL DEFAULT true,                -- migration 5
   gps_privacy VARCHAR(16) NOT NULL DEFAULT 'exact'          -- migration 6: exact | approx | hidden
 );
+
+-- migration 10: album_settings.owner_id INTEGER REFERENCES users(id) ON DELETE SET NULL
+--   (NULL: the admin's), visibility 'private'; users.display_name, bio, avatar (BYTEA,
+--   256 px WebP), avatar_updated_at
 
 CREATE TABLE album_users (
   album   VARCHAR(255) NOT NULL,

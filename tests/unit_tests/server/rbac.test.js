@@ -100,8 +100,11 @@ const ADMIN_ROUTES = [
   ['PUT',    '/api/admin/albums/Paris/settings'],
 ];
 
-// Toutes sauf top-photos qui ne porte pas requireAdmin (server.js:210)
-const REQUIRE_ADMIN_ROUTES = ADMIN_ROUTES.filter(([, p]) => p !== '/api/admin/top-photos');
+// The routes of one album: its owner or the admin (requireAlbumManager)
+const ALBUM_MANAGER_ROUTES = ADMIN_ROUTES.filter(([, p]) => p.startsWith('/api/admin/albums/'));
+// open to any signed-in user: top-photos, the stats (their own albums), creating an album (they own it)
+const SIGNED_IN_ROUTES = ['/api/admin/top-photos', '/api/admin/stats', '/api/admin/albums'];
+const REQUIRE_ADMIN_ROUTES = ADMIN_ROUTES.filter(([, p]) => !SIGNED_IN_ROUTES.includes(p) && !p.startsWith('/api/admin/albums/'));
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 1. Anonymous → 401 sur toutes les routes /api/admin/*
@@ -133,6 +136,67 @@ describe('basic — routes avec requireAdmin bloquées (403)', () => {
   it.each(REQUIRE_ADMIN_ROUTES)('%s %s', async (method, path) => {
     const res = await withCookie(request(app)[method.toLowerCase()](path));
     expect(res.status).toBe(403);
+  });
+});
+
+describe('basic — les routes d’un album : 403 si ce n’est pas le sien, ouvertes s’il en est propriétaire', () => {
+  it.each(ALBUM_MANAGER_ROUTES)('%s %s — un autre que le propriétaire', async (method, path) => {
+    database._setState({ query: mockQuery }, true);
+    mockQuery
+      .mockResolvedValueOnce({ rows: [BASIC_USER] })                                   // getSessionUser
+      .mockResolvedValueOnce({ rows: [{ visibility: 'public', owner_id: 99 }] });      // album_settings
+    const res = await withCookie(request(app)[method.toLowerCase()](path));
+    expect(res.status).toBe(403);
+  });
+
+  it('son propriétaire lit ses réglages', async () => {
+    database._setState({ query: mockQuery }, true);
+    mockQuery
+      .mockResolvedValueOnce({ rows: [BASIC_USER] })
+      .mockResolvedValueOnce({ rows: [{ visibility: 'private', owner_id: BASIC_USER.id }] })
+      .mockResolvedValueOnce({ rows: [{ visibility: 'private', notify_new: true, gps_privacy: 'exact', owner_id: BASIC_USER.id }] })
+      .mockResolvedValueOnce({ rows: [] });
+    const res = await withCookie(request(app).get('/api/admin/albums/Paris/settings'));
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ visibility: 'private', ownerId: BASIC_USER.id });
+  });
+
+  it('il ne change pas le propriétaire (l’admin seul)', async () => {
+    database._setState({ query: mockQuery }, true);
+    mockQuery
+      .mockResolvedValueOnce({ rows: [BASIC_USER] })
+      .mockResolvedValueOnce({ rows: [{ visibility: 'public', owner_id: BASIC_USER.id }] });
+    const res = await withCookie(request(app).put('/api/admin/albums/Paris/settings'))
+      .send({ visibility: 'public', ownerId: 99 });
+    expect(res.status).toBe(403);
+  });
+});
+
+describe('basic — ouvertes à tout utilisateur connecté', () => {
+  it('créer un album (le nom manque : 400, pas 403)', async () => {
+    database._setState({ query: mockQuery }, true);
+    mockQuery.mockResolvedValueOnce({ rows: [BASIC_USER] });
+    const res = await withCookie(request(app).post('/api/admin/albums')).send({});
+    expect(res.status).toBe(400);
+  });
+
+  it('les statistiques : seulement ses albums', async () => {
+    const lib = _require('../../../services/library.js');
+    vi.spyOn(lib, 'listAlbums').mockResolvedValue(['Mine', 'Theirs']);
+    vi.spyOn(lib, 'listPhotos').mockResolvedValue([]);
+    vi.spyOn(lib, 'getAlbumPhotos').mockResolvedValue([]);
+    database._setState({ query: mockQuery }, true);
+    mockQuery.mockImplementation(async (sql) => {
+      if (sql.includes('FROM user_sessions')) return { rows: [BASIC_USER] };
+      if (sql.includes('LEFT JOIN users')) return { rows: [
+        { album: 'Mine', visibility: 'private', owner_id: BASIC_USER.id, username: 'alice', display_name: null },
+        { album: 'Theirs', visibility: 'public', owner_id: 99, username: 'bob', display_name: null }] };
+      return { rows: [] };
+    });
+    const res = await withCookie(request(app).get('/api/admin/stats'));
+    expect(res.status).toBe(200);
+    expect(res.body.albums.map((a) => a.album)).toEqual(['Mine']);
+    expect(res.body.albums[0].owner).toMatchObject({ id: BASIC_USER.id, username: 'alice' });
   });
 });
 

@@ -6,7 +6,7 @@ const express  = require('express');
 const path     = require('path');
 const fs       = require('fs');
 
-const { requireAdmin } = require('../../services/auth');
+const { VISIBILITIES, requireAlbumManager } = require('../../services/access');
 const { PHOTOS_DIR, PREVIEWS_DIR, MEDIUM_DIR, isImage, isMedia, deletePhotoFiles } = require('../../services/image');
 const database = require('../../services/database');
 const activity = require('../../services/activity');
@@ -39,8 +39,8 @@ async function deleteAlbumFromDb(album) {
   await cleanup.deleteAlbumRows(database.db, album);
 }
 
-// POST /api/admin/albums
-router.post('/', requireAdmin, requireWritableLibrary, express.json(), async (req, res) => {
+// POST /api/admin/albums — any signed-in user creates an album, and owns it
+router.post('/', requireWritableLibrary, express.json(), async (req, res) => {
   const { name } = req.body ?? {};
   if (!name || !ALBUM_NAME_RE.test(name)) return res.status(400).json({ error: 'Invalid album name' });
   try {
@@ -48,6 +48,11 @@ router.post('/', requireAdmin, requireWritableLibrary, express.json(), async (re
     const exists = await fs.promises.access(albumPath).then(() => true).catch(() => false);
     if (exists) return res.status(409).json({ error: 'Album already exists' });
     await fs.promises.mkdir(albumPath, { recursive: true });
+    if (req.user?.id && database.dbReady) {
+      await database.db.query(
+        `INSERT INTO album_settings (album, owner_id) VALUES ($1, $2)
+         ON CONFLICT (album) DO UPDATE SET owner_id = $2`, [name, req.user.id]);
+    }
     res.status(201).json({ ok: true });
     activity.log('album_create', { username: req.user?.username ?? null, ip: req.ip, details: { album: name } });
   } catch (err) {
@@ -56,7 +61,7 @@ router.post('/', requireAdmin, requireWritableLibrary, express.json(), async (re
 });
 
 // PATCH /api/admin/albums/:album
-router.patch('/:album', requireAdmin, requireWritableLibrary, express.json(), async (req, res) => {
+router.patch('/:album', requireAlbumManager, requireWritableLibrary, express.json(), async (req, res) => {
   const { name: newName } = req.body ?? {};
   const oldName = req.params.album;
   if (!newName || !ALBUM_NAME_RE.test(newName)) return res.status(400).json({ error: 'Invalid album name' });
@@ -95,7 +100,7 @@ router.patch('/:album', requireAdmin, requireWritableLibrary, express.json(), as
 });
 
 // DELETE /api/admin/albums/:album
-router.delete('/:album', requireAdmin, requireWritableLibrary, async (req, res) => {
+router.delete('/:album', requireAlbumManager, requireWritableLibrary, async (req, res) => {
   try {
     const albumPath = safeAlbumPath(req.params.album);
     const albumExists = await fs.promises.access(albumPath).then(() => true).catch(() => false);
@@ -113,7 +118,7 @@ router.delete('/:album', requireAdmin, requireWritableLibrary, async (req, res) 
 });
 
 // DELETE /api/admin/albums/:album/photos/:filename
-router.delete('/:album/photos/:filename', requireAdmin, requireWritableLibrary, async (req, res) => {
+router.delete('/:album/photos/:filename', requireAlbumManager, requireWritableLibrary, async (req, res) => {
   try {
     const { album, filename } = req.params;
     const albumPath = safeAlbumPath(album);
@@ -132,7 +137,7 @@ router.delete('/:album/photos/:filename', requireAdmin, requireWritableLibrary, 
 
 // GET /api/admin/albums/:album/photos — every photo with its file metadata
 // and its admin overrides (photo editor).
-router.get('/:album/photos', requireAdmin, async (req, res) => {
+router.get('/:album/photos', requireAlbumManager, async (req, res) => {
   try {
     safeAlbumPath(req.params.album);
     const photos = await library.getAlbumPhotos(req.params.album);
@@ -152,7 +157,7 @@ router.get('/:album/photos', requireAdmin, async (req, res) => {
 
 // PUT /api/admin/albums/:album/photos/:filename/meta — { title, description, location }
 // A null or empty field reverts to the value stored in the file.
-router.put('/:album/photos/:filename/meta', requireAdmin, express.json(), async (req, res) => {
+router.put('/:album/photos/:filename/meta', requireAlbumManager, express.json(), async (req, res) => {
   const { album, filename } = req.params;
   const { values, error } = overrides.parseOverride(req.body);
   if (error) return res.status(400).json({ error });
@@ -174,7 +179,7 @@ router.put('/:album/photos/:filename/meta', requireAdmin, express.json(), async 
 
 // PUT /api/admin/albums/:album/details — { cover, description }
 // cover: a photo of the album, or null for the first readable photo.
-router.put('/:album/details', requireAdmin, express.json(), async (req, res) => {
+router.put('/:album/details', requireAlbumManager, express.json(), async (req, res) => {
   const { album } = req.params;
   // only the fields sent change (undefined = kept, null or '' = cleared)
   const { cover, description, collection } = req.body ?? {};
@@ -203,7 +208,7 @@ router.put('/:album/details', requireAdmin, express.json(), async (req, res) => 
 });
 
 // POST /api/admin/albums/:album/photos (upload)
-router.post('/:album/photos', requireAdmin, requireWritableLibrary, async (req, res) => {
+router.post('/:album/photos', requireAlbumManager, requireWritableLibrary, async (req, res) => {
   let albumPath;
   try {
     albumPath = safeAlbumPath(req.params.album);
@@ -217,11 +222,11 @@ router.post('/:album/photos', requireAdmin, requireWritableLibrary, async (req, 
 });
 
 // GET /api/admin/albums/:album/settings
-router.get('/:album/settings', requireAdmin, async (req, res) => {
-  if (!database.dbReady) return res.json({ visibility: 'public', users: [], notifyNew: true, gpsPrivacy: 'exact' });
+router.get('/:album/settings', requireAlbumManager, async (req, res) => {
+  if (!database.dbReady) return res.json({ visibility: 'public', users: [], notifyNew: true, gpsPrivacy: 'exact', ownerId: null });
   try {
     const [{ rows: settingRows }, { rows: userRows }] = await Promise.all([
-      database.db.query('SELECT visibility, notify_new, gps_privacy FROM album_settings WHERE album = $1', [req.params.album]),
+      database.db.query('SELECT visibility, notify_new, gps_privacy, owner_id FROM album_settings WHERE album = $1', [req.params.album]),
       database.db.query(
         `SELECT u.id, u.username FROM album_users au
          JOIN users u ON u.id = au.user_id
@@ -233,6 +238,7 @@ router.get('/:album/settings', requireAdmin, async (req, res) => {
       visibility: settingRows[0]?.visibility ?? 'public',
       notifyNew:  settingRows[0]?.notify_new ?? true,
       gpsPrivacy: settingRows[0]?.gps_privacy ?? 'exact',
+      ownerId: settingRows[0]?.owner_id ?? null,
       users: userRows,
     });
   } catch (err) {
@@ -241,11 +247,16 @@ router.get('/:album/settings', requireAdmin, async (req, res) => {
 });
 
 // PUT /api/admin/albums/:album/settings
-router.put('/:album/settings', requireAdmin, express.json(), async (req, res) => {
+router.put('/:album/settings', requireAlbumManager, express.json(), async (req, res) => {
   const { album } = req.params;
-  const { visibility, userIds = [], notifyNew = true, gpsPrivacy: privacy = 'exact' } = req.body ?? {};
-  if (!['public', 'restricted'].includes(visibility)) {
-    return res.status(400).json({ error: 'visibility must be public or restricted' });
+  const { visibility, userIds = [], notifyNew = true, gpsPrivacy: privacy = 'exact', ownerId } = req.body ?? {};
+  if (!VISIBILITIES.includes(visibility)) {
+    return res.status(400).json({ error: `visibility must be one of ${VISIBILITIES.join(', ')}` });
+  }
+  // who owns the album: the admin's to decide (null: the admin's)
+  if (ownerId !== undefined) {
+    if (req.user && req.user.role !== 'admin') return res.status(403).json({ error: 'Only the admin changes an owner' });
+    if (ownerId !== null && (!Number.isInteger(ownerId) || ownerId <= 0)) return res.status(400).json({ error: 'Invalid ownerId' });
   }
   if (typeof notifyNew !== 'boolean') return res.status(400).json({ error: 'notifyNew must be a boolean' });
   if (!gpsPrivacy.MODES.includes(privacy)) return res.status(400).json({ error: `gpsPrivacy must be one of ${gpsPrivacy.MODES.join(', ')}` });
@@ -260,6 +271,7 @@ router.put('/:album/settings', requireAdmin, express.json(), async (req, res) =>
        ON CONFLICT (album) DO UPDATE SET visibility = $2, notify_new = $3, gps_privacy = $4`,
       [album, visibility, notifyNew, privacy],
     );
+    if (ownerId !== undefined) await database.db.query('UPDATE album_settings SET owner_id = $2 WHERE album = $1', [album, ownerId]);
     await database.db.query('DELETE FROM album_users WHERE album = $1', [album]);
     if (userIds.length > 0) {
       const placeholders = userIds.map((_, i) => `($1, $${i + 2})`).join(', ');
@@ -276,7 +288,7 @@ router.put('/:album/settings', requireAdmin, express.json(), async (req, res) =>
 });
 
 // POST /api/admin/albums/:album/share — create share token
-router.post('/:album/share', requireAdmin, express.json(), async (req, res) => {
+router.post('/:album/share', requireAlbumManager, express.json(), async (req, res) => {
   if (!database.dbReady) return res.status(503).json({ error: 'Service unavailable' });
   const { days = 7, label = '' } = req.body ?? {};
   const daysNum = Number(days);
@@ -298,7 +310,7 @@ router.post('/:album/share', requireAdmin, express.json(), async (req, res) => {
 });
 
 // GET /api/admin/albums/:album/share — list share tokens
-router.get('/:album/share', requireAdmin, async (req, res) => {
+router.get('/:album/share', requireAlbumManager, async (req, res) => {
   if (!database.dbReady) return res.json({ tokens: [] });
   try {
     const { rows } = await database.db.query(
@@ -313,7 +325,7 @@ router.get('/:album/share', requireAdmin, async (req, res) => {
 });
 
 // DELETE /api/admin/albums/:album/share/:id — revoke share token
-router.delete('/:album/share/:id', requireAdmin, async (req, res) => {
+router.delete('/:album/share/:id', requireAlbumManager, async (req, res) => {
   if (!database.dbReady) return res.status(503).json({ error: 'Service unavailable' });
   const id = parseInt(req.params.id, 10);
   if (!Number.isFinite(id)) return res.status(400).json({ error: 'Invalid id' });
@@ -333,7 +345,7 @@ router.delete('/:album/share/:id', requireAdmin, async (req, res) => {
 const push = require('../../services/push');
 
 // GET /api/admin/albums/:album/subscribers
-router.get('/:album/subscribers', requireAdmin, async (req, res) => {
+router.get('/:album/subscribers', requireAlbumManager, async (req, res) => {
   if (!database.dbReady) return res.json({ count: 0, subscribers: [] });
   try {
     const { rows } = await database.db.query(
@@ -356,7 +368,7 @@ router.get('/:album/subscribers', requireAdmin, async (req, res) => {
 });
 
 // DELETE /api/admin/albums/:album/subscribers/:id
-router.delete('/:album/subscribers/:id', requireAdmin, async (req, res) => {
+router.delete('/:album/subscribers/:id', requireAlbumManager, async (req, res) => {
   if (!database.dbReady) return res.status(503).json({ error: 'Service unavailable' });
   const id = parseInt(req.params.id, 10);
   if (!Number.isFinite(id)) return res.status(400).json({ error: 'Invalid id' });
@@ -372,7 +384,7 @@ router.delete('/:album/subscribers/:id', requireAdmin, async (req, res) => {
 });
 
 // POST /api/admin/albums/:album/notify
-router.post('/:album/notify', requireAdmin, express.json(), async (req, res) => {
+router.post('/:album/notify', requireAlbumManager, express.json(), async (req, res) => {
   const { title, body } = req.body ?? {};
   if (!title && !body) return res.status(400).json({ error: 'title or body required' });
   try {

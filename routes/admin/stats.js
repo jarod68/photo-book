@@ -13,27 +13,33 @@ const albumInfo   = require('../../services/album-info');
 
 const router = express.Router();
 
-// GET /api/admin/stats
-router.get('/stats', requireAdmin, async (req, res) => {
+// GET /api/admin/stats — every album for the admin; a user's own albums
+// for the others (their "My albums" page)
+router.get('/stats', async (req, res) => {
   try {
-    const names = await library.listAlbums();
-    const fsMap = new Map(await Promise.all(names.map(async name => /** @type {[string, number]} */ ([
-      name, ((await library.listPhotos(name)) ?? []).length,
-    ]))));
-
+    const isAdmin = !req.user || req.user.role === 'admin';   // no user: the tests' auth bypass
+    let names = await library.listAlbums();
     let viewMap = new Map();
     let likeMap = new Map();
     let visibilityMap = new Map();
+    let ownerMap = new Map();
     if (database.dbReady) {
       const [{ rows: viewRows }, { rows: likeRows }, { rows: settingsRows }] = await Promise.all([
         database.db.query('SELECT album, SUM(views) AS views FROM photo_views GROUP BY album'),
         database.db.query('SELECT album, COUNT(*) AS likes FROM photo_likes GROUP BY album'),
-        database.db.query('SELECT album, visibility FROM album_settings'),
+        database.db.query(`SELECT s.album, s.visibility, s.owner_id, u.username, u.display_name
+                           FROM album_settings s LEFT JOIN users u ON u.id = s.owner_id`),
       ]);
       viewMap       = new Map(viewRows.map(r => [r.album, Number(r.views)]));
       likeMap       = new Map(likeRows.map(r => [r.album, Number(r.likes)]));
       visibilityMap = new Map(settingsRows.map(r => [r.album, r.visibility]));
+      ownerMap      = new Map(settingsRows.filter(r => r.owner_id != null)
+        .map(r => [r.album, { id: r.owner_id, username: r.username, displayName: r.display_name ?? null }]));
     }
+    if (!isAdmin) names = names.filter((n) => ownerMap.get(n)?.id === req.user.id);
+    const fsMap = new Map(await Promise.all(names.map(async name => /** @type {[string, number]} */ ([
+      name, ((await library.listPhotos(name)) ?? []).length,
+    ]))));
 
     // collection and capture dates, for the admin's filters, sort and groups
     const infos = await albumInfo.loadAlbumInfo().catch(() => new Map());
@@ -47,6 +53,7 @@ router.get('/stats', requireAdmin, async (req, res) => {
       views:      viewMap.get(album) ?? 0,
       likes:      likeMap.get(album) ?? 0,
       visibility: visibilityMap.get(album) ?? 'public',
+      owner:      ownerMap.get(album) ?? null,
       collection: infos.get(album)?.collection ?? null,
       ...dates.get(album),
     })).sort((a, b) => b.views - a.views || a.album.localeCompare(b.album));
