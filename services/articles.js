@@ -107,14 +107,15 @@ function validate(input, { partial = false } = {}) {
 
 const COLUMNS = { title: 'title', summary: 'summary', body: 'body', place: 'place', cover: 'cover', date: 'story_date', published: 'published' };
 const SELECT = `SELECT id, album, slug, title, summary, body, cover, place,
-  to_char(story_date, 'YYYY-MM-DD') AS date, published, created_at, updated_at FROM articles`;
+  to_char(story_date, 'YYYY-MM-DD') AS date, published, created_at, updated_at,
+  (SELECT COUNT(*) FROM article_likes l WHERE l.article_id = articles.id) AS likes FROM articles`;
 // in an album: the story's day (oldest first, undated last), then writing order
 const ALBUM_ORDER = 'ORDER BY story_date ASC NULLS LAST, created_at ASC, id ASC';
 
 function fromRow(r) {
   return {
     id: r.id, album: r.album, slug: r.slug, title: r.title, summary: r.summary, body: r.body,
-    cover: r.cover, place: r.place, date: r.date, published: r.published,
+    cover: r.cover, place: r.place, date: r.date, published: r.published, likes: Number(r.likes ?? 0),
     createdAt: r.created_at instanceof Date ? r.created_at.toISOString() : r.created_at,
     updatedAt: r.updated_at instanceof Date ? r.updated_at.toISOString() : r.updated_at,
   };
@@ -201,6 +202,24 @@ async function update(id, input) {
   return getById(id);
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Like the article, or take the like back: { liked, count }. `token`: the visitor's browser. */
+async function toggleLike(id, token) {
+  if (!UUID_RE.test(String(token))) throw new BadRequest('Invalid token');
+  const { rowCount } = await database.db.query('DELETE FROM article_likes WHERE article_id = $1 AND user_token = $2', [id, token]);
+  if (!rowCount) await database.db.query('INSERT INTO article_likes (article_id, user_token) VALUES ($1, $2) ON CONFLICT DO NOTHING', [id, token]);
+  const { rows } = await database.db.query('SELECT COUNT(*) AS n FROM article_likes WHERE article_id = $1', [id]);
+  return { liked: !rowCount, count: Number(rows[0].n) };
+}
+
+/** Has this visitor liked the article? (false for no / a malformed token) */
+async function likedBy(id, token) {
+  if (!database.dbReady || !UUID_RE.test(String(token))) return false;
+  const { rows } = await database.db.query('SELECT 1 FROM article_likes WHERE article_id = $1 AND user_token = $2', [id, token]);
+  return rows.length > 0;
+}
+
 async function remove(id) {
   const { rowCount } = await database.db.query('DELETE FROM articles WHERE id = $1', [id]);
   return rowCount > 0;
@@ -247,7 +266,7 @@ function card(a, photos) {
   const ref = a.cover ? parseRef(a.cover, a.album) : null;
   return {
     id: a.id, album: a.album, slug: a.slug, title: a.title, summary: excerpt(a.summary, a.body),
-    date: a.date, place: a.place, published: a.published, readMinutes: readMinutes(a.body),
+    date: a.date, place: a.place, published: a.published, readMinutes: readMinutes(a.body), likes: a.likes ?? 0,
     cover: (ref && photos.get(`${ref.album}/${ref.file}`)) || firstPhoto(a, photos) || null,
     createdAt: a.createdAt, updatedAt: a.updatedAt,
   };
@@ -264,5 +283,5 @@ function firstPhoto(a, photos) {
 
 module.exports = {
   LIMITS, slugify, parseRef, photoRefs, plainText, readMinutes, excerpt, validate,
-  listForAlbum, latest, counts, get, getById, create, update, remove, resolvePhotos, card,
+  listForAlbum, latest, counts, get, getById, create, update, remove, resolvePhotos, card, toggleLike, likedBy,
 };

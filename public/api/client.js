@@ -187,7 +187,7 @@ export async function getMapPhotos() {
 
 /**
  * @typedef {{ id: number, album: string, slug: string, title: string, summary: string, date: string|null,
- *   place: string|null, published: boolean, readMinutes: number, cover: object|null }} ArticleCard
+ *   place: string|null, published: boolean, readMinutes: number, likes?: number, cover: object|null }} ArticleCard
  */
 
 // an error carrying the HTTP status (401: restricted album, 404: no such article)
@@ -209,9 +209,18 @@ export async function getAlbumArticles(album, share = null) {
   return jsonOrThrow(await fetch(`/api/articles/${encodeURIComponent(album)}${shareQs(share)}`), 'getAlbumArticles');
 }
 
-/** One article: its card, body, photos ("Album/file" → photo), prev / next. */
-export async function getArticle(album, slug, share = null) {
-  return jsonOrThrow(await fetch(`/api/articles/${encodeURIComponent(album)}/${encodeURIComponent(slug)}${shareQs(share)}`), 'getArticle');
+/** One article: its card, body, photos ("Album/file" → photo), prev / next; `liked` by this visitor (token). */
+export async function getArticle(album, slug, share = null, token = null) {
+  const q = new URLSearchParams({ ...(share && { share }), ...(token && { token }) }).toString();
+  return jsonOrThrow(await fetch(`/api/articles/${encodeURIComponent(album)}/${encodeURIComponent(slug)}${q ? `?${q}` : ''}`), 'getArticle');
+}
+
+/** Like an article, or take the like back: { liked, count }. */
+export async function likeArticle(album, slug, token, share = null) {
+  const r = await fetch(`/api/articles/${encodeURIComponent(album)}/${encodeURIComponent(slug)}/like${shareQs(share)}`, {
+    method: 'POST', headers: JSON_HEADERS, body: JSON.stringify({ token }),
+  });
+  return jsonOrThrow(r, 'likeArticle');
 }
 
 /** Create (`id` null, `fields.album` set) or change an article (admin). */

@@ -254,6 +254,22 @@ const MIGRATIONS = [
       else await q('CREATE UNIQUE INDEX users_username_lower ON users (lower(username))');
     },
   },
+  {
+    version: 12,
+    name: 'article likes',
+    async up(q) {
+      // like photos: one per visitor (the anonymous token of their browser);
+      // gone with their article (and so with its album)
+      await q(`
+        CREATE TABLE article_likes (
+          article_id INTEGER     NOT NULL REFERENCES articles(id) ON DELETE CASCADE,
+          user_token UUID        NOT NULL,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+          PRIMARY KEY (article_id, user_token)
+        )
+      `);
+    },
+  },
 ];
 
 const LOCK_KEY = 726571;   // arbitrary, constant: pg_advisory_xact_lock key

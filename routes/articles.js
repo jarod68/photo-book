@@ -82,7 +82,9 @@ router.get('/:album/:slug', async (req, res) => {
     const article = list[i];
     const photos = await articles.resolvePhotos(articles.photoRefs(article), seer(ctx.user, album, ctx.shareToken));
     const near = (a) => (a ? { slug: a.slug, title: a.title, published: a.published } : null);
+    const liked = await articles.likedBy(article.id, req.query.token).catch(() => false);
     res.json({
+      liked,
       ...articles.card(article, photos),
       body: article.body,
       lead: article.summary,
@@ -91,6 +93,19 @@ router.get('/:album/:slug', async (req, res) => {
       prev: near(list[i - 1]), next: near(list[i + 1]),
       canEdit: ctx.canManage,
     });
+  } catch (err) {
+    sendError(res, err);
+  }
+});
+
+// POST /api/articles/:album/:slug/like  { token } — like it, or take the like back
+router.post('/:album/:slug/like', express.json(), async (req, res) => {
+  try {
+    const ctx = await albumAccess(req, res);
+    if (!ctx) return;
+    const a = await articles.get(req.params.album, req.params.slug, { drafts: ctx.canManage });
+    if (!a) return res.status(404).json({ error: 'Not found' });
+    res.json(await articles.toggleLike(a.id, req.body?.token));
   } catch (err) {
     sendError(res, err);
   }

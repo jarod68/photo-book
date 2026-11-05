@@ -4,7 +4,8 @@
 // viewer), and the previous / next stories of the album.
 import { t, applyTranslations, initLangSwitcher } from '../utils/i18n.js';
 import '../utils/admin-shortcut.js';
-import { getArticle } from '../api/client.js';
+import { getArticle, likeArticle } from '../api/client.js';
+import { getUserToken } from '../utils/user-token.js';
 import { renderArticle, esc } from '../utils/article-render.js';
 import { articleHref, articleMeta } from '../components/article-card.js';
 import { wireBack } from '../utils/back.js';
@@ -59,10 +60,26 @@ function renderNav(a) {
     <a class="carnet-btn article-nav-album" href="${esc(albumHref)}">${esc(t('art.backAlbum', { album }))}</a>`;
 }
 
+// ♥: one like per visitor (their browser's token), like a photo's
+function wireLike(a) {
+  const btn = document.getElementById('article-like');
+  const show = (liked, count) => {
+    btn.classList.toggle('liked', liked);
+    btn.setAttribute('aria-pressed', String(liked));
+    document.getElementById('like-count').textContent = count ? String(count) : '';
+  };
+  show(!!a.liked, a.likes);
+  btn.hidden = !a.published;   // a draft: nothing to like yet
+  btn.addEventListener('click', async () => {
+    const r = await likeArticle(album, a.slug, getUserToken(), share).catch(() => null);
+    if (r) show(r.liked, r.count);
+  });
+}
+
 async function init() {
   let a;
   try {
-    a = await getArticle(album, slug, share);
+    a = await getArticle(album, slug, share, getUserToken());
   } catch (err) {
     const msg = document.getElementById('article-message');
     if (err.status === 401) msg.innerHTML = `${esc(t('art.restricted'))} <a href="login.html">${esc(t('nav.signIn'))}</a>`;
@@ -76,6 +93,7 @@ async function init() {
   body.innerHTML = (a.lead ? `<p class="article-lead">${esc(a.lead)}</p>` : '')
     + renderArticle(a.body, { album, photos: a.photos, share });
   renderNav(a);
+  wireLike(a);
   if (a.canEdit) {
     const edit = /** @type {HTMLAnchorElement} */ (document.getElementById('article-edit'));
     edit.href = `write.html?album=${encodeURIComponent(album)}&a=${encodeURIComponent(a.slug)}`;

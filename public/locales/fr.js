@@ -438,4 +438,6 @@ export default {
   'account.publicProfile': 'Voir mon profil public',
   'account.manageAlbums': 'Gérer mes albums',
   'account.pickTitle': 'Choisir une photo',
+  'art.article': 'Article',
+  'art.like': 'J’aime',
 };

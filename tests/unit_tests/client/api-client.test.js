@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
   getAlbums, getAlbum, getLiked, toggleLike, recordView, geocode, getMapPhotos,
   createShareToken, deleteShareToken,
-  getLatestArticles, getAlbumArticles, getArticle, saveArticle, deleteArticle,
+  getLatestArticles, getAlbumArticles, getArticle, saveArticle, deleteArticle, likeArticle,
 } from '../../../public/api/client.js';
 
 const ok  = (data) => ({ ok: true,  json: () => Promise.resolve(data) });
@@ -227,6 +227,10 @@ describe('articles', () => {
     expect(fetch).toHaveBeenLastCalledWith('/api/articles/Ib%C3%A9rie?share=tok');
     await getArticle('A', 'jour 1');
     expect(fetch).toHaveBeenLastCalledWith('/api/articles/A/jour%201');
+    await getArticle('A', 'x', 'tok', 'uuid');
+    expect(fetch).toHaveBeenLastCalledWith('/api/articles/A/x?share=tok&token=uuid');
+    await likeArticle('A', 'x', 'uuid');
+    expect(fetch).toHaveBeenLastCalledWith('/api/articles/A/x/like', expect.objectContaining({ method: 'POST', body: '{"token":"uuid"}' }));
   });
 
   it("une erreur porte le statut HTTP (401 : album réservé)", async () => {

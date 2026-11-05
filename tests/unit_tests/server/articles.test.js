@@ -38,7 +38,7 @@ const USERS = { [ADMIN]: { id: 1, username: 'admin', role: 'admin' }, [BASIC]: {
 const LIBRARY = { Voyage: ['a.jpg', 'b.jpg', 'c.jpg'], Carnet: [], Prive: ['secret.jpg'] };
 const VISIBILITY = { Prive: 'restricted' };
 
-let rows, nextId;
+let rows, nextId, likes;
 const art = (o) => ({
   id: nextId++, album: 'Voyage', slug: 'x', title: 'X', summary: null, body: '', cover: null, place: null,
   date: null, published: true, created_at: new Date(Date.UTC(2026, 3, nextId)), updated_at: new Date(Date.UTC(2026, 3, nextId)), ...o,
@@ -55,6 +55,14 @@ async function query(sql, params = []) {
   if (s.startsWith('INSERT INTO activity_log')) return { rows: [], rowCount: 1 };
   if (s.includes('FROM photo_views') || s.includes('FROM photo_likes')) return { rows: [] };
 
+  if (s.startsWith('DELETE FROM article_likes')) {
+    const before = likes.length;
+    likes = likes.filter(([id, t]) => !(id === params[0] && t === params[1]));
+    return { rowCount: before - likes.length };
+  }
+  if (s.startsWith('INSERT INTO article_likes')) { likes.push([params[0], params[1]]); return { rowCount: 1 }; }
+  if (s.startsWith('SELECT COUNT(*) AS n FROM article_likes')) return { rows: [{ n: String(likes.filter(([id]) => id === params[0]).length) }] };
+  if (s.startsWith('SELECT 1 FROM article_likes')) return { rows: likes.filter(([id, t]) => id === params[0] && t === params[1]) };
   if (s.includes('COUNT(*) FILTER')) {
     const out = new Map();
     for (const r of rows) {
@@ -95,7 +103,7 @@ async function query(sql, params = []) {
       if (s.includes('AND published')) list = list.filter(r => r.published);
       list.sort((a, b) => (a.date ?? '9999').localeCompare(b.date ?? '9999') || a.created_at - b.created_at);
     }
-    return { rows: list.map(r => ({ ...r })) };
+    return { rows: list.map(r => ({ ...r, likes: String(likes.filter(([id]) => id === r.id).length) })) };
   }
   throw new Error(`unexpected query: ${s}`);
 }
@@ -104,6 +112,7 @@ beforeEach(() => {
   database._reset();
   database._setState({ query: vi.fn(query) }, true);
   nextId = 1;
+  likes = [];
   rows = [
     art({ slug: 'jour-1', title: 'Jour 1', date: '2026-04-01', cover: 'b.jpg', body: 'Bonjour.\n\n![Le port](a.jpg)\n![](<Prive/secret.jpg>)' }),
     art({ slug: 'jour-2', title: 'Jour 2', date: '2026-04-02', body: 'Suite.' }),
@@ -239,5 +248,29 @@ describe('GET /api/albums : nombre d’articles', () => {
     expect(carnet).toMatchObject({ count: 0, articles: 1, coverThumb: '/previews/Voyage/c.jpg.thumb.jpg' });
     const admin = (await as(request(app).get('/api/albums'), ADMIN)).body;
     expect(admin.find(a => a.name === 'Voyage')).toMatchObject({ articles: 2, drafts: 1 });
+  });
+});
+
+describe('j’aime sur un article', () => {
+  const T1 = '11111111-1111-4111-8111-111111111111', T2 = '22222222-2222-4222-8222-222222222222';
+  const like = (slug, token, album = 'Voyage') => request(app).post(`/api/articles/${album}/${slug}/like`).send({ token });
+
+  it('un par visiteur, un second clic le retire ; compté sur les cartes et l’article', async () => {
+    expect((await like('jour-1', T1)).body).toEqual({ liked: true, count: 1 });
+    expect((await like('jour-1', T2)).body).toEqual({ liked: true, count: 2 });
+    expect((await like('jour-1', T1)).body).toEqual({ liked: false, count: 1 });
+    const list = (await request(app).get('/api/articles/Voyage')).body.articles;
+    expect(list.find((a) => a.slug === 'jour-1').likes).toBe(1);
+    const a = (await request(app).get(`/api/articles/Voyage/jour-1?token=${T2}`)).body;
+    expect(a).toMatchObject({ likes: 1, liked: true });
+    expect((await request(app).get(`/api/articles/Voyage/jour-1?token=${T1}`)).body.liked).toBe(false);
+    expect((await request(app).get('/api/articles/Voyage/jour-1')).body.liked).toBe(false);
+  });
+
+  it('jeton invalide 400 ; un brouillon ou un album réservé : pas pour un visiteur', async () => {
+    expect((await like('jour-1', 'nope')).status).toBe(400);
+    expect((await like('brouillon', T1)).status).toBe(404);
+    expect((await like('cache', T1, 'Prive')).status).toBe(401);
+    expect((await as(request(app).post('/api/articles/Voyage/brouillon/like'), ADMIN).send({ token: T1 })).status).toBe(200);
   });
 });

@@ -212,6 +212,7 @@ Stories written in the app, kept in an album: beside its photos, or alone in an 
 - **Writing (admin).** *New article* on the journal, *Edit* on an article, or the articles icon of an album in Admin → Albums open the editor (`write.html`): title, lead, day, place, cover; the text on the left, the article as readers will see it on the right (tabs on a phone). A new article starts on the day of the album's first photo (capture date). The viewer's ⋯ menu has *New article* too, beside *Add photos*. Ctrl/Cmd+S saves; *Published* off = a draft, seen by the admin only. The address (`?a=slug`, from the title) never changes, so links keep working after a title change.
 - **Text.** A small, safe Markdown (`public/utils/article-render.js`): `## heading`, `### sub-heading`, `**bold**`, `*italic*`, `> quote`, `- list`, `1. list`, `[link](https://…)`, `---`. No HTML passes through (everything is escaped); links only to web pages, mail addresses or this site.
 - **Photos.** The **Photo** button opens a picker over any album (click the photos in order; several make a gallery), which can also upload photos to an album. They are written `![caption](<Album/file.jpg>)` — just `<file.jpg>` for the article's own album — so an article shows photos without copying them, and an album of articles only borrows those of the others. The cover is such a reference too (none: the first photo of the text). Renaming an album rewrites these references; a deleted photo just disappears from the article.
+- **Cards and likes.** An article's card is made like an album's: its picture across the card and, over it, *Article* (and its album), the title, the day, the place and its likes. Readers like an article as they like a photo — one like per visitor (their browser's anonymous token), the ♥ in the article's top bar; a second click takes it back (`POST /api/articles/:album/:slug/like`, table `article_likes`, migration 12, gone with the article).
 - **Rights.** An album's rights are its articles' rights: public, members only (`401` otherwise), share link. A photo of another album is shown only to readers allowed to see that album. The card of an album of articles only takes the picture of its latest article.
 - **Data.** Table `articles` (migration 9), deleted and renamed with its album (`services/cleanup.js`). Server: `services/articles.js`, `routes/articles.js` (reading), `routes/admin/articles.js` (writing).
 
@@ -397,6 +398,7 @@ Content varies depending on the authenticated user. Anonymous visitors and basic
 | `GET /api/articles` | latest of public albums | + authorized restricted | all (published) |
 | `GET /api/articles/:album[/:slug]` | public album: ✓ (published) · restricted: `401` | ✓ if authorized (published); + drafts on their albums | ✓ + drafts |
 | `GET /api/users/:username`, `…/avatar` | ✓ | ✓ | ✓ |
+| `POST /api/articles/:album/:slug/like` | as the article | as the article | ✓ (drafts too) |
 
 `canDelete` (returned by `/api/albums` and `/api/albums/:album`) is `true` for admins and for basic users authorized on that album. It controls whether the delete button appears in the viewer.
 

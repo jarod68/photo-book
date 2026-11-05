@@ -256,3 +256,21 @@ The Viewer's Menu Writes An Article In The Album
     Go To    ${BASE_URL}/viewer.html?album=${TRIP}
     Wait For Elements State    css=#thumbnails .thumb >> nth=0    visible    timeout=10s
     Get Element Count    css=#new-article-btn:not([hidden])    ==    0
+
+A Reader Likes An Article, Once, And Its Card Shows It
+    ${slug}=    Create Article By API    ${TRIP}    { title: 'À aimer', published: true, date: '2031-01-01' }
+    As Reader
+    Go To    ${BASE_URL}/article.html?album=${TRIP}&a=${slug}
+    Wait For Elements State    id=article-like    visible    timeout=10s
+    Get Attribute    id=article-like    aria-pressed    ==    false
+    Click    id=article-like
+    Wait For Elements State    css=#article-like.liked    visible    timeout=5s
+    Get Text    id=like-count    ==    1
+    # the same visitor, again: the like is taken back
+    Click    id=article-like
+    Wait For Elements State    css=#article-like:not(.liked)    visible    timeout=5s
+    Click    id=article-like
+    Wait For Elements State    css=#article-like.liked    visible    timeout=5s
+    Go To    ${BASE_URL}/album.html?album=${TRIP}
+    Wait For Elements State    css=#carnet-list .article-card >> text=À aimer    visible    timeout=10s
+    Get Text    css=#carnet-list .article-card:has-text("À aimer") .album-card-likes    contains    1
