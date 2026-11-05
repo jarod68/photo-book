@@ -818,7 +818,7 @@ describe('POST /api/admin/users', () => {
 
   it('retourne 409 si le username est déjà pris', async () => {
     const dupErr = Object.assign(new Error('duplicate key'), { code: '23505' });
-    mockQuery.mockRejectedValueOnce(dupErr);
+    mockQuery.mockResolvedValueOnce({ rows: [] }).mockRejectedValueOnce(dupErr);   // free, then taken meanwhile
     database._setState({ query: mockQuery }, true);
     const res = await request(app)
       .post('/api/admin/users')
@@ -827,8 +827,18 @@ describe('POST /api/admin/users', () => {
     expect(res.body.error).toBe('Username already taken');
   });
 
+  it('retourne 409 si le nom existe avec une autre casse (« Alice » quand « alice » existe)', async () => {
+    mockQuery.mockResolvedValueOnce({ rows: [{ '?column?': 1 }] });
+    database._setState({ query: mockQuery }, true);
+    const res = await request(app)
+      .post('/api/admin/users')
+      .send({ username: 'Alice', password: 'Valid1@pass', role: 'basic' });
+    expect(res.status).toBe(409);
+    expect(mockQuery.mock.calls[0]).toEqual(['SELECT 1 FROM users WHERE lower(username) = lower($1)', ['Alice']]);
+  });
+
   it('retourne 201 avec l\'utilisateur créé', async () => {
-    mockQuery.mockResolvedValueOnce({
+    mockQuery.mockResolvedValueOnce({ rows: [] }).mockResolvedValueOnce({
       rows: [{ id: 3, username: 'alice', role: 'basic', created_at: '2024-01-03' }],
     });
     database._setState({ query: mockQuery }, true);

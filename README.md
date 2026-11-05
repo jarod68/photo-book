@@ -340,7 +340,7 @@ Visits the site without logging in. Can browse and interact with all **public** 
 
 #### Basic — authenticated, `role = 'basic'`
 
-A named user, made by the admin (no sign-up). They have **their own albums** and a **profile**.
+A named user, made by the admin (no sign-up). Usernames ignore case: `Ana` signs in as `ana`, and no second account may differ only by it (migration 11: a unique index on `lower(username)`). They have **their own albums** and a **profile**.
 
 - Everything an anonymous visitor can do
 - Sees restricted albums they have been explicitly authorized for (via `album_users`), and can add and delete photos there (`canDelete = true`)

@@ -68,7 +68,10 @@ describe('login', () => {
       .mockResolvedValueOnce({ rows: [] }); // INSERT session
     vi.spyOn(bcrypt, 'compare').mockResolvedValue(true);
     database._setState({ query: mockQuery }, true);
-    const token = await auth.login('admin', 'correct');
+    const token = await auth.login('ADMIN', 'correct');
+    // the case of the name does not matter
+    expect(mockQuery.mock.calls[0][0]).toMatch(/lower\(username\) = lower\(\$1\)/);
+    expect(mockQuery.mock.calls[0][1]).toEqual(['ADMIN']);
     expect(token).toBeTypeOf('string');
     expect(token).toHaveLength(64);
     expect(token).toMatch(/^[0-9a-f]{64}$/);

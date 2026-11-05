@@ -254,6 +254,16 @@ Duplicates Lists Identical Files Across Albums And Deletes One
     Click    css=#dup-results [data-album="ui-dup-2"][data-dup-delete]
     Wait Until Keyword Succeeds    20s    1s    Album Has Exactly    ui-dup-2    0
 
+An Album Just Created Is On The Home Page When Coming Back
+    Go To    ${BASE_URL}/
+    Wait For Elements State    css=a[href="/admin.html"]    visible    timeout=10s
+    Click    css=a[href="/admin.html"] >> nth=0
+    Wait For Elements State    id=new-album-btn    visible    timeout=10s
+    Create Album    ui-back-new
+    Go Back
+    Wait For Elements State    css=#album-grid a.album-card[href*="ui-back-new"]    visible    timeout=10s
+    Run Keyword And Ignore Error    Admin API    DELETE    /api/admin/albums/ui-back-new
+
 *** Keywords ***
 Album Has At Least
     [Arguments]    ${album}    ${n}

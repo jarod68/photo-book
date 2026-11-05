@@ -322,6 +322,10 @@ function _line(x1, y1, x2, y2) {
                 stroke="rgba(255,255,255,0.12)" stroke-width="1" stroke-dasharray="3 3"/>`;
 }
 
+// back from another page, restored whole from the browser's memory: load it
+// again, with what changed meanwhile (an album just created…)
+addEventListener('pageshow', (e) => { if (e.persisted) location.reload(); });
+
 rememberScroll();
 init();
 

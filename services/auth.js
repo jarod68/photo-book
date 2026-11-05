@@ -22,7 +22,9 @@ async function ensureAdmin() {
 
 async function login(username, password) {
   const { rows } = await database.db.query(
-    'SELECT id, password_hash FROM users WHERE username = $1',
+    // the case of the name does not matter (the exact spelling first, should
+    // two old accounts differ only by it)
+    'SELECT id, password_hash FROM users WHERE lower(username) = lower($1) ORDER BY (username = $1) DESC LIMIT 1',
     [username],
   );
   if (rows.length === 0) return null;

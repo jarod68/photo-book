@@ -241,6 +241,19 @@ const MIGRATIONS = [
       await q('ALTER TABLE users ADD COLUMN avatar_updated_at TIMESTAMPTZ');
     },
   },
+  {
+    version: 11,
+    name: 'usernames regardless of case',
+    async up(q) {
+      // "Ana" and "ana" are one name: signing in and profiles ignore the case,
+      // and no second account may differ only by it. Two such accounts made
+      // before would block the index: then it waits (the app still refuses
+      // new ones, and signing in prefers the exact spelling).
+      const { rows } = await q('SELECT lower(username) AS u FROM users GROUP BY 1 HAVING COUNT(*) > 1');
+      if (rows.length) console.warn(`  ! Usernames differing only by case: ${rows.map((r) => r.u).join(', ')} — not unique yet.`);
+      else await q('CREATE UNIQUE INDEX users_username_lower ON users (lower(username))');
+    },
+  },
 ];
 
 const LOCK_KEY = 726571;   // arbitrary, constant: pg_advisory_xact_lock key

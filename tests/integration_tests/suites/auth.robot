@@ -71,3 +71,10 @@ After Logout Session Cookie Is Cleared
     Logout
     Go To    ${BASE_URL}/login.html
     Wait For Elements State    id=login-form    visible    timeout=5s
+
+Login Ignores The Case Of The Username
+    Open Login Page
+    ${upper}=    Evaluate    "${BASIC_USER}".upper()
+    Submit Login Form    ${upper}    ${BASIC_PASS}
+    Wait For Elements State    css=body.page-home    visible    timeout=12s
+    Get Text    css=.home-auth-user    contains    ${BASIC_USER}

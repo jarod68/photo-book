@@ -79,6 +79,12 @@ const RATE_API_MAX      = 600;
 const RATE_LOGIN_MAX    = 10;
 const RATE_GEOCODE_MAX  = 30;
 
+// API answers are never stored by the browser: coming Back to a page, it
+// would otherwise reuse its old answers without asking (an album just
+// created missing from the home page until a reload). Routes that are
+// cacheable (a profile picture) set their own header.
+app.use('/api/', (_req, res, next) => { res.set('Cache-Control', 'no-store'); next(); });
+
 app.use('/api/', rateLimit({
   windowMs:        RATE_WINDOW_15MIN,
   limit:           RATE_API_MAX,

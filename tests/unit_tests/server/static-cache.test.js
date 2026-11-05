@@ -20,4 +20,9 @@ describe('static asset caching', () => {
     const again = await request(app).get('/style.css').set('If-None-Match', first.headers.etag);
     expect(again.status).toBe(304);
   });
+
+  it('API answers are never stored: Back after a change shows the change', async () => {
+    const res = await request(app).get('/api/auth/me');
+    expect(res.headers['cache-control']).toBe('no-store');
+  });
 });

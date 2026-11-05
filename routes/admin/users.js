@@ -33,6 +33,9 @@ router.post('/', requireAdmin, express.json(), async (req, res) => {
     if (!VALID_ROLES.has(role))  return res.status(400).json({ error: 'Role must be admin or basic' });
     const pwErr = validatePassword(password);
     if (pwErr) return res.status(400).json({ error: pwErr });
+    // "Ana" when "ana" exists is the same name (also a unique index, migration 11)
+    const { rows: taken } = await database.db.query('SELECT 1 FROM users WHERE lower(username) = lower($1)', [username.trim()]);
+    if (taken.length) return res.status(409).json({ error: 'Username already taken' });
     const hash = await hashPassword(password);
     const { rows } = await database.db.query(
       'INSERT INTO users (username, password_hash, role) VALUES ($1, $2, $3) RETURNING id, username, role, created_at',

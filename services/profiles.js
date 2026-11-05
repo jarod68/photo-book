@@ -32,7 +32,8 @@ async function byIds(ids) {
 
 async function byUsername(username) {
   if (!database.dbReady) return null;
-  const { rows } = await database.db.query(`SELECT ${COLS} FROM users WHERE username = $1`, [username]);
+  const { rows } = await database.db.query(
+    `SELECT ${COLS} FROM users WHERE lower(username) = lower($1) ORDER BY (username = $1) DESC LIMIT 1`, [username]);
   return rows[0] ? fromRow(rows[0]) : null;
 }
 
@@ -90,7 +91,8 @@ async function clearAvatar(id) {
 async function avatarOf(username) {
   if (!database.dbReady) return null;
   const { rows } = await database.db.query(
-    'SELECT avatar, avatar_updated_at FROM users WHERE username = $1 AND avatar IS NOT NULL', [username]);
+    `SELECT avatar, avatar_updated_at FROM users WHERE lower(username) = lower($1) AND avatar IS NOT NULL
+     ORDER BY (username = $1) DESC LIMIT 1`, [username]);
   return rows[0] ? { data: rows[0].avatar, updatedAt: rows[0].avatar_updated_at } : null;
 }
 
