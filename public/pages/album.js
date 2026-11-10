@@ -14,6 +14,8 @@ import { showBuildTag } from '../utils/build-tag.js';
 // load it again, with what was just saved
 addEventListener('pageshow', (e) => { if (e.persisted) location.reload(); });
 import { esc } from '../utils/article-render.js';
+import { travelStats } from '../utils/travel-stats.js';
+import { subscribeTo, unsubscribeFrom, getStoredAlbums, getSubscription } from '../utils/push.js';
 
 applyTranslations();
 initLangSwitcher('lang-switcher');
@@ -43,13 +45,27 @@ function renderHero(info, articles, photos) {
     published ? t('art.count', { n: published, s: published > 1 ? 's' : '' }) : null,
     photos.length ? t('album.photos', { n: photos.length, s: photos.length > 1 ? 's' : '' }) : null,
   ].filter(Boolean).join(' · ');
+  // the trip in figures: days, countries, kilometres along its route
+  const s = travelStats(photos);
+  const fmt = new Intl.NumberFormat(document.documentElement.lang || undefined);
+  const figures = [
+    // a trip's length (an album spanning years — not a trip — says nothing)
+    s.days > 1 && s.days <= 120 ? t('stats.days', { n: s.days, s: 's' }) : null,
+    s.countries.length ? t(s.countries.length > 1 ? 'stats.countries' : 'stats.country', { n: s.countries.length }) : null,
+    s.km >= 1 ? t('stats.km', { n: fmt.format(s.km) }) : null,
+  ].filter(Boolean);
   hero.innerHTML = `
     ${pic ? '<img class="carnet-hero-img" alt="" decoding="async">' : ''}
     <div class="carnet-hero-text">
       <p class="carnet-kicker">${esc(t('art.diary'))}</p>
       <h2 class="carnet-hero-title">${esc(name)}</h2>
       ${meta ? `<p class="carnet-hero-meta">${esc(meta)}</p>` : ''}
+      ${figures.length ? `<p class="carnet-figures">${figures.map((f) => `<span>${esc(f)}</span>`).join('')}</p>` : ''}
       ${info?.description ? `<p class="carnet-hero-desc">${esc(info.description)}</p>` : ''}
+      <button type="button" id="carnet-follow" class="carnet-btn carnet-follow" title="${esc(t('follow.hint'))}" hidden>
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+        <span></span>
+      </button>
     </div>`;
   hero.classList.toggle('carnet-hero--plain', !pic);
   const img = hero.querySelector('img');
@@ -58,6 +74,32 @@ function renderHero(info, articles, photos) {
     img.src = withShare(pic);
   }
   hero.hidden = false;
+}
+
+// Follow: told of new photos and new stories (push notifications, like the
+// viewer's bell — the same subscription)
+function wireFollow() {
+  const btn = /** @type {HTMLButtonElement} */ (document.getElementById('carnet-follow'));
+  if (!btn || !('PushManager' in window) || !('serviceWorker' in navigator)) return;
+  const show = () => {
+    const on = getStoredAlbums().includes(name);
+    btn.classList.toggle('carnet-follow--on', on);
+    btn.setAttribute('aria-pressed', String(on));
+    btn.querySelector('span').textContent = t(on ? 'follow.following' : 'follow.follow');
+  };
+  btn.addEventListener('click', async () => {
+    btn.disabled = true;
+    try {
+      if (getStoredAlbums().includes(name)) await unsubscribeFrom(name, (await getSubscription())?.endpoint ?? null);
+      else if (!await subscribeTo(name, share)) btn.title = t('follow.denied');
+    } catch {
+      btn.title = t('follow.denied');
+    }
+    btn.disabled = false;
+    show();
+  });
+  show();
+  btn.hidden = false;
 }
 
 function renderArticles(list, canEdit) {
@@ -127,6 +169,7 @@ async function init() {
   // cover, dates and description: from the album list (not there with a share link)
   const info = (await getAlbums().catch(() => [])).find((x) => x.name === name);
   renderHero(info, data.articles, album.photos);
+  wireFollow();
   renderArticles(data.articles, data.canEdit);
   renderPhotos(album.photos);
 }

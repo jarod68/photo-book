@@ -440,4 +440,21 @@ export default {
   'account.pickTitle': 'Elegir una foto',
   'art.article': 'Artículo',
   'art.like': 'Me gusta',
+
+  // Travel stats, following, memories
+  'stats.days': '{n} día{s}',
+  'stats.country': '{n} país',
+  'stats.countries': '{n} países',
+  'stats.km': '{n} km',
+  'stats.albums': 'álbumes',
+  'stats.photos': 'fotos',
+  'stats.countriesLabel': 'países',
+  'stats.kmLabel': 'km recorridos',
+  'stats.articles': 'artículos',
+  'follow.follow': 'Seguir',
+  'follow.following': 'Siguiendo',
+  'follow.hint': 'Recibir aviso de nuevas fotos y artículos',
+  'follow.denied': 'Notificaciones bloqueadas por el navegador',
+  'memories.title': 'Un día como hoy',
+  'memories.ago': 'Hace {n} año{s}',
 };

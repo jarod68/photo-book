@@ -3,7 +3,7 @@ import { t, applyTranslations, initLangSwitcher } from '../utils/i18n.js';
 import { createAlbumCard } from '../components/album-card.js';
 import { showBuildTag } from '../utils/build-tag.js';
 import { sortAlbums, loadOrder, saveOrder } from '../utils/order.js';
-import { formatDateRange } from '../utils/format.js';
+import { formatDateRange, formatDay } from '../utils/format.js';
 import { rememberScroll, restoreScroll } from '../utils/back.js';
 import { Uploader, dragHasFiles, preventFileDrops } from '../components/uploader.js';
 import { createArticleCard } from '../components/article-card.js';
@@ -31,6 +31,7 @@ async function init() {
   ]);
 
   renderAuth(authData.user);
+  renderMemories();
   renderArticles();
 
   const totalPhotos = albums.reduce((n, a) => n + a.count, 0);
@@ -136,6 +137,37 @@ function groupAlbums(albums, mode) {
   if (groups.has(null)) keys.push(null);
   const rest = mode === 'year' ? t('home.groupUndated') : t('home.groupOther');
   return keys.map(k => ({ title: k === null ? rest : String(k), items: groups.get(k) }));
+}
+
+// On this day, in earlier years: a card a year (its first photo, the
+// albums of that time), opening the photo. The reader's own today.
+async function renderMemories() {
+  const d = new Date();
+  const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  const years = await fetch(`/api/memories?date=${today}`).then((r) => (r.ok ? r.json() : [])).catch(() => []);
+  if (!years.length) return;
+  const grid = document.getElementById('home-memories-grid');
+  for (const y of years.slice(0, 6)) {
+    const first = y.photos[0];
+    const card = document.createElement('a');
+    card.className = 'album-card memory-card';
+    card.href = `viewer.html?album=${encodeURIComponent(first.album)}&photo=${encodeURIComponent(first.filename)}`;
+    const img = document.createElement('img');
+    img.alt = '';
+    img.loading = 'lazy';
+    img.decoding = 'async';
+    img.onload = () => img.classList.add('loaded');
+    img.src = first.previewUrl || first.thumbUrl;
+    const albums = [...new Set(y.photos.map((p) => p.album))];
+    card.innerHTML = `<div class="album-card-info">
+      <div class="album-card-kicker">${esc(t('memories.ago', { n: y.yearsAgo, s: y.yearsAgo > 1 ? 's' : '' }))}</div>
+      <div class="album-card-name">${esc(albums.join(' · '))}</div>
+      <div class="album-card-count">${esc([formatDay(first.takenAt.slice(0, 10)), t('album.photos', { n: y.count, s: y.count > 1 ? 's' : '' })].join(' · '))}</div>
+    </div>`;
+    card.prepend(img);
+    grid.appendChild(card);
+  }
+  document.getElementById('home-memories').hidden = false;
 }
 
 // The latest published stories, newest first (hidden when there are none).

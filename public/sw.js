@@ -8,16 +8,17 @@ self.addEventListener('push', event => {
       // one notification per album: a new digest replaces the previous one
       tag:      data.tag || undefined,
       renotify: !!data.tag,
-      data: { album: data.album, photo: data.photo },
+      data: { album: data.album, photo: data.photo, url: data.url },
     })
   );
 });
 
 self.addEventListener('notificationclick', event => {
   event.notification.close();
-  const { album, photo } = event.notification.data ?? {};
-  const url = album
-    ? `/viewer.html?album=${encodeURIComponent(album)}${photo ? `&photo=${encodeURIComponent(photo)}` : ''}`
+  const { album, photo, url: page } = event.notification.data ?? {};
+  // a page of this site (a new article), else the album's photos
+  const url = typeof page === 'string' && page.startsWith('/') && !page.startsWith('//') ? page
+    : album ? `/viewer.html?album=${encodeURIComponent(album)}${photo ? `&photo=${encodeURIComponent(photo)}` : ''}`
     : '/';
   event.waitUntil(clients.openWindow(url));
 });

@@ -35,6 +35,7 @@ const pushRouter         = require('./routes/push');
 const articlesRouter     = require('./routes/articles');
 const usersRouter        = require('./routes/users');
 const meRouter           = require('./routes/me');
+const memoriesRouter     = require('./routes/memories');
 const adminStatsRouter   = require('./routes/admin/stats');
 const adminUsersRouter   = require('./routes/admin/users');
 const adminAlbumsRouter  = require('./routes/admin/albums');
@@ -237,6 +238,7 @@ app.use('/api/push',    pushRouter);
 app.use('/api/articles', articlesRouter);
 app.use('/api/users',    usersRouter);
 app.use('/api/me',       meRouter);
+app.use('/api/memories', memoriesRouter);
 
 // Admin routes require authentication at the router level
 app.use('/api/admin', auth.requireAuth);

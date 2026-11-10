@@ -20,6 +20,7 @@ const MESSAGES = {
   // the server does not know the subscriber's language; the app's default is French
   one:  (n) => `${n} nouvelle photo`,
   many: (n) => `${n} nouvelles photos`,
+  article: 'Nouvel article',
 };
 
 async function enabledFor(album) {
@@ -64,6 +65,22 @@ async function flush(album, _deps = {}) {
 }
 
 const pendingFor = (album) => [...(pending.get(album)?.files ?? [])];
+/**
+ * An article just published (or published again): its album's followers
+ * are told at once — a click opens it. `_deps.send` for the tests.
+ */
+async function articlePublished(album, article, _deps = {}) {
+  if (!(await enabledFor(album))) return 0;
+  const sent = await (_deps.send ?? push.sendToAlbum)(album, {
+    title: album,
+    body:  `${MESSAGES.article} : ${article.title}`,
+    tag:   `article-${article.id}`,
+    url:   `/article.html?album=${encodeURIComponent(album)}&a=${encodeURIComponent(article.slug)}`,
+  });
+  if (sent) console.log(`  ✓ New-article notification: ${album} / ${article.slug} → ${sent} subscriber(s).`);
+  return sent;
+}
+
 function _reset() { for (const p of pending.values()) clearTimeout(p.timer); pending.clear(); }
 
-module.exports = { photosAdded, photoRemoved, flush, pendingFor, QUIET_MS, MAX_WAIT_MS, _reset };
+module.exports = { photosAdded, photoRemoved, flush, articlePublished, pendingFor, QUIET_MS, MAX_WAIT_MS, _reset };

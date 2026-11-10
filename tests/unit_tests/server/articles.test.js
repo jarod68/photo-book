@@ -274,3 +274,32 @@ describe('j’aime sur un article', () => {
     expect((await as(request(app).post('/api/articles/Voyage/brouillon/like'), ADMIN).send({ token: T1 })).status).toBe(200);
   });
 });
+
+describe('ses abonnés apprennent qu’un article paraît', () => {
+  it('à la création publiée, et quand un brouillon est publié — pas à chaque modification', async () => {
+    const notify = _require('../../../services/notify.js');
+    const sent = vi.spyOn(notify, 'articlePublished').mockResolvedValue(1);
+    await as(request(app).post('/api/admin/articles'), ADMIN).send({ album: 'Voyage', title: 'Neuf', published: true });
+    expect(sent).toHaveBeenCalledTimes(1);
+    expect(sent.mock.calls[0][1]).toMatchObject({ slug: 'neuf', title: 'Neuf' });
+    await as(request(app).post('/api/admin/articles'), ADMIN).send({ album: 'Voyage', title: 'Brouillon 2' });
+    expect(sent).toHaveBeenCalledTimes(1);
+    await as(request(app).put('/api/admin/articles/3'), ADMIN).send({ published: true });   // the draft
+    expect(sent).toHaveBeenCalledTimes(2);
+    await as(request(app).put('/api/admin/articles/3'), ADMIN).send({ title: 'Retouché' });   // already published
+    expect(sent).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('GET /api/memories', () => {
+  it('ce jour-là, des albums visibles seulement ; date invalide ignorée', async () => {
+    vi.spyOn(libraryMod, 'getAlbumPhotos').mockImplementation(async (a) => (a === 'Voyage'
+      ? [{ filename: 'old.jpg', takenAt: '2024-04-02T10:00:00Z', thumbUrl: '/t/old.jpg' }]
+      : a === 'Prive' ? [{ filename: 'secret.jpg', takenAt: '2024-04-02T10:00:00Z', thumbUrl: '/t/s.jpg' }] : []));
+    const res = await request(app).get('/api/memories?date=2026-04-01');
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual([expect.objectContaining({ year: 2024, yearsAgo: 2, count: 1 })]);
+    expect(res.body[0].photos.map((p) => p.filename)).toEqual(['old.jpg']);
+    expect((await request(app).get('/api/memories?date=bad')).status).toBe(200);
+  });
+});

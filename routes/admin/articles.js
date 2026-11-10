@@ -8,6 +8,7 @@ const { getAlbumAccess } = require('../../services/access');
 const library  = require('../../services/library');
 const articles = require('../../services/articles');
 const activity = require('../../services/activity');
+const notify   = require('../../services/notify');
 const { sendError } = require('../../services/http-errors');
 
 const router = express.Router();
@@ -29,6 +30,7 @@ router.post('/', json, async (req, res) => {
     if (!await mayWrite(req, album)) return res.status(403).json({ error: 'Forbidden' });
     const a = await articles.create(album, fields, req.user?.id ?? null);
     res.status(201).json(a);
+    if (a.published) notify.articlePublished(album, a).catch((err) => console.error('Article notification failed:', err.message));
     activity.log('article_create', { username: req.user?.username ?? null, ip: req.ip, details: { album, slug: a.slug } });
   } catch (err) {
     sendError(res, err);
@@ -46,6 +48,8 @@ router.put('/:id', json, async (req, res) => {
     const a = await articles.update(id, req.body ?? {});
     if (!a) return res.status(404).json({ error: 'Not found' });
     res.json(a);
+    // published now, a draft before: its followers learn of it
+    if (a.published && !before.published) notify.articlePublished(a.album, a).catch((err) => console.error('Article notification failed:', err.message));
   } catch (err) {
     sendError(res, err);
   }

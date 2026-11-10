@@ -220,6 +220,12 @@ Stories written in the app, kept in an album: beside its photos, or alone in an 
 
 `about.html` (*About* in the home page's header and footer): what the site is, what you will find there, how it is made, privacy, thanks — the text in the page's language (`public/utils/about-content.js`, written by hand in French, English and Spanish) — and live figures (albums, photos and videos, stories, photos on the map).
 
+### Trips in figures, following, memories
+
+- **Figures**: an album's journal shows its trip's length (when under four months), its countries (from the photos' places) and its kilometres — along the route of the map and the globe, the same segments and stops (`public/utils/travel-stats.js`). A profile shows its owner's albums, photos, countries, kilometres and stories.
+- **Follow**: the journal's **Follow** button subscribes the browser to the album's push notifications (the viewer's bell, the same subscription): new photos as before, and now each article published — at its creation, or when a draft is published (`notify.articlePublished`); a click opens it.
+- **On this day**: the home page shows, a card a year, the photos taken within three days of today in earlier years, in the albums the visitor may see (`GET /api/memories?date=`, `services/memories.js`; capture dates compared as the camera's own).
+
 ### Chronological order
 
 - **Home**: albums can be sorted A–Z, most recent first (by the last capture date) or oldest first (by the first capture date); albums without dates come last.
@@ -399,6 +405,7 @@ Content varies depending on the authenticated user. Anonymous visitors and basic
 | `GET /api/articles/:album[/:slug]` | public album: ✓ (published) · restricted: `401` | ✓ if authorized (published); + drafts on their albums | ✓ + drafts |
 | `GET /api/users/:username`, `…/avatar` | ✓ | ✓ | ✓ |
 | `POST /api/articles/:album/:slug/like` | as the article | as the article | ✓ (drafts too) |
+| `GET /api/memories` | public albums | + authorized, their own | all |
 
 `canDelete` (returned by `/api/albums` and `/api/albums/:album`) is `true` for admins and for basic users authorized on that album. It controls whether the delete button appears in the viewer.
 

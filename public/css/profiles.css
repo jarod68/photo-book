@@ -40,6 +40,7 @@
 .account-status--error { color: #fca5a5; }
 
 /* a public profile */
+.profile-stats { max-width: none; margin: 4px 0 26px; padding: 0; grid-template-columns: repeat(auto-fit, minmax(120px, 160px)); }
 .profile { max-width: 1180px; margin: 0 auto; padding: 28px 36px 64px; }
 .profile-head { display: flex; align-items: center; gap: 24px; margin-bottom: 18px; flex-wrap: wrap; }
 .profile-name { font-family: var(--font-display); font-size: clamp(30px, 5vw, 48px); font-weight: 600; line-height: 1.05; color: #fff; }

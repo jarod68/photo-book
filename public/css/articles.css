@@ -74,6 +74,13 @@
   line-height: 1; letter-spacing: -0.02em; color: #fff;
 }
 .carnet-hero-meta { margin-top: 10px; font-size: 14px; color: rgba(255,255,255,0.78); }
+.carnet-figures { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 6px; }
+.carnet-figures span {
+  padding: 3px 10px; border-radius: 999px; font-size: 12.5px; font-weight: 600;
+  background: rgba(13,13,14,0.55); border: 1px solid rgba(255,255,255,0.18); color: #fff; backdrop-filter: blur(6px);
+}
+.carnet-follow { margin-top: 14px; }
+.carnet-follow--on { color: var(--accent-soft); border-color: rgba(255,138,91,0.5); }
 .carnet-hero-desc { margin-top: 8px; max-width: 620px; font-size: 15px; line-height: 1.55; color: rgba(255,255,255,0.86); }
 
 .carnet { max-width: 1080px; margin: 0 auto; padding: 18px 28px 64px; }

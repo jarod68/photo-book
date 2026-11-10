@@ -3,7 +3,8 @@
 // their albums and stories — those the visitor may see.
 import { t, applyTranslations, initLangSwitcher } from '../utils/i18n.js';
 import '../utils/admin-shortcut.js';
-import { getAlbums, getLatestArticles } from '../api/client.js';
+import { getAlbums, getLatestArticles, getMapPhotos } from '../api/client.js';
+import { travelStats } from '../utils/travel-stats.js';
 import { createAlbumCard } from '../components/album-card.js';
 import { createArticleCard } from '../components/article-card.js';
 import { avatarHtml } from '../components/avatar.js';
@@ -42,9 +43,38 @@ async function init() {
   const stories = articles.filter((a) => names.has(a.album));
   for (const a of mine) $('profile-album-grid').appendChild(createAlbumCard(a));
   for (const a of stories) $('profile-article-grid').appendChild(createArticleCard(a, { showAlbum: true }));
+  renderStats(mine, stories);
   $('profile-albums').hidden = !mine.length;
   $('profile-articles').hidden = !stories.length;
   $('profile-empty').hidden = mine.length + stories.length > 0;
+}
+
+// their travels in figures: albums, photos, countries, kilometres, stories
+async function renderStats(albums, stories) {
+  if (!albums.length) return;
+  const names = new Set(albums.map((a) => a.name));
+  const located = (await getMapPhotos().catch(() => [])).filter((p) => names.has(p.album));
+  const s = travelStats(located);
+  const fmt = new Intl.NumberFormat(document.documentElement.lang || undefined);
+  const figures = [
+    [albums.length, t('stats.albums')],
+    [albums.reduce((n, a) => n + a.count, 0), t('stats.photos')],
+    [s.countries.length, t('stats.countriesLabel')],
+    [s.km, t('stats.kmLabel')],
+    [stories.length, t('stats.articles')],
+  ].filter(([n]) => n > 0);
+  const dl = $('profile-stats');
+  for (const [n, label] of figures) {
+    const div = document.createElement('div');
+    const dd = document.createElement('dd');
+    dd.textContent = fmt.format(n);
+    const dtEl = document.createElement('dt');
+    dtEl.textContent = label;
+    div.append(dd, dtEl);
+    dl.appendChild(div);
+  }
+  if (s.countries.length) dl.title = s.countries.join(' · ');
+  dl.hidden = false;
 }
 
 init();

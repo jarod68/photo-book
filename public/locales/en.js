@@ -440,4 +440,21 @@ export default {
   'account.pickTitle': 'Pick a photo',
   'art.article': 'Story',
   'art.like': 'Like',
+
+  // Travel stats, following, memories
+  'stats.days': '{n} day{s}',
+  'stats.country': '{n} country',
+  'stats.countries': '{n} countries',
+  'stats.km': '{n} km',
+  'stats.albums': 'albums',
+  'stats.photos': 'photos',
+  'stats.countriesLabel': 'countries',
+  'stats.kmLabel': 'km travelled',
+  'stats.articles': 'stories',
+  'follow.follow': 'Follow',
+  'follow.following': 'Following',
+  'follow.hint': 'Be told of new photos and stories',
+  'follow.denied': 'Notifications blocked by the browser',
+  'memories.title': 'On this day',
+  'memories.ago': '{n} year{s} ago',
 };

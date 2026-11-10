@@ -274,3 +274,18 @@ A Reader Likes An Article, Once, And Its Card Shows It
     Go To    ${BASE_URL}/album.html?album=${TRIP}
     Wait For Elements State    css=#carnet-list .article-card >> text=À aimer    visible    timeout=10s
     Get Text    css=#carnet-list .article-card:has-text("À aimer") .album-card-likes    contains    1
+
+The Journal Can Be Followed
+    As Reader
+    Go To    ${BASE_URL}/album.html?album=${TRIP}
+    Wait For Elements State    id=carnet-follow    visible    timeout=10s
+    Get Text    css=#carnet-follow span    ==    Suivre
+
+On This Day: The Photos Of Earlier Years
+    [Documentation]    ${DATED} holds gps-e (24 May 2024) and gps-a (25 May 2026): on 25 May 2026,
+    ...                two years back, gps-e — not gps-a, of the same year
+    As Reader
+    ${years}=    Evaluate JavaScript    ${NONE}
+    ...    () => fetch('/api/memories?date=2026-05-25').then((r) => r.json())
+    ...      .then((ys) => ys.map((y) => y.yearsAgo + ':' + y.photos.filter((p) => p.album === '${DATED}').map((p) => p.filename).join(',')))
+    Should Contain    ${years}    2:gps-e.tiff
