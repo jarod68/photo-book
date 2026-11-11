@@ -55,6 +55,11 @@ if (user) document.getElementById('admin-user-label').textContent = user.usernam
 // The admin sees everything; a user manages their own albums here ("My
 // albums": the stats API lists only theirs), nothing else.
 const isAdmin = user?.role === 'admin';
+// the admin must first set up two-factor sign-in: the admin routes say no until then
+if (user?.mfaSetup) {
+  alert(t('admin.mfaRedirect'));
+  location.replace('/account.html#security');
+}
 if (!isAdmin) {
   for (const id of ['section-users', 'section-system', 'section-top', 'section-duplicates', 'section-logs']) {
     document.getElementById(id).hidden = true;
@@ -740,6 +745,20 @@ async function loadUsers() {
       btn.addEventListener('click', () => openPwdModal(Number(btn.dataset.pwd), btn.dataset.username)));
     body.querySelectorAll('[data-del]').forEach(btn =>
       btn.addEventListener('click', () => deleteUser(Number(btn.dataset.del), btn.dataset.username)));
+    // the address a Google account signs in with; 2FA reset (a lost phone); unlock
+    const patchUser = async (id, fields) => {
+      const res = await fetch(`/api/admin/users/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(fields) });
+      if (!res.ok) alert((await res.json().catch(() => ({}))).error ?? t('admin.saveFailed'));
+      await loadUsers();
+    };
+    body.querySelectorAll('[data-email]').forEach(btn => btn.addEventListener('click', () => {
+      const email = prompt(t('admin.editEmail'), btn.dataset.current);
+      if (email !== null) patchUser(btn.dataset.email, { email: email.trim() });
+    }));
+    body.querySelectorAll('[data-reset-mfa]').forEach(btn => btn.addEventListener('click', () => {
+      if (confirm(t('admin.confirmResetMfa', { name: btn.dataset.username }))) patchUser(btn.dataset.resetMfa, { resetMfa: true });
+    }));
+    body.querySelectorAll('[data-unlock]').forEach(btn => btn.addEventListener('click', () => patchUser(btn.dataset.unlock, { unlock: true })));
   } catch (_) {
     body.innerHTML = `<tr><td colspan="4" class="admin-error">${t('admin.failedLoad')}</td></tr>`;
   }
@@ -750,7 +769,13 @@ function renderUserRow(u) {
   const isProtected = u.username === 'admin';
   return `
     <tr data-user-id="${u.id}">
-      <td>${esc(u.username)}</td>
+      <td>
+        <a class="admin-link" href="/profile.html?u=${encodeURIComponent(u.username)}">${esc(u.username)}</a>
+        ${u.mfa ? '<span class="admin-visibility-badge admin-visibility-badge--public">2FA</span>' : ''}
+        ${u.google ? '<span class="admin-visibility-badge admin-visibility-badge--private">Google</span>' : ''}
+        ${u.locked ? `<span class="admin-visibility-badge admin-visibility-badge--restricted">${esc(t('admin.locked'))}</span>` : ''}
+        ${u.email ? `<div class="admin-album-meta">${esc(u.email)}</div>` : ''}
+      </td>
       <td>
         <select class="admin-role-select user-role-select" data-id="${u.id}"${isProtected ? ' disabled' : ''}>
           <option value="basic"${u.role === 'basic' ? ' selected' : ''}>basic</option>
@@ -761,6 +786,9 @@ function renderUserRow(u) {
       <td class="admin-date" data-label="${esc(t('admin.col.lastLogin'))}">${esc(fmt(u.last_login_at))}</td>
       <td class="admin-row-actions">
         <button class="admin-icon-btn" data-pwd="${u.id}" data-username="${esc(u.username)}" title="${t('admin.changePassword')}">${iconKey()}</button>
+        <button class="admin-icon-btn" data-email="${u.id}" data-current="${esc(u.email ?? '')}" title="${esc(t('admin.email'))}">@</button>
+        ${u.mfa ? `<button class="admin-icon-btn" data-reset-mfa="${u.id}" data-username="${esc(u.username)}" title="${esc(t('admin.resetMfa'))}">2FA ✕</button>` : ''}
+        ${u.locked ? `<button class="admin-icon-btn" data-unlock="${u.id}" title="${esc(t('admin.unlock'))}">🔓</button>` : ''}
         <button class="admin-icon-btn admin-icon-btn--danger" data-del="${u.id}" data-username="${esc(u.username)}"
                 title="${t('admin.log.user_delete')}"${isProtected ? ' disabled' : ''}>${iconTrash()}</button>
       </td>
@@ -833,6 +861,7 @@ document.getElementById('new-user-form').addEventListener('submit', async e => {
   const username = document.getElementById('new-user-username').value.trim();
   const password = document.getElementById('new-user-password').value;
   const role     = document.getElementById('new-user-role').value;
+  const email    = document.getElementById('new-user-email').value.trim();
   const errEl    = document.getElementById('new-user-pwd-error');
   if (!username) return;
   const pwErr = validatePwd(password);
@@ -841,9 +870,10 @@ document.getElementById('new-user-form').addEventListener('submit', async e => {
   const res = await fetch('/api/admin/users', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ username, password, role }),
+    body: JSON.stringify({ username, password, role, ...(email && { email }) }),
   });
   if (res.ok) {
+    document.getElementById('new-user-email').value = '';
     resetNewUserForm();
     await loadUsers();
   } else {

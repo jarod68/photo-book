@@ -85,12 +85,58 @@ describe('login', () => {
     database._setState({ query: mockQuery }, true);
     const before = Date.now();
     await auth.login('admin', 'pass');
-    const [, userId, expiresAt] = mockQuery.mock.calls[1][1];
+    const insert = mockQuery.mock.calls.find((c) => c[0].startsWith('INSERT INTO user_sessions'));
+    const [, userId, expiresAt] = insert[1];
     expect(userId).toBe(42);
     const diff = expiresAt.getTime() - before;
     const thirtyDays = 30 * 24 * 60 * 60 * 1000;
     expect(diff).toBeGreaterThanOrEqual(thirtyDays - 1000);
     expect(diff).toBeLessThanOrEqual(thirtyDays + 1000);
+  });
+});
+
+describe('blocage par compte', () => {
+  it('un mauvais mot de passe compte ; 5 à la suite bloquent 15 min ; bloqué, même le bon échoue', async () => {
+    mockQuery.mockResolvedValueOnce({ rows: [{ id: 7, username: 'ana', role: 'basic', password_hash: 'h', totp: false, locked: false }] })
+      .mockResolvedValueOnce({ rows: [] });
+    vi.spyOn(bcrypt, 'compare').mockResolvedValue(false);
+    database._setState({ query: mockQuery }, true);
+    expect(await auth.checkPassword('ana', 'faux')).toBeNull();
+    const [sql, params] = mockQuery.mock.calls[1];
+    expect(sql).toMatch(/failed_logins \+ 1 >= \$2/);
+    expect(params).toEqual([7, 5, 900]);
+
+    mockQuery.mockReset();
+    mockQuery.mockResolvedValueOnce({ rows: [{ id: 7, username: 'ana', role: 'basic', password_hash: 'h', totp: false, locked: true }] });
+    bcrypt.compare.mockResolvedValue(true);
+    expect(await auth.checkPassword('ana', 'juste')).toBeNull();
+    expect(bcrypt.compare).toHaveBeenCalledTimes(1);   // locked: the password is not even checked
+  });
+
+  it('le bon mot de passe remet le compteur à zéro et dit si la 2FA est active', async () => {
+    mockQuery.mockResolvedValueOnce({ rows: [{ id: 7, username: 'ana', role: 'admin', password_hash: 'h', totp: true, locked: false }] })
+      .mockResolvedValueOnce({ rows: [] });
+    vi.spyOn(bcrypt, 'compare').mockResolvedValue(true);
+    database._setState({ query: mockQuery }, true);
+    expect(await auth.checkPassword('ANA', 'juste')).toEqual({ id: 7, username: 'ana', role: 'admin', totpEnabled: true });
+    expect(mockQuery.mock.calls[1][0]).toMatch(/failed_logins = 0, locked_until = NULL/);
+  });
+});
+
+describe('2FA obligatoire pour l’admin', () => {
+  it('un admin sans 2FA : 403 mfa_setup ; avec : passe ; un autre rôle : 403 simple', () => {
+    auth._setMfaRequired(true);
+    const run = (user) => {
+      const res = { status: vi.fn(() => res), json: vi.fn(() => res) };
+      const next = vi.fn();
+      auth.requireAdmin({ user }, res, next);
+      return { next: next.mock.calls.length, body: res.json.mock.calls[0]?.[0] };
+    };
+    expect(run({ role: 'admin', totp_enabled: false }).body).toMatchObject({ code: 'mfa_setup' });
+    expect(run({ role: 'admin', totp_enabled: true }).next).toBe(1);
+    expect(run({ role: 'basic', totp_enabled: true }).body).toEqual({ error: 'Forbidden' });
+    auth._setMfaRequired(false);
+    expect(run({ role: 'admin', totp_enabled: false }).next).toBe(1);
   });
 });
 

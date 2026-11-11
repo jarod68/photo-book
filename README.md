@@ -328,6 +328,11 @@ POST /api/auth/login  { username, password }
      SET-COOKIE pb_session=<64-hex>; HttpOnly; SameSite=Strict
 ```
 
+**Sign-in security** (migration 13):
+- **Lockout per account**: five wrong passwords in a row lock the account for 15 minutes, whatever the address they come from (on top of the per-address limit of 10 attempts in 15 minutes); meanwhile even the right password gets the same answer. The admin sees *locked* in Admin → Users and can unlock it.
+- **Two-factor sign-in** (an authenticator app: TOTP, RFC 6238 — Google Authenticator, Authy, 1Password…; `services/mfa.js`, no external service): set up on My account (a QR code, a first code, then 10 backup codes shown once). Signing in then takes two steps: the password gives a ticket (5 minutes, 5 tries), the code (or a backup code, used up) gives the session (`POST /api/auth/login`, `POST /api/auth/login/code`). A code is never accepted twice. **Required for the admin** in production: until it is set up, the admin routes answer `403 { code: "mfa_setup" }` and the admin page sends to My account. The admin can reset a user's two-factor sign-in (a lost phone).
+- **Sign in with Google** (OpenID Connect, code + PKCE, state and nonce; `services/google-sso.js`): off until `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` are set (infra-26: `make google-sso`). No sign-up: a Google account opens the account whose e-mail the admin set (Admin → Users, verified by Google) and stays linked to it; an account with two-factor sign-in still asks for its code.
+
 The `admin` account is created automatically on first startup with a randomly generated password (`word-word##` format). The password is printed once to the container logs and can be changed via the admin panel.
 
 ---
@@ -381,6 +386,8 @@ Full control over the application.
 |---|---|---|---|---|
 | `POST /api/auth/login` | ✓ | ✓ | ✓ | |
 | `POST /api/auth/logout` | ✓ | ✓ | ✓ | no-op if no session |
+| `POST /api/auth/login/code` | ✓ | ✓ | ✓ | the second step (ticket + code) |
+| `GET /api/auth/providers`, `GET /api/auth/google[/callback]` | ✓ | ✓ | ✓ | Google sign-in (404 when not configured) |
 | `GET /api/auth/me` | ✓ `null` | ✓ user | ✓ user | returns `{ user: null }` when not logged in |
 | `POST /api/view` | ✓ | ✓ | ✓ | deduplicated by anonymous token |
 | `POST /api/like` | ✓ | ✓ | ✓ | toggle, deduplicated by anonymous token |
@@ -416,6 +423,7 @@ Content varies depending on the authenticated user. Anonymous visitors and basic
 | `DELETE /api/albums/:album/photos/:filename` | `401` | ✓ if `canDelete` | ✓ | `403` if `canDelete = false` |
 | `GET /api/users` | `401` | ✓ | ✓ | the directory, to choose an album's members |
 | `GET/PUT /api/me`, `PUT/DELETE /api/me/avatar`, `PUT /api/me/password` | `401` | ✓ | ✓ | one's own profile and password |
+| `GET /api/me/security`, `POST /api/me/2fa/{setup,enable,disable,backup-codes}`, `DELETE /api/me/google` | `401` | ✓ | ✓ | two-factor sign-in, Google link (an admin who must have it cannot turn it off) |
 | `GET /api/admin/stats` | `401` | ✓ their albums | ✓ all | |
 | `POST /api/admin/albums` | `401` | ✓ (they own it) | ✓ | |
 | `/api/admin/albums/:album/*` | `401` | ✓ on their albums, else `403` | ✓ | rename, delete, photos, settings, share, subscribers, notify |

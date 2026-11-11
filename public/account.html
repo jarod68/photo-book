@@ -58,6 +58,46 @@
       </p>
     </section>
 
+    <!-- two-factor sign-in, Google (pages/account.js) -->
+    <section id="security" class="account-card">
+      <h2 class="account-h" data-i18n="sec.title">Security</h2>
+      <p id="sec-required" class="account-alert" data-i18n="sec.mfaRequired" hidden></p>
+      <div class="account-sec-row">
+        <div>
+          <p class="account-sec-name"><span data-i18n="sec.mfa">Two-factor sign-in</span> <span id="sec-mfa-state" class="account-badge"></span></p>
+          <p class="account-label" data-i18n="sec.mfaIntro"></p>
+          <p id="sec-backup-left" class="account-label"></p>
+        </div>
+        <div class="account-buttons">
+          <button type="button" id="sec-setup" class="carnet-btn carnet-btn--accent" data-i18n="sec.setup" hidden>Set up</button>
+          <button type="button" id="sec-new-backup" class="carnet-btn" data-i18n="sec.newBackup" hidden>New backup codes</button>
+          <button type="button" id="sec-disable" class="carnet-btn" data-i18n="sec.disable" hidden>Turn off</button>
+        </div>
+      </div>
+      <form id="sec-setup-form" class="account-setup" hidden>
+        <p class="account-label" data-i18n="sec.scan"></p>
+        <div id="sec-qr" class="account-qr"></div>
+        <p class="account-label"><span data-i18n="sec.manual"></span> <code id="sec-secret" class="account-secret"></code></p>
+        <div class="account-row">
+          <input id="sec-code" class="account-code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="123456">
+          <button type="submit" class="carnet-btn carnet-btn--accent" data-i18n="sec.confirm">Turn on</button>
+          <span id="sec-status" class="account-status" aria-live="polite"></span>
+        </div>
+      </form>
+      <div id="sec-backup" class="account-backup" hidden>
+        <p class="account-sec-name" data-i18n="sec.backupTitle">Your backup codes</p>
+        <p class="account-label" data-i18n="sec.backupHint"></p>
+        <ol id="sec-backup-codes" class="account-codes"></ol>
+      </div>
+      <div class="account-sec-row account-sec-google">
+        <div>
+          <p class="account-sec-name" data-i18n="sec.google">Google account</p>
+          <p id="sec-google" class="account-label"></p>
+        </div>
+        <button type="button" id="sec-unlink" class="carnet-btn" data-i18n="sec.unlink" hidden>Unlink</button>
+      </div>
+    </section>
+
     <section class="account-card">
       <h2 class="account-h" data-i18n="account.password">Password</h2>
       <form id="password-form" class="account-form" autocomplete="on">

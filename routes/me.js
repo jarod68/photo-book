@@ -10,6 +10,8 @@ const auth     = require('../services/auth');
 const profiles = require('../services/profiles');
 const library  = require('../services/library');
 const activity = require('../services/activity');
+const mfa      = require('../services/mfa');
+const database = require('../services/database');
 const { PREVIEWS_DIR } = require('../services/image');
 const { getAlbumAccess } = require('../services/access');
 const { BadRequest, sendError } = require('../services/http-errors');
@@ -78,6 +80,75 @@ router.put('/avatar', (req, res) => {
     if (!req.file) return res.status(400).json({ error: 'No picture' });
     await done(req.file.buffer);
   });
+});
+
+// ── Two-factor sign-in (an authenticator app) and Google ────────────────────
+
+// GET /api/me/security — { twoFactor: { enabled, backupLeft, required }, email, google }
+router.get('/security', async (req, res) => {
+  try {
+    const { rows } = await database.db.query('SELECT email, google_sub IS NOT NULL AS google FROM users WHERE id = $1', [req.user.id]);
+    res.json({
+      twoFactor: { ...(await mfa.status(req.user.id)), required: auth.mfaRequired() && req.user.role === 'admin' },
+      email: rows[0]?.email ?? null, google: !!rows[0]?.google,
+    });
+  } catch (err) {
+    sendError(res, err);
+  }
+});
+
+// POST /api/me/2fa/setup — a new secret (QR code + text), confirmed by /enable
+router.post('/2fa/setup', async (req, res) => {
+  try {
+    res.json(await mfa.setup(req.user.id));
+  } catch (err) {
+    sendError(res, err);
+  }
+});
+
+// POST /api/me/2fa/enable  { code } — on; the backup codes, shown once
+router.post('/2fa/enable', express.json(), async (req, res) => {
+  try {
+    const backupCodes = await mfa.enable(req.user.id, req.body?.code);
+    res.json({ backupCodes });
+    activity.log('mfa_enable', { username: req.user.username, ip: req.ip });
+  } catch (err) {
+    sendError(res, err);
+  }
+});
+
+// POST /api/me/2fa/disable  { password } — off (not for an admin who must have it)
+router.post('/2fa/disable', express.json(), async (req, res) => {
+  try {
+    if (auth.mfaRequired() && req.user.role === 'admin') return res.status(403).json({ error: 'Required for the admin' });
+    if (!await auth.checkPassword(req.user.username, String(req.body?.password ?? ''))) return res.status(403).json({ error: 'Wrong password' });
+    await mfa.disable(req.user.id);
+    res.json({ ok: true });
+    activity.log('mfa_disable', { username: req.user.username, ip: req.ip });
+  } catch (err) {
+    sendError(res, err);
+  }
+});
+
+// POST /api/me/2fa/backup-codes  { code } — new backup codes (the old ones no longer work)
+router.post('/2fa/backup-codes', express.json(), async (req, res) => {
+  try {
+    if (!await mfa.verify(req.user.id, req.body?.code)) return res.status(403).json({ error: 'Wrong code' });
+    res.json({ backupCodes: await mfa.regenerateBackup(req.user.id) });
+  } catch (err) {
+    sendError(res, err);
+  }
+});
+
+// DELETE /api/me/google — unlink the Google account (signing in with it then
+// links it again only through the e-mail the admin set)
+router.delete('/google', async (req, res) => {
+  try {
+    await database.db.query('UPDATE users SET google_sub = NULL WHERE id = $1', [req.user.id]);
+    res.json({ ok: true });
+  } catch (err) {
+    sendError(res, err);
+  }
 });
 
 // DELETE /api/me/avatar

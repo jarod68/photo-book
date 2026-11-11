@@ -105,6 +105,70 @@ $('avatar-pick').addEventListener('click', async () => {
 pickerAlbum.addEventListener('change', renderPicker);
 picker.querySelector('.picker-close').addEventListener('click', () => picker.close());
 
+// ── Security: two-factor sign-in, Google ────────────────────────────────────
+async function loadSecurity() {
+  const s = await fetch('/api/me/security').then((r) => r.json());
+  const on = s.twoFactor.enabled;
+  $('sec-mfa-state').textContent = t(on ? 'sec.mfaOn' : 'sec.mfaOff');
+  $('sec-mfa-state').classList.toggle('account-badge--on', on);
+  $('sec-required').hidden = on || !s.twoFactor.required;
+  $('sec-setup').hidden = on;
+  $('sec-new-backup').hidden = !on;
+  $('sec-disable').hidden = !on || s.twoFactor.required;
+  $('sec-backup-left').textContent = on ? t('sec.backupLeft', { n: s.twoFactor.backupLeft }) : '';
+  $('sec-google').textContent = !s.email ? t('sec.googleNone')
+    : t(s.google ? 'sec.googleLinked' : 'sec.googleReady', { email: s.email });
+  $('sec-unlink').hidden = !s.google;
+}
+
+function showBackup(codes) {
+  const ol = $('sec-backup-codes');
+  ol.replaceChildren(...codes.map((c) => Object.assign(document.createElement('li'), { textContent: c })));
+  $('sec-backup').hidden = false;
+}
+
+$('sec-setup').addEventListener('click', async () => {
+  const r = await fetch('/api/me/2fa/setup', { method: 'POST' });
+  if (!r.ok) return;
+  const { qrSvg, secret } = await r.json();
+  $('sec-qr').innerHTML = qrSvg;   // made by the server's QR library from our own secret
+  $('sec-secret').textContent = secret.replace(/(.{4})/g, '$1 ').trim();
+  $('sec-setup-form').hidden = false;
+  $('sec-code').focus();
+});
+
+$('sec-setup-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const r = await fetch('/api/me/2fa/enable', { method: 'POST', headers: JSON_HEADERS, body: JSON.stringify({ code: $('sec-code').value }) });
+  if (!r.ok) { status($('sec-status'), 'sec.wrongCode', 'account-status--error'); return; }
+  $('sec-setup-form').hidden = true;
+  showBackup((await r.json()).backupCodes);
+  await loadSecurity();
+});
+
+$('sec-new-backup').addEventListener('click', async () => {
+  const code = prompt(t('sec.codePrompt'));
+  if (!code) return;
+  const r = await fetch('/api/me/2fa/backup-codes', { method: 'POST', headers: JSON_HEADERS, body: JSON.stringify({ code }) });
+  if (!r.ok) { alert(t('sec.wrongCode')); return; }
+  showBackup((await r.json()).backupCodes);
+  await loadSecurity();
+});
+
+$('sec-disable').addEventListener('click', async () => {
+  const password = prompt(t('sec.passwordPrompt'));
+  if (!password) return;
+  const r = await fetch('/api/me/2fa/disable', { method: 'POST', headers: JSON_HEADERS, body: JSON.stringify({ password }) });
+  if (!r.ok) { alert(t('account.wrongCurrent')); return; }
+  $('sec-backup').hidden = true;
+  await loadSecurity();
+});
+
+$('sec-unlink').addEventListener('click', async () => {
+  await fetch('/api/me/google', { method: 'DELETE' });
+  await loadSecurity();
+});
+
 // ── Password ──────────────────────────────────────────────────────────────────
 $('password-form').addEventListener('submit', async (e) => {
   e.preventDefault();
@@ -127,5 +191,5 @@ $('password-form').addEventListener('submit', async (e) => {
   }
 });
 
-requireLogin().then(load);
+requireLogin().then(() => { load(); loadSecurity(); });
 showBuildTag({ footer: true });

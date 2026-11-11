@@ -11,7 +11,7 @@ Submit Login Form
     [Arguments]    ${username}    ${password}
     Fill Text    id=username    ${username}
     Fill Text    id=password    ${password}
-    Click        css=button[type="submit"]
+    Click        css=#login-form button[type="submit"]
 
 Login As
     [Arguments]    ${username}    ${password}

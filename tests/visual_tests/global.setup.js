@@ -66,7 +66,7 @@ async function globalSetup() {
   await page.goto(`${BASE_URL}/login.html`);
   await page.fill('#username', 'admin');
   await page.fill('#password', ADMIN_PASS);
-  await page.click('button[type="submit"]');
+  await page.click('#login-form button[type="submit"]');
   await page.waitForSelector('body.page-home', { timeout: 12_000 });
 
   // ── Persist session ───────────────────────────────────────────────────────

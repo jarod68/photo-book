@@ -270,6 +270,27 @@ const MIGRATIONS = [
       `);
     },
   },
+  {
+    version: 13,
+    name: 'account security: lockout, two-factor codes, Google sign-in',
+    async up(q) {
+      // wrong passwords in a row, and the account's lock after too many
+      await q('ALTER TABLE users ADD COLUMN failed_logins INTEGER NOT NULL DEFAULT 0');
+      await q('ALTER TABLE users ADD COLUMN locked_until TIMESTAMPTZ');
+      // TOTP (an authenticator app): the secret once confirmed, the one being
+      // set up, the last time step used (no code twice), backup codes (SHA-256)
+      await q('ALTER TABLE users ADD COLUMN totp_secret TEXT');
+      await q('ALTER TABLE users ADD COLUMN totp_pending TEXT');
+      await q('ALTER TABLE users ADD COLUMN totp_last_step BIGINT');
+      await q('ALTER TABLE users ADD COLUMN totp_backup TEXT[]');
+      // Google sign-in: the address the admin gives the account, and the
+      // Google account linked to it on its first sign-in
+      await q('ALTER TABLE users ADD COLUMN email VARCHAR(255)');
+      await q('ALTER TABLE users ADD COLUMN google_sub VARCHAR(255)');
+      await q('CREATE UNIQUE INDEX users_email_lower ON users (lower(email)) WHERE email IS NOT NULL');
+      await q('CREATE UNIQUE INDEX users_google_sub ON users (google_sub) WHERE google_sub IS NOT NULL');
+    },
+  },
 ];
 
 const LOCK_KEY = 726571;   // arbitrary, constant: pg_advisory_xact_lock key

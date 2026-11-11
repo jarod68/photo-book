@@ -100,7 +100,7 @@ describe('POST /api/auth/login', () => {
 
   it('retourne 401 si les credentials sont invalides', async () => {
     database._setState({ query: mockQuery }, true);
-    vi.spyOn(authMod, 'login').mockResolvedValue(null);
+    vi.spyOn(authMod, 'checkPassword').mockResolvedValue(null);
     const res = await request(app)
       .post('/api/auth/login')
       .send({ username: 'admin', password: 'wrong' });
@@ -109,7 +109,8 @@ describe('POST /api/auth/login', () => {
 
   it('retourne 200 avec un cookie session si login réussi', async () => {
     database._setState({ query: mockQuery }, true);
-    vi.spyOn(authMod, 'login').mockResolvedValue('fake64hextoken');
+    vi.spyOn(authMod, 'checkPassword').mockResolvedValue({ id: 1, username: 'admin', role: 'admin', totpEnabled: false });
+    vi.spyOn(authMod, 'createSession').mockResolvedValue('fake64hextoken');
     const res = await request(app)
       .post('/api/auth/login')
       .send({ username: 'admin', password: 'correct' });
@@ -120,9 +121,9 @@ describe('POST /api/auth/login', () => {
     expect(cookie[0]).toContain('pb_session');
   });
 
-  it('retourne 500 si auth.login lève une exception', async () => {
+  it('retourne 500 si la vérification du mot de passe lève une exception', async () => {
     database._setState({ query: mockQuery }, true);
-    vi.spyOn(authMod, 'login').mockRejectedValue(new Error('db crash'));
+    vi.spyOn(authMod, 'checkPassword').mockRejectedValue(new Error('db crash'));
     const res = await request(app)
       .post('/api/auth/login')
       .send({ username: 'admin', password: 'pass' });
@@ -196,7 +197,7 @@ describe('GET /api/auth/me', () => {
     const res = await request(app)
       .get('/api/auth/me')
       .set('Cookie', 'pb_session=validtoken');
-    expect(res.body.user).toEqual({ username: 'admin', role: 'admin' });
+    expect(res.body.user).toEqual({ username: 'admin', role: 'admin', mfaSetup: false });
   });
 });
 
