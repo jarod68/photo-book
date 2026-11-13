@@ -25,7 +25,7 @@ export function cameFromApp() {
 
 // How deep a page is: home, then the pages it opens (an album's journal, the
 // map, the globe, search…), then a photo or an article, then the editor.
-const LEVELS = { '': 0, 'index.html': 0, 'viewer.html': 2, 'article.html': 2, 'write.html': 3 };
+const LEVELS = { '': 0, 'index.html': 0, 'viewer.html': 2, 'article.html': 2, 'replay.html': 2, 'write.html': 3 };
 /** @param {string} pathname */
 export function levelOf(pathname) {
   return LEVELS[pathname.replace(/^.*\//, '')] ?? 1;

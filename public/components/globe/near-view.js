@@ -27,7 +27,7 @@ const SKY = { 'atmosphere-blend': ['interpolate', ['linear'], ['zoom'], 0, 1, 4,
 const nameExpr = (lang) => ['coalesce', ['get', `name:${lang}`], ['get', 'name:latin'], ['get', 'name']];
 
 // Satellite imagery + borders and place names from the OpenMapTiles schema.
-function satelliteStyle(lang) {
+export function satelliteStyle(lang) {
   const font = ['Noto Sans Regular'], bold = ['Noto Sans Bold'];
   const halo = { 'text-color': '#fff', 'text-halo-color': 'rgba(0,0,0,0.75)', 'text-halo-width': 1.4 };
   return {

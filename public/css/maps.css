@@ -398,3 +398,57 @@
 /* pins and cluster badges are buttons / divs on the map */
 .map-marker-wrap { cursor: pointer; }
 button.map-cluster { padding: 0; font: inherit; }
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+   A TRIP REPLAYED  (body.page-replay, pages/replay.js): the map, the captions'
+   canvas over it, the controls below
+═══════════════════════════════════════════════════════════════════════════════ */
+
+.page-replay {
+  height: 100vh; height: 100dvh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  background: #000;
+}
+.replay-stage { position: relative; flex: 1; min-height: 0; }
+.replay-map { position: absolute; inset: 0; }
+.replay-overlay { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.replay-message {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  max-width: min(420px, calc(100% - 32px)); padding: 14px 18px;
+  border-radius: 12px; background: rgba(20,20,22,0.92); border: 1px solid var(--border);
+  color: var(--text); text-align: center; font-size: 14px; line-height: 1.5;
+}
+.replay-bar {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 16px calc(10px + env(safe-area-inset-bottom, 0px));
+  background: var(--bg); border-top: 1px solid var(--border);
+}
+.replay-play {
+  width: 40px; height: 40px; flex-shrink: 0;
+  display: grid; place-items: center;
+  border-radius: 50%; border: none; cursor: pointer;
+  background: var(--accent); color: var(--accent-ink);
+}
+.replay-play:disabled { opacity: 0.4; cursor: default; }
+.replay-play .replay-icon-pause, .replay-play--on .replay-icon-play { display: none; }
+.replay-play--on .replay-icon-pause { display: block; }
+.replay-progress { flex: 1; height: 4px; border-radius: 2px; background: var(--border); overflow: hidden; }
+.replay-progress > div { width: 0; height: 100%; background: var(--accent); transition: width 0.2s linear; }
+.replay-step { font-size: 12px; color: var(--text-dim); font-variant-numeric: tabular-nums; min-width: 44px; text-align: right; }
+.replay-speed {
+  height: var(--ctl-h); padding: 0 8px; border-radius: var(--ctl-r);
+  border: 1px solid var(--border); background: transparent; color: var(--text); font: inherit; font-size: 13px;
+}
+.replay-rec-dot { width: 9px; height: 9px; border-radius: 50%; background: #e5484d; }
+.replay-record--on .replay-rec-dot { animation: replay-rec 1s ease-in-out infinite alternate; }
+@keyframes replay-rec { to { opacity: 0.25; } }
+.replay-record:disabled { opacity: 0.55; cursor: default; }
+.page-replay .maplibregl-ctrl-attrib { display: none; } /* the credits are drawn on the video */
+
+@media (max-width: 600px) {
+  .replay-bar { flex-wrap: wrap; gap: 8px; }
+  .replay-progress { order: -1; flex-basis: 100%; }
+  .replay-record span:last-child, .replay-step { display: none; }
+}

@@ -79,7 +79,7 @@
   padding: 3px 10px; border-radius: 999px; font-size: 12.5px; font-weight: 600;
   background: rgba(13,13,14,0.55); border: 1px solid rgba(255,255,255,0.18); color: #fff; backdrop-filter: blur(6px);
 }
-.carnet-follow { margin-top: 14px; }
+.carnet-hero-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
 .carnet-follow--on { color: var(--accent-soft); border-color: rgba(255,138,91,0.5); }
 .carnet-hero-desc { margin-top: 8px; max-width: 620px; font-size: 15px; line-height: 1.55; color: rgba(255,255,255,0.86); }
 

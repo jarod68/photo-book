@@ -226,6 +226,12 @@ Stories written in the app, kept in an album: beside its photos, or alone in an 
 - **Follow**: the journal's **Follow** button subscribes the browser to the album's push notifications (the viewer's bell, the same subscription): new photos as before, and now each article published — at its creation, or when a draft is published (`notify.articlePublished`); a click opens it.
 - **On this day**: the home page shows, a card a year, the photos taken within three days of today in earlier years, in the albums the visitor may see (`GET /api/memories?date=`, `services/memories.js`; capture dates compared as the camera's own).
 
+### Trip replay
+
+**Replay the trip** on an album's journal (with two geotagged places at least) opens `replay.html?album=…`: the satellite globe (the globe's close-up style, MapLibre), then the camera comes down to the first stop and flies from stop to stop along the route — the same segments, stops and curves as the map and the globe (`public/utils/replay-math.js`) — rising with the length of each leg, the line drawn behind it; between two trips of the album (a long gap), it jumps. At each stop its first photos appear, with the day of the trip, the date and the place; at the end, the whole trip from above with its figures. Play/pause, speed ×0.5–×4.
+
+**Record the video** plays it again into a file (`MediaRecorder`: MP4 where the browser can, else WebM): each frame composes the map's canvas (`preserveDrawingBuffer`) and the captions' canvas — captions, photos and the imagery credits are drawn on a canvas, not in HTML, so the video has them. The replay's clock (and the recording) waits while the map loads the tiles of a stop. Nothing is uploaded: the file is made in the browser and downloaded from there.
+
 ### Chronological order
 
 - **Home**: albums can be sorted A–Z, most recent first (by the last capture date) or oldest first (by the first capture date); albums without dates come last.

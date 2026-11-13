@@ -15,6 +15,7 @@ import { showBuildTag } from '../utils/build-tag.js';
 addEventListener('pageshow', (e) => { if (e.persisted) location.reload(); });
 import { esc } from '../utils/article-render.js';
 import { travelStats } from '../utils/travel-stats.js';
+import { buildStops } from '../utils/replay-math.js';
 import { subscribeTo, unsubscribeFrom, getStoredAlbums, getSubscription } from '../utils/push.js';
 
 applyTranslations();
@@ -54,6 +55,8 @@ function renderHero(info, articles, photos) {
     s.countries.length ? t(s.countries.length > 1 ? 'stats.countries' : 'stats.country', { n: s.countries.length }) : null,
     s.km >= 1 ? t('stats.km', { n: fmt.format(s.km) }) : null,
   ].filter(Boolean);
+  // the trip replayed on the globe (replay.html): two places at least
+  const canReplay = buildStops(photos.filter((p) => p.gps)).length >= 2;
   hero.innerHTML = `
     ${pic ? '<img class="carnet-hero-img" alt="" decoding="async">' : ''}
     <div class="carnet-hero-text">
@@ -62,10 +65,16 @@ function renderHero(info, articles, photos) {
       ${meta ? `<p class="carnet-hero-meta">${esc(meta)}</p>` : ''}
       ${figures.length ? `<p class="carnet-figures">${figures.map((f) => `<span>${esc(f)}</span>`).join('')}</p>` : ''}
       ${info?.description ? `<p class="carnet-hero-desc">${esc(info.description)}</p>` : ''}
+      <div class="carnet-hero-actions">
+      ${canReplay ? `<a id="carnet-replay" class="carnet-btn carnet-btn--accent" href="${esc(withShare(`replay.html?album=${encodeURIComponent(name)}`))}">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
+        <span>${esc(t('replay.open'))}</span>
+      </a>` : ''}
       <button type="button" id="carnet-follow" class="carnet-btn carnet-follow" title="${esc(t('follow.hint'))}" hidden>
         <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
         <span></span>
       </button>
+      </div>
     </div>`;
   hero.classList.toggle('carnet-hero--plain', !pic);
   const img = hero.querySelector('img');
